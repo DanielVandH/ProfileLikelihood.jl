@@ -1,10 +1,27 @@
 name = "ProfileLikelihood"
-uuid = "c22f8be0-4f9e-4003-b2b9-d94343f45121"
-authors = ["DanielVandH <danj.vandenheuvel@gmail.com> and contributors"]
+uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a" # https://stackoverflow.com/questions/69945658/how-to-create-a-uuid-for-a-julia-package
+authors = ["DanielVandH <danj.vandenheuvel@gmail.com>"]
 version = "0.1.0"
 
-[compat]
-julia = "1"
+
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
+InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
+OptimizationEvolutionary = "cb963754-43f6-435e-8d4b-99009ff27753"
+OptimizationNLopt = "4e6fcdb7-1186-4e1f-a706-475e75c168bb"
+OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
+OptimizationPolyalgorithms = "500b13db-7e66-49ce-bda4-eed966be6282"
+PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
