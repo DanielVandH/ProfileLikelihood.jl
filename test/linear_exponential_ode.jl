@@ -1,7 +1,6 @@
 using LaTeXStrings
 using Random
 using Distributions
-using TissueMechanics
 using OptimizationNLopt
 using DifferentialEquations
 using Test
@@ -63,9 +62,6 @@ sol = mle(prob, NLopt.LN_NELDERMEAD())
     @test all(isnothing, [prob.prob.lcons, prob.prob.ucons, prob.prob.sense])
     @test prob.names == [L"\lambda", L"\sigma", L"y_0"]
     @test prob.θ₀ == θ₀
-    #@test prob.ode_fnc.f == ode_fnc
-    #@test prob.times == t
-    #@test prob.ode_params == 1.0
 end
 
 @testset "Problem solution" begin
