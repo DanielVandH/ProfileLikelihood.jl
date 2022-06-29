@@ -1,7 +1,6 @@
 using LaTeXStrings
 using Random
 using Distributions
-using TissueMechanics
 using OptimizationNLopt
 using DifferentialEquations
 using Test
