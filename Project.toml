@@ -1,7 +1,7 @@
 name = "ProfileLikelihood"
 uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a" # https://stackoverflow.com/questions/69945658/how-to-create-a-uuid-for-a-julia-package
 authors = ["DanielVandH <danj.vandenheuvel@gmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 
 [deps]
