@@ -75,8 +75,8 @@ a `Nothing` value.
 end
 
 """
-    setup_integrator(prob, t, alg=nothing; kwargs...)
-    setup_integrator(f, u₀, tspan, p, t, alg=nothing; kwargs...)
+    setup_integrator(prob, t[, alg=nothing]; kwargs...)
+    setup_integrator(f, u₀, tspan, p, t[, alg=nothing]; kwargs...)
 
 Constructs the `integrator` for solving a differential equation with `DifferentialEquations.jl`, given 
 the ODEProblem `prob`, with solutions returned at the times `t`. If `alg = nothing`, then a default algorithm 
