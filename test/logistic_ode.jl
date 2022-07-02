@@ -7,52 +7,14 @@ using Test
 using Optimization
 using Dierckx
 
-################################################################################
-## Define the data
-################################################################################
-Random.seed!(2929911002)
-u₀ = 0.5
-λ = 1.0
-K = 1.0
-n = 100
-T = 10.0
-t = LinRange(0, T, n)
-u = @. K * u₀ * exp(λ * t) / (K - u₀ + u₀ * exp(λ * t))
-σ = 0.1
-uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...]
+prob, loglikk, θ, uᵒ, n = LogisticODE();
+λ, K, σ, u₀ = θ
+sol = mle(prob, NLopt.LN_NELDERMEAD())
 
-################################################################################
-## Define the ODE and the log-likelihood
-################################################################################
-function ode_fnc(u, p, t)
-    λ, K = p
-    du = λ * u * (1 - u / K)
-    return du
-end
-function loglik(θ, data, integrator)
-    ## Extract the parameters
-    uᵒ, n = data
-    λ, K, σ, u0 = θ
-    ## What do you want to do with the integrator?
-    integrator.p[1] = λ
-    integrator.p[2] = K
-    ## Now solve the problem 
-    reinit!(integrator, u0)
-    solve!(integrator)
-    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, n)
-end
-
-################################################################################
-## Maximum likelihood estimation 
-################################################################################
 θ₀ = [0.7, 2.0, 0.15, 0.4]
 lb = [0.0, 1e-6, 1e-6, 0.0]
 ub = [10.0, 10.0, 10.0, 10.0]
 param_names = [L"\lambda", L"K", L"\sigma", L"u_0"]
-prob = LikelihoodProblem(loglik, 4, ode_fnc, u₀, (0.0, T), [1.0, 1.0], t;
-    data=(uᵒ, n), θ₀, lb, ub, ode_kwargs=(verbose=false,),
-    names=param_names, syms=[:λ, :K, :σ, :u₀])
-sol = mle(prob, NLopt.LN_NELDERMEAD())
 
 ## Test
 @testset "Problem configuration" begin

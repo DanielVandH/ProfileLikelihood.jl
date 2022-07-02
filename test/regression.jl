@@ -10,65 +10,22 @@ using Optimization
 using Dierckx
 using LoopVectorization
 
-################################################################################
-## Define the data
-################################################################################
-Random.seed!(98871)
-n = 300
-β = [-1.0, 1.0, 0.5, 3.0]
-σ = 0.05
-x₁ = rand(Uniform(-1, 1), n)
-x₂ = rand(Normal(1.0, 0.5), n)
-X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
-ε = rand(Normal(0.0, σ), n)
-y = X * β + ε
-sse = dualcache(zeros(n))
-β_cache = dualcache(similar(β))
-dat = (y, X, sse, n, β_cache)
-θ₀ = ones(5)
-
-################################################################################
-## Maximum likelihood estimation 
-################################################################################
-@inline function loglik(θ, data)
-    σ, β₀, β₁, β₂, β₃ = θ
-    y, X, sse, n, β = data
-    sse = get_tmp(sse, θ)
-    β = get_tmp(β, θ)
-    β[1] = β₀
-    β[2] = β₁
-    β[3] = β₂
-    β[4] = β₃
-    ℓℓ = -0.5n * log(2π * σ^2)
-    mul!(sse, X, β)
-    @turbo for i in 1:n
-        ℓℓ = ℓℓ - 0.5 / σ^2 * (y[i] - sse[i])^2
-    end
-    return ℓℓ
-end
-
-## Now define the likelihood problem 
-prob = LikelihoodProblem(loglik, 5;
-    θ₀,
-    data=dat,
-    adtype=Optimization.AutoForwardDiff(),
-    lb=[0.0, -Inf, -Inf, -Inf, -Inf],
-    ub=Inf * ones(5),
-    names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"])
+prob, loglikk, θ, dat = MultipleLinearRegression()
+σ, β = θ
 sol = mle(prob)
 
 ## Test 
 @testset "Problem configuration" begin
-    @test prob.loglik == loglik
+    @test prob.loglik == loglikk
     @test prob.prob isa SciMLBase.OptimizationProblem
-    @test prob.prob.u0 ≈ θ₀
+    @test prob.prob.u0 ≈ ones(5)
     @test prob.prob.f.adtype isa Optimization.AutoForwardDiff
     @test prob.prob.p == dat
     @test prob.prob.lb == [0.0, -Inf * ones(4)...]
     @test prob.prob.ub == Inf * ones(5)
     @test all(isnothing, [prob.prob.lcons, prob.prob.ucons, prob.prob.sense])
     @test prob.names == [L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"]
-    @test prob.θ₀ == θ₀
+    @test prob.θ₀ ≈ ones(5)
 end
 
 @testset "Problem solution" begin
@@ -197,9 +154,9 @@ end
         @test ProfileLikelihood.level(confidence_intervals(prof, i)) == prof.confidence_intervals[i].level
         @test bounds(confidence_intervals(prof, i)) == (prof.confidence_intervals[i].lower, prof.confidence_intervals[i].upper)
         ℓ, u = confidence_intervals(prof, i)
-        @test ℓ == prof.confidence_intervals[i].lower 
+        @test ℓ == prof.confidence_intervals[i].lower
         @test u == prof.confidence_intervals[i].upper
-        @test eltype(confidence_intervals(prof, i)) == Float64 
+        @test eltype(confidence_intervals(prof, i)) == Float64
         @test length(confidence_intervals(prof, i)) == 2
     end
     @test σ ∈ prof.confidence_intervals[1]
