@@ -100,7 +100,7 @@ function confidence_intervals(θ, prof, i; conf_level = 0.99, spline = true)
         ab = sort(roots(itp))
         return ConfidenceInterval(extrema(ab)..., conf_level)
     else
-        conf_region .= θ[i] .≥ conf_val 
+        conf_region = θ[i] .≥ conf_val 
         idx = findall(conf_region)
         ab = extrema(θ[i][idx])
         return ConfidenceInterval(ab..., conf_level)
