@@ -86,7 +86,7 @@ function setup_integrator end
 @doc (@doc setup_integrator) @inline function setup_integrator(prob, t, alg=nothing; kwargs...)
     if isnothing(alg) ## Select default algorithm. ...\.julia\packages\DifferentialEquations\4jfQK\src\default_solve.jl
         alg, new_kwargs = DifferentialEquations.default_algorithm(prob; kwargs...)
-        #alg = DiffEqBase.prepare_alg(alg, prob.u0, prob.p, prob)
+        alg = DiffEqBase.prepare_alg(alg, prob.u0, prob.p, prob)
         return DifferentialEquations.init(prob, alg, saveat=t; new_kwargs..., kwargs...)
     else
         return DifferentialEquations.init(prob, alg, saveat=t; kwargs...)
