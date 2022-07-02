@@ -46,13 +46,9 @@ end
 @inline function update_prob(prob::OptimizationProblem, u0::AbstractVector) 
     return remake(prob; u0=u0)
 end
-@inline function update_prob(prob::OptimizationProblem{iip,F,θType,P,B,LC,UC,S,K}, i, val, cache) where {iip,F,θType,P,B,LC,UC,S,K}
-    new_f = construct_new_f(prob, i, val, cache)
-    f = OptimizationFunction{
-        iip,
-        F.parameters[2],
-        typeof(new_f),
-        F.parameters[4:end]...
+@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i, val, cache) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+    new_f = construct_new_f(prob, i, val, cache)#didn't use to have all the type signatures above ^ but it's needed for type stability. Without them, this function runs in about 1.410 μs with 2.52 KiB memory (8 allocs), but with them it's 32.897 ns and 0 bytes (~42x change). Amazing!
+    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
     }(new_f,
         prob.f.adtype, prob.f.grad,
         prob.f.hess, prob.f.hv,
@@ -63,7 +59,7 @@ end
         prob.f.expr, prob.f.cons_expr)
     return remake(prob; f=f)
 end
-@inline function update_prob(prob::OptimizationProblem, i, val, cache, u0)
+@inline function update_prob(prob::OptimizationProblem, i, val, cache, u0) 
     prob = update_prob(prob, i, val, cache)
     prob = update_prob(prob, u0)
     return prob
