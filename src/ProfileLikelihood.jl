@@ -19,7 +19,7 @@ using PreallocationTools
 using Printf 
 
 ## Include some code
-include("problems.jl");               export LikelihoodProblem, setup_integrator
+include("problems.jl");               export LikelihoodProblem, setup_integrator, data
 include("confidence_intervals.jl");   export ConfidenceInterval, bounds
 include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
 include("utils.jl");                  export gaussian_loglikelihood
