@@ -9,7 +9,6 @@ using LinearAlgebra
 using Optimization
 using Dierckx
 using LoopVectorization
-using FastClosures
 
 function MultipleLinearRegression()
     Random.seed!(98871)
