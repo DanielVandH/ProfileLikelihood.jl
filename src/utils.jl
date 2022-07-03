@@ -5,7 +5,7 @@
 Computes the log-likelihood function for `x ~ N(μ, σ²)`.
 """
 function gaussian_loglikelihood end
-@doc (@doc gaussian_loglikelihood) @inline function gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n) 
+@inline function gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n) 
     ℓ = -0.5n * log(2π * σ^2)
     s = zero(eltype(x))
     @turbo for i ∈ eachindex(x, μ)
@@ -14,7 +14,7 @@ function gaussian_loglikelihood end
     ℓ = ℓ - 0.5 / σ^2 * s
     return ℓ
 end
-@doc (@doc gaussian_loglikelihood) @inline function gaussian_loglikelihood(x::AbstractVector{<:AbstractVector{<:Real}}, μ::AbstractVector{<:AbstractVector{<:Real}}, σ, n)
+@inline function gaussian_loglikelihood(x::AbstractVector{<:AbstractVector{<:Real}}, μ::AbstractVector{<:AbstractVector{<:Real}}, σ, n)
     ℓ = -0.5n * log(2π * σ^2)
     s = zero(eltype(eltype(x)))
     for i ∈ eachindex(x, μ)
