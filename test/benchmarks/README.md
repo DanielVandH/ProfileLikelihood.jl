@@ -1,8 +1,8 @@
 # Optimiser benchmarks
 ## BasicsThe table below presents a series of benchmarks for functions that go into 
 optimising and profiling a likelihood. We consider three different problems:
-   - Regression: This is a multiple linear regression problem. There are five parameters and $n = 300 $ data points.
-   - Linear exponential ODE: This is related to the problem     $\mathrm dy/\mathrm dt = \lambda y $ with initial condition $ y(0) = y_0   $. There are three parameters and $ n = 200$ data points.
+   - Regression: This is a multiple linear regression problem. There are five parameters and    $n = 300 $ data points.
+   - Linear exponential ODE: This is related to the problem     $\mathrm dy/\mathrm dt = \lambda y $ with initial condition   $ y(0) = y_0   $. There are three parameters and $ n = 200$ data points.
    - Logistic ODE: This is related to the problem     $\mathrm dy/\mathrm dt = \lambda y (1 - u/K)$ with initial condition $ y(0) = y_0  $. There are four parameters and $ n = 100$ data points.
 
 | Function | Problem | Median Time | Mean Time | Memory | Allocations |
