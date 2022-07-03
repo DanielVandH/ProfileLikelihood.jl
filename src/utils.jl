@@ -83,7 +83,7 @@ the ODEProblem `prob`, with solutions returned at the times `t`. If `alg = nothi
 is chosen. The second method constructs the `ODEProblem` required, `prob = ODEProblem(f, u₀, tspan, p)`.
 """
 function setup_integrator end 
-@doc (@doc setup_integrator) @inline function setup_integrator(prob, t, alg=nothing; kwargs...)
+@inline function setup_integrator(prob, t, alg=nothing; kwargs...)
     if isnothing(alg) ## Select default algorithm. ...\.julia\packages\DifferentialEquations\4jfQK\src\default_solve.jl
         alg, new_kwargs = DifferentialEquations.default_algorithm(prob; kwargs...)
         alg = DiffEqBase.prepare_alg(alg, prob.u0, prob.p, prob)
@@ -92,7 +92,7 @@ function setup_integrator end
         return DifferentialEquations.init(prob, alg, saveat=t; kwargs...)
     end
 end
-@doc (@doc setup_integrator) @inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; kwargs...)
+@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; kwargs...)
     prob = ODEProblem(f, u₀, tspan, p)
     return setup_integrator(prob, t, alg; kwargs...)
 end

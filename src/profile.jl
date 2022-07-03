@@ -64,7 +64,7 @@ If `i` is provided, then we return
 Otherwise, returns a [`ProfileLikelihoodSolution`](@ref) struct.
 """
 function profile end
-@doc (@doc profile) function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, i, min_steps, max_steps, threshold, Δθ, alg) 
+function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, i, min_steps, max_steps, threshold, Δθ, alg) 
     prob, param_vals, profile_vals, cache, θ₀ = prepare_profile(prob, θₘₗₑ, max_steps, i)
     ## Start at the MLE 
     profile!(prob, ℓₘₐₓ, i, θₘₗₑ[i], param_vals, profile_vals, θ₀, cache; alg)
@@ -84,12 +84,12 @@ function profile end
     keepat!(profile_vals, idx)
     return profile_vals, param_vals
 end
-@doc (@doc profile) function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, i;
+function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, i;
     min_steps=15, max_steps=100, Δθ=abs(mle(sol)[i] / 100), alg=PolyOpt(),
     conf_level=0.99, threshold=-0.5quantile(Chisq(1), conf_level))
     return profile(prob.prob, sol.θ, sol.maximum, i, min_steps, max_steps, threshold, Δθ, alg)
 end
-@doc (@doc profile) function profile(prob::LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ}, sol::LikelihoodSolution=mle(prob, PolyOpt());
+function profile(prob::LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ}, sol::LikelihoodSolution=mle(prob, PolyOpt());
     min_steps=15, max_steps=100, Δθ=abs.(mle(sol) / 100), alg=PolyOpt(),
     conf_level=0.99, spline=true, threshold=-0.5quantile(Chisq(1), conf_level)) where {ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ<:Function}
     N = num_params(prob)
