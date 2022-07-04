@@ -67,7 +67,7 @@ function find_endpoint!(prob::OptimizationProblem, profile_vals, threshold, min_
     end
     if steps > max_steps
         direction = sign(Δθ) > 0 ? "right" : "left"
-        @warn "Maximum number of steps reached going to the $direction for the $(i)th variable."
+        @warn "Maximum number of steps reached going to the $direction for variable $i."
     end
     if steps < min_steps
         θ0 = LinRange(param_vals[end], param_vals[1], min_steps)
