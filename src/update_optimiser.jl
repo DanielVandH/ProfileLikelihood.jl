@@ -25,21 +25,25 @@ end
 end
 
 """
-    update_prob(prob::OptimizationProblem, i::Int) 
-    update_prob(prob::OptimizationProblem, u0::AbstractVector) 
-    update_prob(prob::OptimizationProblem, i, val, cache) 
-    update_prob(prob::OptimizationProblem, i, val, cache, u0)
+    [1] update_prob(prob::OptimizationProblem{iip, F, uType, P, Nothing, LC, UC, S, K}) where {iip, F, uType, P, Nothing, LC, UC, S, K}
+    [2] update_prob(prob::OptimizationProblem, i::Int) 
+    [3] update_prob(prob::OptimizationProblem, u0::AbstractVector) 
+    [4] update_prob(prob::OptimizationProblem, i, val, cache) 
+    [5] update_prob(prob::OptimizationProblem, i, val, cache, u0)
 
 Given the [`OptimizationProblem`](@ref) `prob`, updates it based on the methods above.
 
-1. Removes the `i`th entry of the lower and upper bounds. 
-2. Updates the problem with a new initial guess `u0`.
-3. Replaces the objective function with a new one that fixes the `i`th variable at the value `val`. `cache` is used to store the variables along with this fixed value. 
-4. Performs method 3 and method 2.
+1, 2. Removes the `i`th entry of the lower and upper bounds. The first method is used in case no bounds were provided.
+3. Updates the problem with a new initial guess `u0`.
+4. Replaces the objective function with a new one that fixes the `i`th variable at the value `val`. `cache` is used to store the variables along with this fixed value. 
+5. Performs method 4 and method 3.
 
 These updates is not done in-place.
 """
 function update_prob end 
+@inline function update_prob(prob::OptimizationProblem{iip, F, uType, P, Nothing, LC, UC, S, K}) where {iip, F, uType, P, Nothing, LC, UC, S, K}
+    prob
+end
 @inline function update_prob(prob::OptimizationProblem, i::Int) 
     return remake(prob; lb=prob.lb[Not(i)], ub=prob.ub[Not(i)])
 end
