@@ -15,7 +15,7 @@ function construct_new_f end
     end
     return new_f
 end
-@doc (@doc construct_new_f) @inline function construct_new_f(prob::OptimizationProblem, i, val, cache::AbstractVector) 
+@doc (@doc construct_new_f) @inline function construct_new_f(prob::OptimizationProblem, i, val, cache::AbstractVector)
     new_f = @inline (θ, p) -> begin
         cache[Not(i)] .= θ
         cache[i] = val
@@ -25,29 +25,29 @@ end
 end
 
 """
-    [1] update_prob(prob::OptimizationProblem{iip, F, uType, P, Nothing, LC, UC, S, K}) where {iip, F, uType, P, LC, UC, S, K}
-    [2] update_prob(prob::OptimizationProblem, i::Int) 
+    [1] update_prob(prob::OptimizationProblem{iip,F,uType,P,B,LC,UC,S,K}, i::Int) where {iip,F,uType,P,B<:AbstractVector,LC,UC,S,K}
+    [2] update_prob(prob::OptimizationProblem{iip,F,uType,P,Nothing,LC,UC,S,K}) where {iip,F,uType,P,LC,UC,S,K}
     [3] update_prob(prob::OptimizationProblem, u0::AbstractVector) 
     [4] update_prob(prob::OptimizationProblem, i, val, cache) 
     [5] update_prob(prob::OptimizationProblem, i, val, cache, u0)
 
 Given the [`OptimizationProblem`](@ref) `prob`, updates it based on the methods above.
 
-1, 2. Removes the `i`th entry of the lower and upper bounds. The first method is used in case no bounds were provided.
+1, 2. Removes the `i`th entry of the lower and upper bounds. The second method is used in case no bounds were provided.
    3. Updates the problem with a new initial guess `u0`.
    4. Replaces the objective function with a new one that fixes the `i`th variable at the value `val`. `cache` is used to store the variables along with this fixed value. 
    5. Performs method 4 and method 3.
 
-These updates is not done in-place.
+These updates are not done in-place.
 """
-function update_prob end 
-@inline function update_prob(prob::OptimizationProblem{iip, F, uType, P, Nothing, LC, UC, S, K}) where {iip, F, uType, P, LC, UC, S, K}
-    prob
-end
-@inline function update_prob(prob::OptimizationProblem, i::Int) 
+function update_prob end
+@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i::Int) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
     return remake(prob; lb=prob.lb[Not(i)], ub=prob.ub[Not(i)])
 end
-@inline function update_prob(prob::OptimizationProblem, u0::AbstractVector) 
+@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i::Int) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
+    prob
+end
+@inline function update_prob(prob::OptimizationProblem, u0::AbstractVector)
     return remake(prob; u0=u0)
 end
 @inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i, val, cache) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
@@ -63,7 +63,7 @@ end
         prob.f.expr, prob.f.cons_expr)
     return remake(prob; f=f)
 end
-@inline function update_prob(prob::OptimizationProblem, i, val, cache, u0) 
+@inline function update_prob(prob::OptimizationProblem, i, val, cache, u0)
     prob = update_prob(prob, i, val, cache)
     prob = update_prob(prob, u0)
     return prob
