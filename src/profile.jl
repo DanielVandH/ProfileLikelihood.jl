@@ -85,12 +85,12 @@ function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, i, min_st
     return profile_vals, param_vals
 end
 function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, i;
-    min_steps=15, max_steps=100, Δθ=abs(mle(sol)[i] / 100), alg=PolyOpt(),
+    min_steps=15, max_steps=100, Δθ=abs(mle(sol)[i] / 100), alg=sol.alg,
     conf_level=0.99, threshold=-0.5quantile(Chisq(1), conf_level))
     return profile(prob.prob, sol.θ, sol.maximum, i, min_steps, max_steps, threshold, Δθ, alg)
 end
 function profile(prob::LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ}, sol::LikelihoodSolution=mle(prob, PolyOpt());
-    min_steps=15, max_steps=100, Δθ=abs.(mle(sol) / 100), alg=PolyOpt(),
+    min_steps=15, max_steps=100, Δθ=abs.(mle(sol) / 100), alg=sol.alg,
     conf_level=0.99, spline=true, threshold=-0.5quantile(Chisq(1), conf_level)) where {ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ<:Function}
     N = num_params(prob)
     if Δθ isa Number
