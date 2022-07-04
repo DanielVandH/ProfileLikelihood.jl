@@ -11,3 +11,6 @@ end
 @testset "Logistic ODE" begin
     include("logistic_ode.jl")
 end
+@testset "Transforming results" begin 
+    include("transforms.jl")
+end

@@ -29,5 +29,6 @@ include("update_optimiser.jl");       ###
 include("profile.jl");                export profile, confidence_intervals
 include("plotting.jl");               export plot_profiles
 include("display.jl");                ###
+include("transform_results.jl");      export transform_result
 end
 # new line
