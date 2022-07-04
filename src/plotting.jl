@@ -61,7 +61,7 @@ function plot_profiles end
     ylims!(ax, threshold - 1, 0.1)
     if !spline
         lines!(ax, θ_vals, ℓ_vals)
-        hlines!(ax, [conf_val], color=:red, linetype=:dashed)
+        hlines!(ax, [threshold], color=:red, linetype=:dashed)
         CI_range = lower_ci .< θ_vals .< upper_ci
         band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
     else
