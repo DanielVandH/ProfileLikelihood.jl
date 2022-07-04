@@ -75,12 +75,12 @@ a `Nothing` value.
 end
 
 """
-    setup_integrator(prob, t[, alg=nothing]; kwargs...)
-    setup_integrator(f, u₀, tspan, p, t[, alg=nothing]; kwargs...)
+    setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs, kwargs...)
+    setup_integrator(prob, t, alg=nothing; kwargs...)
 
 Constructs the `integrator` for solving a differential equation with `DifferentialEquations.jl`, given 
 the ODEProblem `prob`, with solutions returned at the times `t`. If `alg = nothing`, then a default algorithm 
-is chosen. The second method constructs the `ODEProblem` required, `prob = ODEProblem(f, u₀, tspan, p)`.
+is chosen. The second method constructs the `ODEProblem` required, `prob = ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)`.
 """
 function setup_integrator end 
 @inline function setup_integrator(prob, t, alg=nothing; kwargs...)
@@ -92,7 +92,7 @@ function setup_integrator end
         return DifferentialEquations.init(prob, alg, saveat=t; kwargs...)
     end
 end
-@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; kwargs...)
-    prob = ODEProblem(f, u₀, tspan, p)
+@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs, kwargs...)
+    prob = ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)
     return setup_integrator(prob, t, alg; kwargs...)
 end
