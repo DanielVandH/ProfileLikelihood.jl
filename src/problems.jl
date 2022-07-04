@@ -236,7 +236,7 @@ We now give a detailed list for the arguments above.
 - `integrator::Ti`: The ODE integrator. See the [`DifferentialEquations.jl`] documentation for more information about this integrator interface. See also [`setup_integrator`](@ref). It is assumed that this integrator has the correct information about the initial condition, time span, the known parameters, and has a callback indicating which times to save the problem at.
 
 If no integrator has been provided, then the third method above allows for the following additional arguments to be given in place 
-of `integrator`, using [`setup_integrator`](@ref) to construct the `integrator.
+of `integrator`, using [`setup_integrator`](@ref) to construct the `integrator`.
 
 - `ode_function::ODEf`: The function for the `ODEProblem`, taking the form `(du, u, p, t)` or `(u, p, t)`. See the `DifferentialEquations.jl` docs for more information.
 - `u₀::u0`: The initial condition for the `ODEProblem`.
