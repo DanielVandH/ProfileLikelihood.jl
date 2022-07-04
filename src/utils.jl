@@ -5,7 +5,7 @@
 Computes the log-likelihood function for `x ~ N(μ, σ²)`.
 """
 function gaussian_loglikelihood end
-@inline function gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n) 
+@inline function gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n)
     ℓ = -0.5n * log(2π * σ^2)
     s = zero(eltype(x))
     @turbo for i ∈ eachindex(x, μ)
@@ -20,9 +20,9 @@ end
     for i ∈ eachindex(x, μ)
         @turbo for j ∈ eachindex(x[i], μ[i])
             s += (x[i][j] - μ[i][j])^2
-        end 
-    end 
-    ℓ = ℓ -0.5 / σ^2 * s 
+        end
+    end
+    ℓ = ℓ - 0.5 / σ^2 * s
     return ℓ
 end
 
@@ -35,7 +35,7 @@ Checks if the solution `sol` was successfully integrated, returning
 @inline check_solution(sol::SciMLBase.AbstractODESolution) = sol.retcode ≠ :Success
 
 @inline OptimizationNLopt.algorithm_name(alg) = nameof(typeof(alg))
-function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution) 
+function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
     if sol.alg isa Optim.AbstractConstrainedOptimizer # need to wrap in Fminbox...
         return string(OptimizationNLopt.algorithm_name(sol.alg)) * "(" * string(nameof(typeof(sol.alg).parameters[1])) * ")" # e.g. Fminbox(BFGS)
     end
@@ -75,14 +75,14 @@ a `Nothing` value.
 end
 
 """
-    setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs, kwargs...)
+    setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs = nothing, kwargs...)
     setup_integrator(prob, t, alg=nothing; kwargs...)
 
 Constructs the `integrator` for solving a differential equation with `DifferentialEquations.jl`, given 
 the ODEProblem `prob`, with solutions returned at the times `t`. If `alg = nothing`, then a default algorithm 
 is chosen. The second method constructs the `ODEProblem` required, `prob = ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)`.
 """
-function setup_integrator end 
+function setup_integrator end
 @inline function setup_integrator(prob, t, alg=nothing; kwargs...)
     if isnothing(alg) ## Select default algorithm. ...\.julia\packages\DifferentialEquations\4jfQK\src\default_solve.jl
         alg, new_kwargs = DifferentialEquations.default_algorithm(prob; kwargs...)
@@ -92,7 +92,7 @@ function setup_integrator end
         return DifferentialEquations.init(prob, alg, saveat=t; kwargs...)
     end
 end
-@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs, kwargs...)
-    prob = ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)
+@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs=nothing, kwargs...)
+    prob = isnothing(ode_problem_kwargs) ? ODEProblem(f, u₀, tspan, p) : ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)
     return setup_integrator(prob, t, alg; kwargs...)
 end
