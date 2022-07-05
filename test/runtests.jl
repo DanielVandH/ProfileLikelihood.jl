@@ -14,3 +14,6 @@ end
 @testset "Transforming results" begin 
     include("transforms.jl")
 end
+@testset "General tests" begin 
+    include("general.jl")
+end
