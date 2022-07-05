@@ -43,10 +43,17 @@ end
 @testset "New methods" begin
     ## Problem
     @test ProfileLikelihood.num_params(prob) == 5
+    @test ProfileLikelihood.num_params(prob.prob) == 5
     @test ProfileLikelihood.data(prob) == dat
     @test names(prob) == [L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"]
     @test ProfileLikelihood.lower_bounds(prob) == [0.0, -Inf * ones(4)...]
     @test ProfileLikelihood.upper_bounds(prob) == Inf * ones(5)
+    @test ProfileLikelihood.bounds(prob, 1) == (0.0, Inf)
+    @test ProfileLikelihood.bounds(prob, 2) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 3) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 4) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 5) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob) == [(0.0, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf)]
     @test ProfileLikelihood.sym_names(prob) == ["θ₁", "θ₂", "θ₃", "θ₄", "θ₅"]
 
     ## Solution

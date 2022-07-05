@@ -39,6 +39,7 @@ end
 @testset "New methods" begin
     ## Problem
     @test ProfileLikelihood.num_params(prob) == 3
+    @test ProfileLikelihood.num_params(prob.prob) == 3
     @test ProfileLikelihood.data(prob) == (yᵒ, n)
     @test names(prob) == [L"\lambda", L"\sigma", L"y_0"]
     @test ProfileLikelihood.lower_bounds(prob) == [-10.0, 1e-6, 0.5]
@@ -50,6 +51,10 @@ end
     @test names(sol) == [L"\lambda", L"\sigma", L"y_0"]
     @test ProfileLikelihood.lower_bounds(sol) == [-10.0, 1e-6, 0.5]
     @test ProfileLikelihood.upper_bounds(sol) == [10.0, 10.0, 25.0]
+    @test ProfileLikelihood.bounds(prob, 1) == (-10.0, 10.0)
+    @test ProfileLikelihood.bounds(prob, 2) == (1e-6, 10.0)
+    @test ProfileLikelihood.bounds(prob, 3) == (0.5, 25.0)
+    @test ProfileLikelihood.bounds(prob) == [(-10.0, 10.0), (1e-6, 10.0), (0.5, 25.0)]
     @test maximum(sol) ≈ 182.65476373481573091339669190347194671630859375
     @test ProfileLikelihood.mle(sol) ≈ [-0.50056892573506506227687395949033088982105255126953125
         0.09708073332894538720605481785241863690316677093505859375
