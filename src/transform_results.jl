@@ -15,7 +15,7 @@ function transform_result(sol::LikelihoodSolution,  F::Vector{Fnc} where Fnc <: 
     for (i, f) in pairs(F)
         new_θ[i] = f(mle(sol)[i])
     end
-    LikelihoodSolution(new_θ, sol.prob, sol.alg, sol.maximum, sol.retcode, sol.original)
+    return remake(sol, θ = new_θ)
 end
 function transform_result(sol::LikelihoodSolution,  F::Fnc) where {Fnc <: Function}
     LikelihoodSolution(F.(mle(sol)), sol.prob, sol.alg, sol.maximum, sol.retcode, sol.original)

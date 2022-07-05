@@ -24,6 +24,7 @@ sol = mle(prob, NLopt.LN_NELDERMEAD())
     @test all(isnothing, [prob.prob.lcons, prob.prob.ucons, prob.prob.sense])
     @test prob.names == [L"\lambda", L"\sigma", L"y_0"]
     @test prob.θ₀ == θ₀
+    @test ProfileLikelihood.finite_bounds(prob)
 end
 
 @testset "Problem solution" begin

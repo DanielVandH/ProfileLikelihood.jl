@@ -2,6 +2,14 @@ prob, loglikk, θ, dat = MultipleLinearRegression()
 σ, β = θ
 sol = mle(prob)
 
+sol_remake = remake(sol; θ = [1,2,3,4,5])
+@test sol_remake.θ == [1,2,3,4,5]
+@test sol_remake.prob == prob 
+@test sol_remake.alg == sol.alg 
+@test sol_remake.maximum == sol.maximum 
+@test sol_remake.retcode == sol.retcode 
+@test sol_remake.original == sol.original
+
 sol2 = transform_result(sol, [exp, exp, exp, exp, exp])
 @test sol2.θ == exp.(mle(sol))
 @test sol2.prob == prob 

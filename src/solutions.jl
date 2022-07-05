@@ -47,7 +47,7 @@ We define the constructor
 
 that constructs a [`LikelihoodSolution`](@ref) struct from a solution from `Optimization.jl`.
 """
-struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,ℓ<:Function} <: AbstractLikelihoodSolution
+Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,ℓ<:Function} <: AbstractLikelihoodSolution
     θ::θType₃
     prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,θType₂,ℓ}
     alg::A
@@ -92,7 +92,7 @@ This struct is callable. We define the method
 
 that evaluates the spline through the `i`th profile at the point `θ`.
 """
-struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF} <: AbstractLikelihoodSolution
+Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF} <: AbstractLikelihoodSolution
     θ::Dict{I, V}
     profile::Dict{I, V}
     prob::LP

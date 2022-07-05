@@ -16,7 +16,7 @@ Upper bound of the confidence interval.
 
 Confidence level for the confidence interval.
 """
-struct ConfidenceInterval{T,F}
+Base.@kwdef struct ConfidenceInterval{T,F}
     lower::T 
     upper::T 
     level::F 

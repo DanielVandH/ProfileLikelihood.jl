@@ -6,6 +6,7 @@ using OptimizationEvolutionary
 using OptimizationPolyalgorithms 
 using OptimizationNLopt
 using OptimizationOptimJL
+using OptimizationMultistartOptimization
 using Random 
 using Distributions 
 using LaTeXStrings 
@@ -23,7 +24,7 @@ include("problems.jl");               export LikelihoodProblem, setup_integrator
 include("confidence_intervals.jl");   export ConfidenceInterval, bounds
 include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
 include("utils.jl");                  export gaussian_loglikelihood
-include("mle.jl");                    export mle
+include("mle.jl");                    export mle, refine
 include("step_profile.jl");           ###
 include("update_optimiser.jl");       ###    
 include("profile.jl");                export profile, confidence_intervals
