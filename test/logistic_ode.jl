@@ -27,6 +27,7 @@ param_names = [L"\lambda", L"K", L"\sigma", L"u_0"]
     @test all(isnothing, [prob.prob.lcons, prob.prob.ucons, prob.prob.sense])
     @test prob.names == param_names
     @test prob.θ₀ == θ₀
+    @test ProfileLikelihood.finite_bounds(prob)
 end
 
 @testset "Problem solution" begin

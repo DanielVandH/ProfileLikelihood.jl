@@ -96,3 +96,13 @@ end
     prob = isnothing(ode_problem_kwargs) ? ODEProblem(f, u₀, tspan, p) : ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)
     return setup_integrator(prob, t, alg; kwargs...)
 end
+
+"""
+    finite_bounds(prob::AbstractLikelihoodProblem)
+
+Returns `true` if the given `prob::AbstractLikelihoodProblem` has finite lower and upper bounds, and `false`
+otherwise.
+"""
+function finite_bounds(prob::AbstractLikelihoodProblem)
+    all(isfinite, lower_bounds(prob)) && all(isfinite, upper_bounds(prob))
+end

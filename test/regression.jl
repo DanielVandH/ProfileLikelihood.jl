@@ -26,6 +26,7 @@ sol = mle(prob)
     @test all(isnothing, [prob.prob.lcons, prob.prob.ucons, prob.prob.sense])
     @test prob.names == [L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"]
     @test prob.θ₀ ≈ ones(5)
+    @test !ProfileLikelihood.finite_bounds(prob)
 end
 
 @testset "Problem solution" begin
