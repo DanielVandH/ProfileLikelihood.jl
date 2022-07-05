@@ -221,11 +221,13 @@ by more detail.
     [1] LikelihoodProblem(loglik::F, num_params::Integer; <keyword arguments>) where {F<:Function}
     [2] LikelihoodProblem(loglik::F, num_params::Integer, integrator::Ti; <keyword arguments>) where {F<:Function,Ti<:SciMLBase.AbstractODEIntegrator}
     [3] LikelihoodProblem(loglik::F, num_params::Integer, ode_function::ODEf, u₀::u0, tspan::TS, ode_p::P, times::T; <keyword arguments>) where {F<:Function,T,ODEf,u0,TS,P}
+    [4] LikelihoodProblem(; prob, loglik, θ₀, names)
 
 The first method is for standard likelihood problems (e.g. for multiple linear regression), the second 
 method is for likelihood problems that depend on the solution to an ODE (and whose `integrator` has 
 already been defined), and the third method uses the function for an ODE, an initial condition, a timespan, known 
-parameters, and times to call the solution at to define an `integrator` and call the second method. 
+parameters, and times to call the solution at to define an `integrator` and call the second method. Finally, 
+the last method is defined so that you can use `remake`, e.g. `remake(likprob; prob = optprob)`.
 
 ## Arguments 
 
@@ -277,7 +279,7 @@ The third constructor also allows for the following two keyword arguments.
 - `ode_alg=nothing`: Algorithm to use for solving the ODEs. If `nothing`, one is chosen automatically.
 - `ode_kwargs=nothing`: Additional keyword arguments for the integrator interface.
 """
-struct LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ<:Function} <: AbstractLikelihoodProblem
+Base.@kwdef struct LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,θ₀Type,ℓ<:Function} <: AbstractLikelihoodProblem
     prob::OptimizationProblem{iip,F,θType,P,B,LC,UC,S,K}
     loglik::ℓ
     θ₀::θ₀Type
@@ -324,13 +326,13 @@ function LikelihoodProblem(
         prob_kwargs)
     return LikelihoodProblem{typeof(names),typeof(prob).parameters...,typeof(θ),typeof(loglik)}(prob, loglik, θ, names)
 end
-function LikelihoodProblem(loglik::F, num_params::Integer, integrator::Ti; 
+function LikelihoodProblem(loglik::F, num_params::Integer, integrator::Ti;
     adtype::SciMLBase.AbstractADType=Optimization.AutoFiniteDiff(), kwargs...) where {F<:Function,Ti<:SciMLBase.AbstractODEIntegrator}
     return LikelihoodProblem((θ, p) -> loglik(θ, p, integrator), num_params; adtype, kwargs...)
 end
 function LikelihoodProblem(loglik::F, num_params::Integer,
     ode_function::ODEf, u₀::u0, tspan::TS, ode_p::P, times::T;
-    ode_alg=nothing, ode_kwargs=nothing, 
+    ode_alg=nothing, ode_kwargs=nothing,
     adtype::SciMLBase.AbstractADType=Optimization.AutoFiniteDiff(), kwargs...) where {F<:Function,T,ODEf,u0,TS,P}
     if isnothing(ode_kwargs)
         integrator = setup_integrator(ode_function, u₀, tspan, ode_p, times, ode_alg)
