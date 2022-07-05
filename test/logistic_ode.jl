@@ -43,10 +43,17 @@ end
 @testset "New methods" begin
     ## Problem
     @test ProfileLikelihood.num_params(prob) == 4
+    @test ProfileLikelihood.num_params(prob.prob) == 4
     @test ProfileLikelihood.data(prob) == (uᵒ, n)
     @test names(prob) == param_names
     @test ProfileLikelihood.lower_bounds(prob) == lb
     @test ProfileLikelihood.upper_bounds(prob) == ub
+    @test ProfileLikelihood.lower_bounds(prob, 1) == 0.0
+    @test ProfileLikelihood.upper_bounds(prob, 3) == 10.0
+    for i in 1:4 
+        @test ProfileLikelihood.bounds(prob, i) == (lb[i], ub[i])
+    end
+    @test ProfileLikelihood.bounds(prob) == [(lb[i], ub[i]) for i in 1:4]
     @test ProfileLikelihood.sym_names(sol) == [:λ, :K, :σ, :u₀]
 
     ## Solution

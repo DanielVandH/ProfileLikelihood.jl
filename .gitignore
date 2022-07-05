@@ -6,3 +6,7 @@ test/meshgeometry.msh
 meshgeometry.geo
 meshgeometry.msh
 dev/Manifest.toml
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+*.cov

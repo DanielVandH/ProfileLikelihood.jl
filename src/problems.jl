@@ -6,11 +6,13 @@ Abstract type for defining likelihood problems. See `subtypes(AbstractLikelihood
 abstract type AbstractLikelihoodProblem end
 
 """
+    num_params(prob::OptimizationProblem)
     num_params(prob::AbstractLikelihoodProblem) 
 
-Returns the number of parameters being estimated for the likelihood problem `prob`.
+Returns the number of parameters being estimated for the likelihood/optimisation problem `prob`.
 """
-@inline num_params(prob::AbstractLikelihoodProblem) = length(prob.prob.u0)
+@inline num_params(prob::OptimizationProblem) = length(prob.u0)
+@inline num_params(prob::AbstractLikelihoodProblem) =num_params(prob.prob)
 
 """
     data(prob::AbstractLikelihoodProblem)
@@ -27,14 +29,33 @@ Returns the vector of names used for the likelihood problem `prob` for plotting.
 @inline Base.names(prob::AbstractLikelihoodProblem) = prob.names
 
 """
-    lower_bounds(prob::AbstractLikelihoodProblem)
-    upper_bounds(prob::AbstractLikelihoodProblem) 
+    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem})
+    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i) 
+    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem})
+    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i) 
+    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i)
+    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i)
 
-Returns the lower or upper bounds used for the constraints in the likelihood 
-problem `prob`.
+Returns the lower or upper bounds used for the constraints in the likelihood / optimisation
+problem `prob`. `bounds` instead returns a tuple of the lower and upper bounds, or a vector of 
+these tuples of `i` is not given.
 """
-@inline lower_bounds(prob::AbstractLikelihoodProblem) = prob.prob.lb
-@doc (@doc lower_bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem) = prob.prob.ub
+function bounds end 
+@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem) = prob.lb 
+@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem) = lower_bounds(prob.prob)
+@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem) = prob.ub 
+@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem) = upper_bounds(prob.prob)
+@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem, i) = prob.lb[i]
+@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem, i) = lower_bounds(prob.prob, i)
+@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem, i) = prob.ub[i] 
+@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem, i) = upper_bounds(prob.prob, i)
+@doc (@doc bounds) @inline function bounds(::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
+    (nothing, nothing)
+end
+@doc (@doc bounds) @inline bounds(prob::OptimizationProblem, i) = (lower_bounds(prob, i), upper_bounds(prob, i))
+@doc (@doc bounds) @inline bounds(prob::OptimizationProblem) = [bounds(prob, i) for i in 1:num_params(prob)]
+@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem, i) = bounds(prob.prob, i)
+@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem) = bounds(prob.prob)
 
 """
     sym_names(prob::AbstractLikelihoodProblem)
