@@ -53,6 +53,49 @@ function MultipleLinearRegression()
     return prob, loglik, [σ, β], dat
 end
 
+function MultipleLinearRegressionBounded()
+    Random.seed!(98871)
+    n = 300
+    β = [-1.0, 1.0, 0.5, 3.0]
+    σ = 0.05
+    θ₀ = ones(5)
+    x₁ = rand(Uniform(-1, 1), n)
+    x₂ = rand(Normal(1.0, 0.5), n)
+    X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
+    ε = rand(Normal(0.0, σ), n)
+    y = X * β + ε
+    sse = dualcache(zeros(n))
+    β_cache = dualcache(similar(β), 10)
+    dat = (y, X, sse, n, β_cache)
+    @inline function loglik(θ, data)
+        local σ, y, X, sse, n, β # type stability
+        σ, β₀, β₁, β₂, β₃ = θ
+        y, X, sse, n, β = data
+        sse = get_tmp(sse, θ)
+        β = get_tmp(β, θ)
+        β[1] = β₀
+        β[2] = β₁
+        β[3] = β₂
+        β[4] = β₃
+        ℓℓ = -0.5n * log(2π * σ^2)
+        mul!(sse, X, β)
+        @turbo for i in eachindex(y)
+            ℓℓ = ℓℓ - 0.5 / σ^2 * (y[i] - sse[i])^2
+        end
+        return ℓℓ
+    end
+    prob = LikelihoodProblem(loglik, 5;
+        θ₀,
+        data=dat,
+        adtype=Optimization.AutoForwardDiff(),
+        lb=[1e-12, -10.0, -10.0, -10.0, -10.0],
+        ub=[10.0, 10.0, 10.0, 10.0, 10.0],
+        names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"])
+    @inferred loglik(prob.θ₀, ProfileLikelihood.data(prob))
+    @inferred prob.prob.f(prob.θ₀, ProfileLikelihood.data(prob))
+    return prob, loglik, [σ, β], dat
+end
+
 function LinearExponentialODE()
     Random.seed!(2992999)
     λ = -0.5
