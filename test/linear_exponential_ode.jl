@@ -51,6 +51,8 @@ end
     @test names(sol) == [L"\lambda", L"\sigma", L"y_0"]
     @test ProfileLikelihood.lower_bounds(sol) == [-10.0, 1e-6, 0.5]
     @test ProfileLikelihood.upper_bounds(sol) == [10.0, 10.0, 25.0]
+    @test ProfileLikelihood.lower_bounds(prob, 1) == -10.0
+    @test ProfileLikelihood.upper_bounds(prob, 3) == 25.0
     @test ProfileLikelihood.bounds(prob, 1) == (-10.0, 10.0)
     @test ProfileLikelihood.bounds(prob, 2) == (1e-6, 10.0)
     @test ProfileLikelihood.bounds(prob, 3) == (0.5, 25.0)

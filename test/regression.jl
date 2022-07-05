@@ -48,6 +48,8 @@ end
     @test names(prob) == [L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"]
     @test ProfileLikelihood.lower_bounds(prob) == [0.0, -Inf * ones(4)...]
     @test ProfileLikelihood.upper_bounds(prob) == Inf * ones(5)
+    @test ProfileLikelihood.lower_bounds(prob, 1) == 0.0
+    @test ProfileLikelihood.upper_bounds(prob, 3) == Inf
     @test ProfileLikelihood.bounds(prob, 1) == (0.0, Inf)
     @test ProfileLikelihood.bounds(prob, 2) == (-Inf, Inf)
     @test ProfileLikelihood.bounds(prob, 3) == (-Inf, Inf)

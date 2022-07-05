@@ -48,6 +48,8 @@ end
     @test names(prob) == param_names
     @test ProfileLikelihood.lower_bounds(prob) == lb
     @test ProfileLikelihood.upper_bounds(prob) == ub
+    @test ProfileLikelihood.lower_bounds(prob, 1) == 0.0
+    @test ProfileLikelihood.upper_bounds(prob, 3) == 10.0
     for i in 1:4 
         @test ProfileLikelihood.bounds(prob, i) == (lb[i], ub[i])
     end
