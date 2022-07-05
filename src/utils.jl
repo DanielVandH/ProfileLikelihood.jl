@@ -98,11 +98,16 @@ end
 end
 
 """
+    finite_bounds(prob::OptimizationProblem)
     finite_bounds(prob::AbstractLikelihoodProblem)
 
-Returns `true` if the given `prob::AbstractLikelihoodProblem` has finite lower and upper bounds, and `false`
+Returns `true` if the given `prob` has finite lower and upper bounds, and `false`
 otherwise.
 """
+function finite_bounds end
+function finite_bounds(prob::OptimizationProblem)
+    all(isfinite, prob.lb) && all(isfinite, prob.ub)
+end
 function finite_bounds(prob::AbstractLikelihoodProblem)
-    all(isfinite, lower_bounds(prob)) && all(isfinite, upper_bounds(prob))
+    finite_bounds(prob.prob)
 end
