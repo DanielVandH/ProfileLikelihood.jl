@@ -53,29 +53,29 @@ function plot_profiles end
     formatted_conf_level = parse(Float64, Printf.format(Printf.Format("%.2g"), 100conf_level))
     formatted_lower_ci = parse(Float64, Printf.format(Printf.Format("%.3g"), lower_ci))
     formatted_upper_ci = parse(Float64, Printf.format(Printf.Format("%.3g"), upper_ci)) # This is what @sprintf is doing, but we need to do this so that we can extract the returned value to inteprolate into LaTeXStrings
-    ax = Axis(fig[i, j],
+    ax = CairoMakie.Axis(fig[i, j],
         xlabel=param_name,
         ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
         title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
         titlealign=:left)
-    ylims!(ax, threshold - 1, 0.1)
+    CairoMakie.ylims!(ax, threshold - 1, 0.1)
     if !spline
-        lines!(ax, θ_vals, ℓ_vals)
-        hlines!(ax, [threshold], color=:red, linetype=:dashed)
+        CairoMakie.lines!(ax, θ_vals, ℓ_vals)
+        CairoMakie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
         CI_range = lower_ci .< θ_vals .< upper_ci
-        band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
+        CairoMakie.band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
     else
         val_range = extrema(θ_vals)
         Δθ₁ = (val_range[2] - val_range[1]) / max(length(θ_vals), 1000)
         data_vals = val_range[1]:Δθ₁:val_range[2]
-        lines!(ax, data_vals, sol(data_vals, k))
-        hlines!(ax, [threshold], color=:red, linetype=:dashed)
+        CairoMakie.lines!(ax, data_vals, sol(data_vals, k))
+        CairoMakie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
         Δθ₂ = (upper_ci - lower_ci) / max(length(θ_vals), 1000)
         ci_vals = lower_ci:Δθ₂:upper_ci
-        band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
+        CairoMakie.band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
     end
     if !isnothing(true_vals[k])
-        vlines!(ax, [true_vals[k]], color=:black, linetype=:dashed)
+        CairoMakie.vlines!(ax, [true_vals[k]], color=:black, linetype=:dashed)
     end
     return nothing
 end
@@ -83,7 +83,7 @@ function plot_profiles(sol::ProfileLikelihoodSolution; ncol=nothing, nrow=nothin
     true_vals=repeat([nothing], num_params(sol)), spline=true, plot_kwargs...) where {T<:ProfileLikelihoodSolution}
     num_plots = num_params(sol)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
-    fig = Figure(; plot_kwargs...)
+    fig = CairoMakie.Figure(; plot_kwargs...)
     for k in 1:num_plots
         i, j = plot_positions[k]
         plot_profile!(sol, fig, k, i, j, spline, true_vals)
