@@ -99,7 +99,7 @@ nsol = mle(prob, NLopt.LN_NELDERMEAD())
 Random.seed!(28881777)
 refined_sol = refine(nsol; method = :lhc)
 @test mle(refined_sol) ≈ mle(nsol) atol=1e-3
-@test maximum(refined_sol) ≈ maximum(nsol)
+@test maximum(refined_sol) ≈ maximum(nsol) atol=1e-3
 @test refined_sol.alg == NLopt.LN_NELDERMEAD()
 
 refined_sol = refine(nsol, NLopt.LN_BOBYQA(); gens = 500, method = :lhc)
