@@ -52,8 +52,8 @@ function refine(sol::LikelihoodSolution, args...; method = :tiktak, kwargs...)
 end
 
 """
-    refine_tiktak(prob::OptimizationProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), kwargs...)
-    refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), kwargs...)
+    refine_tiktak(prob::OptimizationProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
+    refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
 
 Optimises the given problem `prob` using the `TikTak` method from `MultistartOptimization.jl`.
 
@@ -66,17 +66,18 @@ See also [`mle`](@ref), [`refine`](@ref), and [`refine_lhc`](@ref).
 # Keyword Arguments 
 - `n = 100`: Number of Sobol points.
 - `local_method = NLopt.LN_NELDERMEAD()`: Local method to use in the multistart method.
+- `use_threads = false`: Whether to use multithreading.
 - `kwargs...`: Extra keyword arguments that get passed to `Optimization.solve`.
 
 # Output 
 The output is a new `OptimizationSolution` or [`LikelihoodSolution`](@ref).
 """
 function refine_tiktak end 
-function refine_tiktak(prob::OptimizationProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), kwargs...)
-    solve(prob, MultistartOptimization.TikTak(n), local_method, args...; kwargs...)
+function refine_tiktak(prob::OptimizationProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
+    solve(prob, MultistartOptimization.TikTak(n), local_method, args...; use_threads = use_threads, kwargs...)
 end
-function refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), kwargs...)
-    sol = refine_tiktak(prob.prob, args...; n, local_method, kwargs...) 
+function refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
+    sol = refine_tiktak(prob.prob, args...; n, local_method, use_threads, kwargs...) 
     LikelihoodSolution(sol, prob; sol.alg)
 end
 
@@ -102,11 +103,11 @@ See also [`mle`](@ref), [`refine`](@ref), and [`refine_tiktak`](@ref).
 The output is a new `OptimizationSolution` or [`LikelihoodSolution`](@ref).
 """
 function refine_lhc end 
-function refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000, kwargs...)
+function refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000, use_threads = false, kwargs...)
     if n == 1
         throw(ArgumentError("The provided number of restarts, $n, must be greater than 1."))
     end
-    new_params = get_lhc_params(prob, n, gens)
+    new_params = get_lhc_params(prob, n, gens; use_threads = use_threads)
     opt_sol = solve(prob, alg, args...; kwargs...)
     min_obj = opt_sol.minimum
     for j in 1:n 
@@ -119,7 +120,7 @@ function refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000
     end
     return opt_sol
 end
-function refine_lhc(prob::LikelihoodProblem, alg = NLopt.LN_NELDERMEAD, args...; n = 25, gens = 1000, kwargs...)
-    sol = refine_lhc(prob.prob, alg, args...; n, gens, kwargs...)
+function refine_lhc(prob::LikelihoodProblem, alg = NLopt.LN_NELDERMEAD, args...; n = 25, gens = 1000,  use_threads = false, kwargs...)
+    sol = refine_lhc(prob.prob, alg, args...; n, gens, use_threads, kwargs...)
     LikelihoodSolution(sol, prob; alg)
 end
