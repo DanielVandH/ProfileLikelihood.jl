@@ -47,16 +47,16 @@ We define the constructor
 
 that constructs a [`LikelihoodSolution`](@ref) struct from a solution from `Optimization.jl`.
 """
-Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,ℓ<:Function} <: AbstractLikelihoodSolution
+Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,D,ℓ<:Function} <: AbstractLikelihoodSolution
     θ::θType₃
-    prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,θType₂,ℓ}
+    prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}
     alg::A
     maximum::Tf
     retcode::Symbol
     original::O
 end
-@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,θType₂,ℓ}; alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,iip,F,θType₁,θType₂,P,B,LC,UC,S,K,ℓ,A}
-    return LikelihoodSolution{θType₁,θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,iip,F,P,B,LC,UC,S,K,ℓ}(sol.u, prob, alg, -sol.minimum, sol.retcode, sol.original)
+@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}; alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,iip,F,θType₁,θType₂,P,B,LC,UC,S,K,D,ℓ,A}
+    return LikelihoodSolution{θType₁,θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,iip,F,P,B,LC,UC,S,K,D,ℓ}(sol.u, prob, alg, -sol.minimum, sol.retcode, sol.original)
 end
 
 """
