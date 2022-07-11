@@ -39,6 +39,9 @@ function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
     if sol.alg isa Optim.AbstractConstrainedOptimizer # need to wrap in Fminbox...
         return string(OptimizationNLopt.algorithm_name(sol.alg)) * "(" * string(nameof(typeof(sol.alg).parameters[1])) * ")" # e.g. Fminbox(BFGS)
     end
+    if sol.alg isa Tuple{TikTak, Algorithm}
+        return string(sol.alg)
+    end
     return OptimizationNLopt.algorithm_name(sol.alg)
 end
 @inline OptimizationNLopt.algorithm_name(sol::ProfileLikelihoodSolution) = OptimizationNLopt.algorithm_name(sol.mle)
