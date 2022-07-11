@@ -71,9 +71,13 @@ refined_sol = refine(sol; local_method=NLopt.LN_NELDERMEAD())
 @test refined_sol.alg[2] == NLopt.LN_NELDERMEAD
 
 ## Linear exponential ODE 
+Random.seed!(29999988)
 prob, loglikk, θ, yᵒ, n = LinearExponentialODE()
 nsol = mle(prob, NLopt.LN_NELDERMEAD())
-@test_throws TaskFailedException refine(nsol)
+refined_sol = refine(nsol)
+@test mle(refined_sol) ≈ mle(nsol) atol=1e-3
+@test maximum(refined_sol) ≈ maximum(nsol)
+@test refined_sol.alg == (TikTak(100, 10, 0.1, 0.995, 0.5), NLopt.LN_NELDERMEAD)
 
 Random.seed!(28881777)
 refined_sol = refine(nsol; method = :lhc)
@@ -92,9 +96,13 @@ refined_sol = refine(nsol; method = :lhc)
 @test mle(refined_sol) ≈ mle(prob, NLopt.LN_NELDERMEAD()).θ atol=1e-3
 
 ## Logistic ODE 
+Random.seed!(9999)
 prob, loglikk, θ, yᵒ, n = LogisticODE()
 nsol = mle(prob, NLopt.LN_NELDERMEAD())
-@test_throws TaskFailedException refine(nsol)
+refined_sol = refine(nsol)
+@test mle(refined_sol) ≈ mle(nsol) atol=1e-3
+@test maximum(refined_sol) ≈ maximum(nsol) atol=1e-3
+@test refined_sol.alg == (TikTak(100, 10, 0.1, 0.995, 0.5), NLopt.LN_NELDERMEAD)
 
 Random.seed!(28881777)
 refined_sol = refine(nsol; method = :lhc)
