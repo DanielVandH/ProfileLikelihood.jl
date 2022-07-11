@@ -364,7 +364,7 @@ function LikelihoodProblem(
         lcons, ucons,
         sense,
         prob_kwargs)
-    return LikelihoodProblem{typeof(names),typeof(data),typeof(prob).parameters...,typeof(θ),typeof(loglik)}(prob, data, loglik, θ, names)
+    return LikelihoodProblem{typeof(names),typeof(prob).parameters...,typeof(data),typeof(θ),typeof(loglik)}(prob, data, loglik, θ, names)
 end
 function LikelihoodProblem(loglik::F, num_params::Integer, integrator::Ti;
     adtype::SciMLBase.AbstractADType=Optimization.AutoFiniteDiff(), kwargs...) where {F<:Function,Ti<:SciMLBase.AbstractODEIntegrator}
