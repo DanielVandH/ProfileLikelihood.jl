@@ -21,7 +21,6 @@ using LatinHypercubeSampling
 using Requires
 
 ## Include some code
-include("constructor_utils.jl");      ###
 include("problems.jl");               export LikelihoodProblem, setup_integrator, data, num_params
 include("confidence_intervals.jl");   export ConfidenceInterval, bounds
 include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
