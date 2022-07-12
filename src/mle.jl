@@ -41,7 +41,7 @@ function refine(sol::LikelihoodSolution, args...; method = :tiktak, kwargs...)
     !finite_bounds(likprob) && error("Problem must have finite lower/upper bounds to use refinement methods. Consider using `remake` to choose new bounds on the problem.")
     optprob = likprob.prob
     prob_newu0 = remake(optprob; u0=sol.θ)
-    new_likprob = remake(likprob; prob=prob_newu0)
+    new_likprob = remake(likprob; prob=prob_newu0, θ₀ = sol.θ)
     if method == :tiktak
         return refine_tiktak(new_likprob, args...; kwargs...)
     elseif method == :lhc
@@ -82,8 +82,8 @@ function refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method =
 end
 
 """
-    refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000, kwargs...)
-    refine_lhc(prob::LikelihoodProblem, alg, args...; n = 25, gens = 1000, kwargs...)
+    refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000, use_threads = false, kwargs...)
+    refine_lhc(prob::LikelihoodProblem, alg, args...; n = 25, gens = 1000, use_threads = false, kwargs...)
 
 Optimises the given problem `prob` by solving at many points specified by sampling from a Latin hypercube.
 
@@ -97,6 +97,7 @@ See also [`mle`](@ref), [`refine`](@ref), and [`refine_tiktak`](@ref).
 # Keyword Arguments 
 - `n = 25`: Number of points to sample from the hypercube.
 - `gens = 1000`: Generations to use; see [`get_lhc_params`](@ref).
+- `use_threads = false`: Whether to use multithreading.
 - `kwargs...`: Extra keyword arguments that get passed to `Optimization.solve`.
 
 # Output 
