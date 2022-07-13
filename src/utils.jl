@@ -15,14 +15,33 @@ function gaussian_loglikelihood end
     return ℓ
 end
 @inline function gaussian_loglikelihood(x::AbstractVector{<:AbstractVector{<:Real}}, μ::AbstractVector{<:AbstractVector{<:Real}}, σ, n)
-    ℓ = -0.5n * log(2π * σ^2)
-    s = zero(eltype(eltype(x)))
-    for i ∈ eachindex(x, μ)
-        @turbo for j ∈ eachindex(x[i], μ[i])
-            s += (x[i][j] - μ[i][j])^2
+    ℓ = -0.5n * log(2π * σ^2)#https://discourse.julialang.org/t/improving-the-performance-of-a-sum-over-a-vector-of-vectors/84150/10
+    T = eltype(eltype(x))
+    s = LoopVectorization.vzero(LoopVectorization.pick_vector_width(T), T)
+    fi = firstindex(x)
+    li = lastindex(x)
+    @assert (firstindex(μ) == fi) & (lastindex(μ) == li)
+    len = li - (fi - 1)
+    for i = 0:(len>>2)-1
+        _x0 = x[4i+fi]
+        _μ0 = μ[4i+fi]
+        _x1 = x[4i+fi+1]
+        _μ1 = μ[4i+fi+1]
+        _x2 = x[4i+fi+2]
+        _μ2 = μ[4i+fi+2]
+        _x3 = x[4i+fi+3]
+        _μ3 = μ[4i+fi+3]
+        @turbo for j ∈ eachindex(_x0)
+            s += (_x0[j] - _μ0[j])^2 + (_x1[j] - _μ1[j])^2 + (_x2[j] - _μ2[j])^2 + (_x3[j] - _μ3[j])^2
         end
     end
-    ℓ = ℓ - 0.5 / σ^2 * s
+    for i = fi+(len&-4):li
+        _x, _μ = x[i], μ[i]
+        @turbo for j ∈ eachindex(_x, _μ)
+            s += (_x[j] - _μ[j])^2
+        end
+    end
+    ℓ -= 0.5LoopVectorization.vsum(s) / σ^2
     return ℓ
 end
 
@@ -39,7 +58,7 @@ function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
     if sol.alg isa Optim.AbstractConstrainedOptimizer # need to wrap in Fminbox...
         return string(OptimizationNLopt.algorithm_name(sol.alg)) * "(" * string(nameof(typeof(sol.alg).parameters[1])) * ")" # e.g. Fminbox(BFGS)
     end
-    if sol.alg isa Tuple{TikTak, Algorithm}
+    if sol.alg isa Tuple{TikTak,Algorithm}
         return string(sol.alg)
     end
     return OptimizationNLopt.algorithm_name(sol.alg)
@@ -108,8 +127,8 @@ defined by `prob`. There will be `n` points used and `gens` generations. The ret
 result is a matrix `A` such that `A[i, j]` is the `j`th value to use for the `i`th variable.
 If multithreading should be used, set `use_threads = true`.
 """
-function get_lhc_params(prob, n, gens; use_threads = false) 
+function get_lhc_params(prob, n, gens; use_threads=false)
     d = num_params(prob)
-    plan, _ = LHCoptim(n, d, gens; threading = use_threads)
+    plan, _ = LHCoptim(n, d, gens; threading=use_threads)
     return scaleLHC(plan, bounds(prob))'
 end
