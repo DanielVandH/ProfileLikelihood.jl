@@ -8,29 +8,29 @@ optimising and profiling a likelihood. We consider three different problems:
 
 | Function | Problem | Median Time | Mean Time | Memory | Allocations |
 |---|---|--:|--:|--:|--:|
-| Objective (Optimization) | Regression<br>Linear exponential ODE<br>Logistic ODE | 277.394 ns<br>20.900 μs<br>11.100 μs | 289.115 ns<br>22.523 μs<br>12.042 μs | 80 bytes<br>8.08 KiB<br>2.45 KiB | 2<br>13<br>12 |
+| Objective (Optimization) | Regression<br>Linear exponential ODE<br>Logistic ODE | 293.051 ns<br>19.900 μs<br>10.900 μs | 316.805 ns<br>21.787 μs<br>12.005 μs | 80 bytes<br>8.08 KiB<br>2.45 KiB | 2<br>13<br>12 |
 | | | | | | |
-| `mle` | Regression<br>Linear exponential ODE<br>Logistic ODE | 3.622 ms<br>7.707 ms<br>6.496 ms | 4.195 ms<br>8.160 ms<br>7.598 ms | 3.52 MiB<br>2.92 MiB<br>1.19 MiB | 8486<br>6940<br>8519 |
-| `Optimization.solve` | Regression<br>Linear exponential ODE<br>Logistic ODE | 2.589 ms<br>7.649 ms<br>5.983 ms | 3.107 ms<br>8.004 ms<br>6.454 ms | 3.52 MiB<br>2.92 MiB<br>1.19 MiB | 8486<br>6940<br>8519 |
-| `LikelihoodSolution` | Regression<br>Linear exponential ODE<br>Logistic ODE | 16.132 ns<br>8.500 ns<br>9.100 ns | 16.448 ns<br>8.823 ns<br>9.269 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `mle` | Regression<br>Linear exponential ODE<br>Logistic ODE | 3.945 ms<br>8.163 ms<br>5.962 ms | 4.392 ms<br>8.843 ms<br>6.460 ms | 3.50 MiB<br>3.03 MiB<br>1.20 MiB | 7894<br>7205<br>8591 |
+| `Optimization.solve` | Regression<br>Linear exponential ODE<br>Logistic ODE | 3.414 ms<br>7.921 ms<br>5.830 ms | 3.521 ms<br>8.548 ms<br>6.313 ms | 3.50 MiB<br>3.03 MiB<br>1.20 MiB | 7894<br>7205<br>8591 |
+| `LikelihoodSolution` | Regression<br>Linear exponential ODE<br>Logistic ODE | 22.166 ns<br>10.800 ns<br>10.700 ns | 23.178 ns<br>12.527 ns<br>11.250 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
 | | | | | | |
-| `profile` (all variables) | Regression<br>Linear exponential ODE<br>Logistic ODE | 96.161 ms<br>516.764 ms<br>946.971 ms | 98.888 ms<br>520.216 ms<br>950.123 ms | 102.66 MiB<br>199.22 MiB<br>222.56 MiB | 634270<br>861736<br>2708232 |
+| `profile` (all variables) | Regression<br>Linear exponential ODE<br>Logistic ODE | 104.409 ms<br>525.346 ms<br>959.048 ms | 103.741 ms<br>526.149 ms<br>957.064 ms | 101.74 MiB<br>198.69 MiB<br>220.20 MiB | 615631<br>857493<br>2680643 |
 | | | | | | |
-| `profile` (one variable) | Regression<br>Linear exponential ODE<br>Logistic ODE | 22.352 ms<br>220.503 ms<br>177.572 ms | 23.915 ms<br>223.310 ms<br>179.130 ms | 25.13 MiB<br>84.46 MiB<br>42.12 MiB | 150089<br>359831<br>511403 |
-| `profile` (one variable, lowered) | Regression<br>Linear exponential ODE<br>Logistic ODE | 21.205 ms<br>239.593 ms<br>178.721 ms | 22.955 ms<br>239.747 ms<br>182.213 ms | 25.13 MiB<br>84.46 MiB<br>42.12 MiB | 150089<br>359831<br>511403 |
+| `profile` (one variable) | Regression<br>Linear exponential ODE<br>Logistic ODE | 23.246 ms<br>241.831 ms<br>181.088 ms | 24.880 ms<br>240.828 ms<br>181.338 ms | 24.57 MiB<br>84.82 MiB<br>41.44 MiB | 143517<br>360645<br>503121 |
+| `profile` (one variable, lowered) | Regression<br>Linear exponential ODE<br>Logistic ODE | 23.222 ms<br>243.961 ms<br>174.831 ms | 24.760 ms<br>243.531 ms<br>178.305 ms | 24.57 MiB<br>84.82 MiB<br>41.44 MiB | 143517<br>360645<br>503121 |
 | | | | | | |
-| `prepare_profile` | Regression<br>Linear exponential ODE<br>Logistic ODE | 3.989 μs<br>2.710 μs<br>3.478 μs | 4.574 μs<br>3.145 μs<br>4.176 μs | 6.23 KiB<br>5.09 KiB<br>5.64 KiB | 80<br>50<br>65 |
-| `update_prob` (remove bounds) | Regression<br>Linear exponential ODE<br>Logistic ODE | 1.910 μs<br>1.004 μs<br>1.400 μs | 2.169 μs<br>1.189 μs<br>1.437 μs | 1.50 KiB<br>864 bytes<br>1.16 KiB | 46<br>26<br>36 |
-| `update_prob` (set initial guess) | Regression<br>Linear exponential ODE<br>Logistic ODE | 6.100 ns<br>3.300 ns<br>4.000 ns | 6.135 ns<br>3.541 ns<br>4.501 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
-| `update_prob` (set new objective) | Regression<br>Linear exponential ODE<br>Logistic ODE | 24.975 ns<br>14.329 ns<br>17.134 ns | 27.148 ns<br>14.990 ns<br>18.343 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
-| `construct_new_f` | Regression<br>Linear exponential ODE<br>Logistic ODE | 18.236 ns<br>11.700 ns<br>13.814 ns | 18.523 ns<br>12.473 ns<br>14.623 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
-| `update_prob` (set initial guess and new objective) | Regression<br>Linear exponential ODE<br>Logistic ODE | 33.266 ns<br>19.840 ns<br>23.972 ns | 34.091 ns<br>20.601 ns<br>25.494 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `prepare_profile` | Regression<br>Linear exponential ODE<br>Logistic ODE | 4.517 μs<br>2.950 μs<br>3.511 μs | 5.746 μs<br>3.462 μs<br>3.997 μs | 6.23 KiB<br>5.09 KiB<br>5.64 KiB | 80<br>50<br>65 |
+| `update_prob` (remove bounds) | Regression<br>Linear exponential ODE<br>Logistic ODE | 2.110 μs<br>937.755 ns<br>1.360 μs | 2.499 μs<br>1.113 μs<br>1.435 μs | 1.50 KiB<br>864 bytes<br>1.16 KiB | 46<br>26<br>36 |
+| `update_prob` (set initial guess) | Regression<br>Linear exponential ODE<br>Logistic ODE | 6.300 ns<br>4.100 ns<br>4.200 ns | 6.913 ns<br>4.411 ns<br>4.314 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `update_prob` (set new objective) | Regression<br>Linear exponential ODE<br>Logistic ODE | 25.276 ns<br>17.317 ns<br>17.335 ns | 27.947 ns<br>19.064 ns<br>18.889 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `construct_new_f` | Regression<br>Linear exponential ODE<br>Logistic ODE | 18.437 ns<br>14.000 ns<br>14.014 ns | 19.294 ns<br>14.861 ns<br>14.380 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `update_prob` (set initial guess and new objective) | Regression<br>Linear exponential ODE<br>Logistic ODE | 33.534 ns<br>24.248 ns<br>24.297 ns | 35.164 ns<br>25.575 ns<br>25.154 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
 | | | | | | |
-| `profile!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 31.900 μs<br>4.146 ms<br>4.497 ms | 36.170 μs<br>4.508 ms<br>5.128 ms | 37.66 KiB<br>1.59 MiB<br>1.10 MiB | 242<br>6794<br>13348 |
-| `step_profile!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 506.800 μs<br>3.982 ms<br>3.569 ms | 567.885 μs<br>4.187 ms<br>3.892 ms | 623.58 KiB<br>1.53 MiB<br>922.09 KiB | 3469<br>6498<br>10929 |
-| `find_endpoint!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 10.566 ms<br>108.500 ms<br>85.041 ms | 12.143 ms<br>109.997 ms<br>86.646 ms | 12.72 MiB<br>40.65 MiB<br>18.74 MiB | 75905<br>173190<br>227523 |
+| `profile!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 34.800 μs<br>4.138 ms<br>3.946 ms | 40.871 μs<br>4.515 ms<br>4.278 ms | 36.92 KiB<br>1.69 MiB<br>1.05 MiB | 237<br>7164<br>12733 |
+| `step_profile!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 575.000 μs<br>3.898 ms<br>3.402 ms | 653.032 μs<br>4.405 ms<br>3.706 ms | 604.70 KiB<br>1.51 MiB<br>918.64 KiB | 3324<br>6424<br>10888 |
+| `find_endpoint!` | Regression<br>Linear exponential ODE<br>Logistic ODE | 11.963 ms<br>107.094 ms<br>78.537 ms | 13.134 ms<br>107.972 ms<br>81.412 ms | 12.28 MiB<br>40.40 MiB<br>18.63 MiB | 71700<br>171784<br>226129 |
 | | | | | | |
-| `confidence_intervals` (all) | Regression<br>Linear exponential ODE<br>Logistic ODE | 26.100 μs<br>17.400 μs<br>29.300 μs | 29.262 μs<br>19.920 μs<br>33.250 μs | 41.41 KiB<br>26.67 KiB<br>45.34 KiB | 70<br>44<br>57 |
-| `confidence_intervals` (single) | Regression<br>Linear exponential ODE<br>Logistic ODE | 4.686 μs<br>6.820 μs<br>5.629 μs | 5.361 μs<br>7.791 μs<br>6.580 μs | 7.39 KiB<br>11.06 KiB<br>8.22 KiB | 13<br>13<br>13 |
+| `confidence_intervals` (all) | Regression<br>Linear exponential ODE<br>Logistic ODE | 28.200 μs<br>18.800 μs<br>30.900 μs | 31.763 μs<br>20.711 μs<br>34.157 μs | 41.41 KiB<br>26.67 KiB<br>45.34 KiB | 70<br>44<br>57 |
+| `confidence_intervals` (single) | Regression<br>Linear exponential ODE<br>Logistic ODE | 5.186 μs<br>8.040 μs<br>5.450 μs | 5.896 μs<br>9.584 μs<br>6.075 μs | 7.39 KiB<br>11.06 KiB<br>8.22 KiB | 13<br>13<br>13 |
 | | | | | | |
-| `ProfileLikelihoodSolution` | Regression<br>Linear exponential ODE<br>Logistic ODE | 27.008 ns<br>18.637 ns<br>20.741 ns | 27.973 ns<br>19.474 ns<br>22.476 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
+| `ProfileLikelihoodSolution` | Regression<br>Linear exponential ODE<br>Logistic ODE | 37.563 ns<br>22.668 ns<br>22.700 ns | 40.164 ns<br>23.793 ns<br>24.341 ns | 0 bytes<br>0 bytes<br>0 bytes | 0<br>0<br>0 |
