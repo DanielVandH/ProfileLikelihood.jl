@@ -68,6 +68,10 @@ end
         0.1018316618807033335780687366423080675303936004638671875
         0.5354131612786698912742622269433923065662384033203125]
     @test ProfileLikelihood.algorithm_name(sol) == "Nelder-Mead simplex algorithm (local, no-derivative)"
+    @test sol[1] == sol.θ[1] == sol[:λ]
+    @test sol[2] == sol.θ[2] == sol[:K]
+    @test sol[3] == sol.θ[3] == sol[:σ]
+    @test sol[4] == sol.θ[4] == sol[:u₀]
 end
 
 ################################################################################
@@ -166,4 +170,21 @@ end
     @test 1000.0 ∉ prof.confidence_intervals[2]
     @test ProfileLikelihood.algorithm_name(prof) == "Nelder-Mead simplex algorithm (local, no-derivative)"
     @test ProfileLikelihood.sym_names(prof) == [:λ, :K, :σ, :u₀]
+
+    a, b = [a1, a2, a3, a4], [b1, b2, b3, b4]
+    for i in 1:4
+        prof_view = prof[i]
+        @test prof[i].parent === prof
+        @test prof[i].θ == prof.θ[i]
+        @test prof[i].profile == prof.profile[i]
+        @test prof[i].prob === prob
+        @test prof[i].mle == prof.mle[i]
+        @test prof[i].spline == prof.spline[i]
+        @test prof[i].confidence_intervals == prof.confidence_intervals[i]
+        @test prof[i](b[i]) ≈ a[i]
+    end
+    @test prof[1] === prof[:λ]
+    @test prof[2] === prof[:K]
+    @test prof[3] === prof[:σ]
+    @test prof[4] === prof[:u₀]
 end

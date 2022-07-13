@@ -6,12 +6,29 @@ reason to have this separate struct is to avoid type piracy.
 """
 abstract type AbstractLikelihoodSolution end
 
-for op in (:num_params, :data, :lower_bounds, :upper_bounds, :sym_names, :(Base.names)) 
+for op in (:num_params, :data, :lower_bounds, :upper_bounds, :sym_names, :(Base.names))
     @eval @inline $op(sol::AbstractLikelihoodSolution) = $op(sol.prob)
 end
-@inline Base.maximum(sol::AbstractLikelihoodSolution) = sol.maximum 
-@inline mle(sol::AbstractLikelihoodSolution) = sol.θ 
+@inline Base.maximum(sol::AbstractLikelihoodSolution) = sol.maximum
+@inline mle(sol::AbstractLikelihoodSolution) = sol.θ
 @inline retcode(sol::AbstractLikelihoodSolution) = sol.retcode
+
+Base.@propagate_inbounds @inline function Base.getindex(sol::AbstractLikelihoodSolution, i::Int)
+    sol.θ[i]
+end
+SciMLBase.sym_to_index(sym, sol::AbstractLikelihoodSolution) = SciMLBase.sym_to_index(sym, sol.prob.prob.f.syms)
+Base.@propagate_inbounds @inline function Base.getindex(sol::AbstractLikelihoodSolution, sym)
+    if SciMLBase.issymbollike(sym)
+        i = SciMLBase.sym_to_index(sym, sol)
+    else
+        i = sym
+    end
+    if i === nothing
+        throw(BoundsError(sol, sym))
+    else
+        sol[i]
+    end
+end
 
 """
     LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,ℓ<:Function} <: AbstractLikelihoodSolution <: AbstractLikelihoodSolution
@@ -93,17 +110,35 @@ This struct is callable. We define the method
 that evaluates the spline through the `i`th profile at the point `θ`.
 """
 Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF} <: AbstractLikelihoodSolution
-    θ::Dict{I, V}
-    profile::Dict{I, V}
+    θ::Dict{I,V}
+    profile::Dict{I,V}
     prob::LP
     mle::LS
-    spline::Dict{I, Spl}
-    confidence_intervals::Dict{I, ConfidenceInterval{CT, CF}}
+    spline::Dict{I,Spl}
+    confidence_intervals::Dict{I,ConfidenceInterval{CT,CF}}
 end
-(prof::ProfileLikelihoodSolution)(θ, i) = prof.spline[i](θ) 
+(prof::ProfileLikelihoodSolution)(θ, i) = prof.spline[i](θ)
 
 @inline Base.maximum(sol::ProfileLikelihoodSolution) = maximum(sol.mle)
 @inline mle(sol::ProfileLikelihoodSolution) = mle(sol.mle)
 @inline confidence_intervals(sol::ProfileLikelihoodSolution) = sol.confidence_intervals
-@inline confidence_intervals(sol::ProfileLikelihoodSolution, i)  = confidence_intervals(sol)[i]
-@inline retcode(sol::ProfileLikelihoodSolution)  = retcode(sol.mle)
+@inline confidence_intervals(sol::ProfileLikelihoodSolution, i) = confidence_intervals(sol)[i]
+@inline retcode(sol::ProfileLikelihoodSolution) = retcode(sol.mle)
+
+Base.@kwdef struct ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF} <: AbstractLikelihoodSolution
+    parent::PLS
+    θ::V
+    profile::V
+    prob::LP
+    mle::LS
+    spline::Spl
+    confidence_intervals::ConfidenceInterval{CT,CF}
+end
+
+Base.@propagate_inbounds @inline function Base.getindex(sol::ProfileLikelihoodSolution, i::Int)
+    ProfileLikelihoodSolutionView{i,typeof(sol),promote_type(typeof(sol.θ[i]),typeof(sol.profile[i])),
+        typeof(sol.prob),typeof(sol.mle[i]),typeof(sol.spline[i]),
+        typeof(sol.confidence_intervals[i].lower),typeof(sol.confidence_intervals[i].upper)}(sol, 
+        sol.θ[i], sol.profile[i], sol.prob, sol.mle[i], sol.spline[i], sol.confidence_intervals[i])
+end
+(prof::ProfileLikelihoodSolutionView)(θ) = prof.spline(θ)

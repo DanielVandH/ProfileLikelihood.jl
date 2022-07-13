@@ -84,9 +84,9 @@ if none were provided in the construction of `prob`.
 @inline function sym_names(prob::AbstractLikelihoodProblem)
     nm = prob.prob.f.syms
     !isnothing(nm) && return nm
-    rt = Vector{String}(undef, num_params(prob))
+    rt = Vector{Symbol}(undef, num_params(prob))
     for i in 1:num_params(prob)
-        rt[i] = "θ" * subscriptnumber(i)
+        rt[i] = Symbol("θ" * subscriptnumber(i))
     end
     return rt
 end

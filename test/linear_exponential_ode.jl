@@ -44,6 +44,7 @@ end
     @test names(prob) == [L"\lambda", L"\sigma", L"y_0"]
     @test ProfileLikelihood.lower_bounds(prob) == [-10.0, 1e-6, 0.5]
     @test ProfileLikelihood.upper_bounds(prob) == [10.0, 10.0, 25.0]
+    @test ProfileLikelihood.sym_names(prob) == [:λ, :σ, :y₀]
 
     ## Solution
     @test ProfileLikelihood.num_params(sol) == 3
@@ -61,6 +62,9 @@ end
     @test ProfileLikelihood.mle(sol) ≈ [-0.50056892573506506227687395949033088982105255126953125
         0.09708073332894538720605481785241863690316677093505859375
         15.040984400433927703488734550774097442626953125]
+    @test sol[1] == sol.θ[1] == sol[:λ]
+    @test sol[2] == sol.θ[2] == sol[:σ]
+    @test sol[3] == sol.θ[3] == sol[:y₀]
 end
 
 ################################################################################
@@ -147,4 +151,21 @@ end
     @test σ ∈ prof.confidence_intervals[2]
     @test y₀ ∈ prof.confidence_intervals[3]
     @test 1000.0 ∉ prof.confidence_intervals[2]
+
+    a, b = [a1, a2, a3], [b1, b2, b3]
+    for i in 1:3
+        prof_view = prof[i]
+        @test prof[i].parent === prof
+        @test prof[i].θ == prof.θ[i]
+        @test prof[i].profile == prof.profile[i]
+        @test prof[i].prob === prob
+        @test prof[i].mle == prof.mle[i]
+        @test prof[i].spline == prof.spline[i]
+        @test prof[i].confidence_intervals == prof.confidence_intervals[i]
+        @test prof[i](b[i]) ≈ a[i]
+    end
+    @test prof[1] === prof[:λ]
+    @test prof[2] === prof[:σ]
+    @test prof[3] === prof[:y₀]
+
 end

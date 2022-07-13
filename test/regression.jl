@@ -56,7 +56,7 @@ end
     @test ProfileLikelihood.bounds(prob, 4) == (-Inf, Inf)
     @test ProfileLikelihood.bounds(prob, 5) == (-Inf, Inf)
     @test ProfileLikelihood.bounds(prob) == [(0.0, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf)]
-    @test ProfileLikelihood.sym_names(prob) == ["θ₁", "θ₂", "θ₃", "θ₄", "θ₅"]
+    @test ProfileLikelihood.sym_names(prob) == Symbol.(["θ₁", "θ₂", "θ₃", "θ₄", "θ₅"])
 
     ## Solution
     @test ProfileLikelihood.num_params(sol) == 5
@@ -71,6 +71,11 @@ end
         0.497044010369973865426374004528042860329151153564453125
         3.00093210914198404992703217430971562862396240234375]
     @test ProfileLikelihood.algorithm_name(sol) == :PolyOpt
+    @test sol[1] == sol.θ[1]
+    @test sol[2] == sol.θ[2]
+    @test sol[3] == sol.θ[3]
+    @test sol[4] == sol.θ[4]
+    @test sol[5] == sol.θ[5]
 end
 
 ################################################################################
@@ -175,5 +180,18 @@ end
     @test β[3] ∈ prof.confidence_intervals[4]
     @test β[4] ∈ prof.confidence_intervals[5]
     @test 1000.0 ∉ prof.confidence_intervals[5]
+
+    a, b = [a1, a2, a3, a4, a5], [b1, b2, b3, b4, b5]
+    for i in 1:5
+        prof_view = prof[i]
+        @test prof[i].parent === prof
+        @test prof[i].θ == prof.θ[i]
+        @test prof[i].profile == prof.profile[i]
+        @test prof[i].prob === prob
+        @test prof[i].mle == prof.mle[i]
+        @test prof[i].spline == prof.spline[i]
+        @test prof[i].confidence_intervals == prof.confidence_intervals[i]
+        @test prof[i](b[i]) ≈ a[i]
+    end
 end
 
