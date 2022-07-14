@@ -70,10 +70,12 @@ end
 ################################################################################
 ## Profile likelihood 
 ################################################################################
-a1, b1 = profile(prob, sol, 1; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-a2, b2 = profile(prob, sol, 2; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-a3, b3 = profile(prob, sol, 3; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95)
+resolution = 10000
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
+a1, b1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
+a2, b2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
+a3, b3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
 fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
 
 @testset "Problem configuration" begin
@@ -111,8 +113,8 @@ fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
         0.1074310958975970564655000316633959300816059112548828125
         15.084663612381799424611017457209527492523193359375]
     for i in 1:3
-        @test prof.confidence_intervals[i].lower ≈ lower_confs[i]
-        @test prof.confidence_intervals[i].upper ≈ upper_confs[i]
+        @test prof.confidence_intervals[i].lower ≈ lower_confs[i] rtol=1e-3
+        @test prof.confidence_intervals[i].upper ≈ upper_confs[i] rtol=1e-3
         @test prof.confidence_intervals[i].level == 0.95
     end
 end

@@ -37,7 +37,10 @@ sol4 = transform_result(sol, [identity, x -> x, sin ∘ cos, sqrt, x -> exp(x)])
 @test sol4.retcode == sol.retcode 
 @test sol4.original == sol.original
 
-prof = profile(prob)
+resolution = 1000
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
+sol = mle(prob)
+prof = profile(prob, sol; param_ranges)
 CIs = confidence_intervals(prof)
 for CI in values(CIs) 
     CI2 = transform_result(CI, exp)

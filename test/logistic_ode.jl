@@ -50,7 +50,7 @@ end
     @test ProfileLikelihood.upper_bounds(prob) == ub
     @test ProfileLikelihood.lower_bounds(prob, 1) == 0.0
     @test ProfileLikelihood.upper_bounds(prob, 3) == 10.0
-    for i in 1:4 
+    for i in 1:4
         @test ProfileLikelihood.bounds(prob, i) == (lb[i], ub[i])
     end
     @test ProfileLikelihood.bounds(prob) == [(lb[i], ub[i]) for i in 1:4]
@@ -77,11 +77,13 @@ end
 ################################################################################
 ## Profile likelihood 
 ################################################################################
-a1, b1 = profile(prob, sol, 1; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-a2, b2 = profile(prob, sol, 2; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-a3, b3 = profile(prob, sol, 3; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-a4, b4 = profile(prob, sol, 4; alg=NLopt.LN_NELDERMEAD(), threshold=-0.5quantile(Chisq(1), 0.95))
-prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95)
+resolution = 10000
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
+a1, b1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
+a2, b2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
+a3, b3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
+a4, b4 = profile(prob, sol, 4, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[4])
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
 fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
 
 @testset "Problem configuration" begin
@@ -125,8 +127,8 @@ fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
         0.11775663655200267754263876440745661966502666473388671875
         0.6204495782497130296206933053326793015003204345703125]
     for i in 1:4
-        @test prof.confidence_intervals[i].lower ≈ conf_lowers[i]
-        @test prof.confidence_intervals[i].upper ≈ conf_uppers[i]
+        @test prof.confidence_intervals[i].lower ≈ conf_lowers[i] rtol=1e-3
+        @test prof.confidence_intervals[i].upper ≈ conf_uppers[i] rtol=1e-3
         @test prof.confidence_intervals[i].level == 0.95
     end
 end
@@ -147,9 +149,9 @@ end
     @test ProfileLikelihood.upper_bounds(prof) == ub
     @test maximum(prof) ≈ 86.54963187499551
     @test ProfileLikelihood.mle(prof) ≈ [0.77514040769514169770815215088077820837497711181640625
-    1.0214258997572567277956068210187368094921112060546875
-    0.1018316618807033335780687366423080675303936004638671875
-    0.5354131612786698912742622269433923065662384033203125]
+        1.0214258997572567277956068210187368094921112060546875
+        0.1018316618807033335780687366423080675303936004638671875
+        0.5354131612786698912742622269433923065662384033203125]
     @test confidence_intervals(prof) == prof.confidence_intervals
     for i in 1:4
         @test confidence_intervals(prof, i) == prof.confidence_intervals[i]

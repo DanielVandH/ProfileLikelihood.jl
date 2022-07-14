@@ -81,12 +81,34 @@ end
 ################################################################################
 ## Profile likelihood 
 ################################################################################
-a1, b1 = profile(prob, sol, 1)
-a2, b2 = profile(prob, sol, 2)
-a3, b3 = profile(prob, sol, 3)
-a4, b4 = profile(prob, sol, 4)
-a5, b5 = profile(prob, sol, 5)
-prof = profile(prob, sol)
+resolution = 1000
+@test_throws "The provided parameter bounds must be finite." ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
+param_bounds = [
+    (0.001, 0.1),
+    (-1.2, -0.8),
+    (0.8, 1.2),
+    (0.3, 0.7),
+    (2.5, 3.5)
+]
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
+mles = mle(sol)
+for i in 1:num_params(prob)
+    @test param_ranges[i] == (LinRange(mles[i], param_bounds[i][1], resolution), LinRange(mles[i], param_bounds[i][2], resolution))
+end
+resolution = [17, 20, 13, 5, 10]
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
+for i in 1:num_params(prob)
+    @test param_ranges[i] == (LinRange(mles[i], param_bounds[i][1], resolution[i]), LinRange(mles[i], param_bounds[i][2], resolution[i]))
+end
+
+resolution = 1000
+param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
+a1, b1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1])
+a2, b2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2])
+a3, b3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3])
+a4, b4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
+a5, b5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
+prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false)
 fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
 
 @testset "Problem configuration" begin
@@ -125,16 +147,16 @@ fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
 
     ## Confidence intervals
     @test prof.confidence_intervals isa Dict{Int64,ProfileLikelihood.ConfidenceInterval{Float64,Float64}}
-    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875
-    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625
-    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375
-    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625
-    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125
-    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375
-    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125
-    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125
-    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625
-    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625
+    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol=1e-3
+    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol=1e-3
+    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol=1e-3
+    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol=1e-3
+    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol=1e-3
+    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol=1e-3
+    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol=1e-3
+    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol=1e-3
+    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol=1e-3
+    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol=1e-3
     for i in 1:5
         @test prof.confidence_intervals[i].level == 0.99
     end

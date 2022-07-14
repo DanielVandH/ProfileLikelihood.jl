@@ -1,79 +1,58 @@
 """
-    step_profile!(prob::OptimizationProblem, ℓₘₐₓ, i, param_vals, profile_vals, θ₀, cache; alg=PolyOpt(), Δθ)
-    profile!(prob::OptimizationProblem, ℓₘₐₓ, i, θᵢ, param_vals, profile_vals, θ₀, cache; alg=PolyOpt())
+    profile!(prob::OptimizationProblem, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache)
 
-Computes the normalised profile log-likelihood function for the `i`th variable at `θᵢ`, or at 
-`param_vals[end] + Δθ` is `θᵢ` is not provided.
+Computes the normalised profile log-likelihood function for the `n`th variable at `θₙ`.
 
 # Arguments 
 - `prob::OptimizationProblem`: The `OptimizationProblem`. This should be already updated from [`update_prob`](@ref).
+- `profile_vals`: Values of the normalised profile log-likelihood function. Gets updated with the new value at the index `i`.
+- `n`: The index of the parameter being profiled.
+- `θₙ`: The value to fix the `n`th variable at. 
+- `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `n`th variable). This gets updated in-place with the new guesses.
 - `ℓₘₐₓ`: The value of the log-likelihood function at the MLEs.
-- `i`: The index of the variable being profiled. 
-- `θᵢ`: The value to fix the `i`th variable at. 
-- `param_vals`: Vector of parameter values for the `i`th variable.
-- `profile_vals`: Values of the normalised profile log-likelihood function at the corresponding values in `param_vals`.
-- `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `i`th variable).
-- `cache`: Cache array for storing the `i`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
-
-# Keyword Arguments 
-- `alg=PolyOpt()`: Algorithm to use for optimising `prob`.
-- `Δθ`: The value to increment the `i`th value by, computing `θᵢ = param_vals[end] + Δθ`.
+- `alg`: Algorithm to use for optimising `prob`.
+- `cache`: Cache array for storing the `n`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
 
 # Output 
-There is no output, but `param_vals` and `profile_vals` are updated with `θᵢ` and the normalised profile log-likelihood at `θᵢ`, respectively.
+There is no output, but `profile_vals` gets updated (via `push!`) with the new normalised profile log-likelihood value at `θₙ`.
 """
-function profile!(prob::OptimizationProblem, ℓₘₐₓ, i, θᵢ, param_vals, profile_vals, θ₀, cache; alg=PolyOpt())
-    prob = update_prob(prob, i, θᵢ, cache, θ₀) # Update the objective function and initial guess 
+function profile!(prob::OptimizationProblem, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache)
+    prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
     soln = solve(prob, alg)
-    for i in eachindex(θ₀)
-        θ₀[i] = soln.u[i]
+    for j in eachindex(θ₀)
+        θ₀[j] = soln.u[j]
     end
-    push!(param_vals, θᵢ)
     push!(profile_vals, -soln.minimum - ℓₘₐₓ)
     return nothing
 end
-@doc (@doc profile!) @inline function step_profile!(prob::OptimizationProblem, ℓₘₐₓ, i, param_vals, profile_vals, θ₀, cache; alg=PolyOpt(), Δθ)
-    profile!(prob, ℓₘₐₓ, i, param_vals[end] + Δθ, param_vals, profile_vals, θ₀, cache; alg)
-    return nothing
-end
 
 """
-    find_endpoint!(prob::OptimizationProblem, profile_vals, threshold, min_steps, max_steps, ℓₘₐₓ, i, param_vals, θ₀, cache, alg, Δθ)
+    find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges)
 
 Optimises the profile likelihood until exceeding `threshold`, going in the direction specified by `Δθ`.
 
 ## Arguments 
 - `prob`: The `OptimizationProblem`. This should be already updated from [`update_prob`](@ref).
+- `param_vals`: Parameter values to use for the normalised profile log-likelihood function.
 - `profile_vals`: Values of the normalised profile log-likelihood function at the corresponding values in `param_vals`.
-- `threshold`: When the normalised profile log-likelihood function drops below this `threshold`, stop.
-- `min_steps`: Minimum number of steps. If the process terminates before this number is reached, then the function is computed at equidistant points (with `min_steps` points) between the extrema of the used points.
-- `max_steps`: Maximum number of steps to take before terminating. Will return an error if this number of steps is reached.
+- `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `n`th variable).
 - `ℓₘₐₓ`: The value of the log-likelihood function at the MLEs.
-- `i`: The variable being profiled.
-- `profile_vals`: Values of the normalised profile log-likelihood function at the corresponding values in `param_vals`.
-- `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `i`th variable).
-- `cache`: Cache array for storing the `i`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
+- `n`: The variable being profiled.
 - `alg`: Algorithm to use for optimising `prob`.
-- `Δθ`: The value to increment the `i`th value by, computing `θᵢ = param_vals[end] + Δθ`.
+- `threshold`: When the normalised profile log-likelihood function drops below this `threshold`, stop.
+- `cache`: Cache array for storing the `n`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
+- `param_ranges`: Values to try for profiling. See also [`construct_profile_ranges`](@ref).
 
 ## Outputs 
-Returns nothing, but `param_vals` and `profile_vals` are updated as in [`step_profile!`](@ref).
+Returns nothing, but `profile_vals` gets updated with the found values and `param_vals` with the used parameter values.
 """
-function find_endpoint!(prob::OptimizationProblem, profile_vals, threshold, min_steps, max_steps, ℓₘₐₓ, i, param_vals, θ₀, cache, alg, Δθ)
-    steps = 1
-    while profile_vals[end] ≥ threshold && steps ≤ max_steps
-        step_profile!(prob, ℓₘₐₓ, i, param_vals, profile_vals, θ₀, cache; alg, Δθ)
-        steps += 1
-    end
-    if steps > max_steps
-        direction = sign(Δθ) > 0 ? "right" : "left"
-        @warn "Maximum number of steps reached going to the $direction for variable $i."
-    end
-    if steps < min_steps
-        θ0 = LinRange(param_vals[end], param_vals[1], min_steps)
-        for θ in θ0
-            profile!(prob, ℓₘₐₓ, i, θ, param_vals, profile_vals, θ₀, cache; alg)
+function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges)
+    for θₙ in param_ranges
+        push!(param_vals, θₙ)
+        profile!(prob, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache)
+        if profile_vals[end] ≤ threshold 
+            return nothing 
         end
     end
-    return nothing
+    return nothing 
 end

@@ -1,7 +1,7 @@
 name = "ProfileLikelihood"
 uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
 authors = ["DanielVandH <danj.vandenheuvel@gmail.com>"]
-version = "0.6.0"
+version = "0.7.0"
 
 [deps]
 Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
