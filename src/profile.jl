@@ -98,7 +98,8 @@ The third method also has keyword arguments, given below.
 - `conf_level = 0.95`: The confidence level for the confidence intervals.
 - `spline = true`: Whether a spline should be used for computing the confidence intervals. See [`confidence_intervals`](@ref).
 - `threshold = -0.5quantile(Chisq(1), conf_level)`: When the normalised profile log-likelihood function drops below this `threshold`, stop.
-- `param_ranges`: A `Vector{NTuple{2, LinRange{Float64, Int64}}}` of length `num_params(prob)`, with the `i`th entry 
+- `resolution = 200`: Number of gridpoints to use in each direction in `param_ranges` (if the default is used).
+- `param_ranges = construct_profile_ranges(prob, sol, resolution)`: A `Vector{NTuple{2, LinRange{Float64, Int64}}}` of length `num_params(prob)`, with the `i`th entry 
 giving the values to use a tuple, with the first tuple being the values used when going to the left of the MLE, with 
 the first entry the MLE, and similarly for the second tuple. See [`construct_profile_ranges`](@ref). 
 
@@ -137,7 +138,8 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     conf_level=0.95,
     spline=true,
     threshold=-0.5quantile(Chisq(1), conf_level),
-    param_ranges=construct_profile_ranges(prob, sol, 100))
+    resolution = 200,
+    param_ranges=construct_profile_ranges(prob, sol, resolution))
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
     prof = Dict{Int64,Vector{Float64}}([])
