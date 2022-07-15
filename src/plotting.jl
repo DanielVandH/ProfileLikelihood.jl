@@ -39,13 +39,14 @@ Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikel
 - `true_vals=repeat([nothing], num_params(sol))`: The true values, if any.
 - `spline=true`: Whether to plot the spline through the data.
 - `show_mles=true`: Whether to plot a line at the MLEs.
+- `shade_ci=true`: Whether to shade the area under the curve between the confidence interval.
 - `plot_kwargs...`: Additional keyword arguments for the `Makie` plot objects.
 
 # Output 
 The `Figure` with the plots.
 """
 function plot_profiles end
-@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val = nothing)
+@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true)
     param_name = names(sol)[k]
     lower_ci, upper_ci = confidence_intervals(sol)[k]
     θ_vals = sol.θ[k]
@@ -65,7 +66,7 @@ function plot_profiles end
         CairoMakie.lines!(ax, θ_vals, ℓ_vals)
         CairoMakie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
         CI_range = lower_ci .< θ_vals .< upper_ci
-        CairoMakie.band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
+        shade_ci && CairoMakie.band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
     else
         val_range = extrema(θ_vals)
         Δθ₁ = (val_range[2] - val_range[1]) / max(length(θ_vals), 1000)
@@ -74,24 +75,24 @@ function plot_profiles end
         CairoMakie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
         Δθ₂ = (upper_ci - lower_ci) / max(length(θ_vals), 1000)
         ci_vals = lower_ci:Δθ₂:upper_ci
-        CairoMakie.band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
+        shade_ci && CairoMakie.band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
     end
     if !isnothing(true_vals)
         CairoMakie.vlines!(ax, [true_vals], color=:black, linetype=:dashed)
     end
     if !isnothing(mle_val)
-        CairoMakie.vlines!(ax, [mle_val], color = :red, linetype = :dashed)
+        CairoMakie.vlines!(ax, [mle_val], color=:red, linetype=:dashed)
     end
     return nothing
 end
 function plot_profiles(sol::ProfileLikelihoodSolution; ncol=nothing, nrow=nothing,
-    true_vals=repeat([nothing], num_params(sol)), spline=true, show_mles = true, plot_kwargs...) where {T<:ProfileLikelihoodSolution}
+    true_vals=repeat([nothing], num_params(sol)), spline=true, show_mles=true, shade_ci=true, plot_kwargs...) where {T<:ProfileLikelihoodSolution}
     num_plots = num_params(sol)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
     fig = CairoMakie.Figure(; plot_kwargs...)
     for k in 1:num_plots
         i, j = plot_positions[k]
-        plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing)
+        plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci)
     end
     return fig
 end
