@@ -147,7 +147,7 @@ end
     try
         splines[n] = Spline1D(_θ, _prof)
     catch
-        error("Error creating the spline. Try increasing the grid resolution for parameter $n.")
+        error("Error creating the spline. Try increasing the grid resolution for parameter $n or increasing $min_steps.")
     end
     return nothing
 end
