@@ -68,3 +68,19 @@ end
     prob = update_prob(prob, u0)
     return prob
 end
+
+"""
+    update_prob(prob::LikelihoodProblem, u0::AbstractVector)
+    update_prob(prob::LikelihoodProblem, sol::LikelihoodSolution)
+
+Update the `prob` with the new initial guess `u0`, or the MLEs from `sol`.
+"""
+@inline function update_prob(prob::LikelihoodProblem, u0::AbstractVector)
+    optprob = prob.prob 
+    prob_newu0 = update_prob(optprob, u0)
+    prob = remake(prob; prob = prob_newu0, θ₀ = u0)
+    return prob
+end
+@inline function update_prob(prob::LikelihoodProblem, sol::LikelihoodSolution)
+    return update_prob(prob, mle(sol))
+end

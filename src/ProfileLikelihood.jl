@@ -27,7 +27,7 @@ include("solutions.jl");              export LikelihoodSolution, ProfileLikeliho
 include("utils.jl");                  export gaussian_loglikelihood
 include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc
 include("step_profile.jl");           ###
-include("update_optimiser.jl");       ###    
+include("update_optimiser.jl");       export update_prob
 include("profile.jl");                export profile, confidence_intervals, construct_profile_ranges
 function __init__()
     @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin 

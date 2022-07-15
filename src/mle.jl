@@ -22,9 +22,10 @@ end
 @inline function mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
     sol = mle(prob, alg[begin], args...; kwargs...)
     for _alg in alg[begin+1:end]
-        optprob = prob.prob 
-        prob_newu0 = remake(optprob; u0 = sol.θ)
-        prob = remake(prob; prob = prob_newu0, θ₀ = sol.θ)
+        #optprob = prob.prob 
+        #prob_newu0 = remake(optprob; u0 = sol.θ)
+        #prob = remake(prob; prob = prob_newu0, θ₀ = sol.θ)
+        prob = update_prob(prob, sol)
         sol = mle(prob, _alg, args...; kwargs...)
     end
     return sol
@@ -50,9 +51,10 @@ The output is another [`LikelihoodSolution`](@ref) with the refined results.
 function refine(sol::LikelihoodSolution, args...; method = :tiktak, kwargs...)
     likprob = sol.prob 
     !finite_bounds(likprob) && error("Problem must have finite lower/upper bounds to use refinement methods. Consider using `remake` to choose new bounds on the problem.")
-    optprob = likprob.prob
-    prob_newu0 = remake(optprob; u0=sol.θ)
-    new_likprob = remake(likprob; prob=prob_newu0, θ₀ = sol.θ)
+    #optprob = likprob.prob
+    #prob_newu0 = remake(optprob; u0=sol.θ)
+    #new_likprob = remake(likprob; prob=prob_newu0, θ₀ = sol.θ)
+    new_likprob = update_prob(likprob, sol)
     if method == :tiktak
         return refine_tiktak(new_likprob, args...; kwargs...)
     elseif method == :lhc
@@ -123,7 +125,8 @@ function refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000
     opt_sol = solve(prob, alg, args...; kwargs...)
     min_obj = opt_sol.minimum
     for j in 1:n 
-        new_prob = @views remake(prob; u0 = new_params[:, j])
+        # new_prob = @views remake(prob; u0 = new_params[:, j])
+        new_prob = @views update_prob(prob, new_params[:, j])
         new_sol = solve(new_prob, alg, args...; kwargs...)
         if new_sol.minimum < min_obj 
             opt_sol = new_sol 
