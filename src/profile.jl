@@ -92,6 +92,7 @@ the `n`th variable if `n` is provided.
 - `θₘₗₑ`: The maximum likelihood estimates, `mle(sol)`.
 - `ℓₘₐₓ`: The maximum log-likelihood, `maximum(sol)`.
 - `splines`: Dictionary holding the splines of the data.
+- `min_steps`: Minimum number of steps to take in each direction.
 
 The third method also has keyword arguments, given below.
 
@@ -106,6 +107,7 @@ giving the values to use a tuple, with the first tuple being the values used whe
 the first entry the MLE, and similarly for the second tuple. See [`construct_profile_ranges`](@ref). 
 - `use_threads = false`: Whether to profile all parameters using multithreading. This thread only applies to the profiling of all parameters, i.e. you could profile 
 multiple parameters at the same time, but the individual computations within a single parameter's profile are performed serially. (Doesn't actually do anything currently.)
+- `min_steps = 1`: Minimum number of steps to take in each direction.
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
 
 # Outputs 
@@ -117,12 +119,12 @@ If `n` is provided, then we return
 Otherwise, returns a [`ProfileLikelihoodSolution`](@ref) struct.
 """
 function profile end
-function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges; kwargs...)
+function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges, min_steps; kwargs...)
     prob, left_profiles, right_profiles,
     left_param_vals, right_param_vals,
     cache, θ₀, combined_profiles, combined_param_vals = prepare_profile(prob, θₘₗₑ, n, param_ranges)
-    find_endpoint!(prob, left_param_vals, left_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1]; kwargs...) # Go left
-    find_endpoint!(prob, right_param_vals, right_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2]; kwargs...) # Go right
+    find_endpoint!(prob, left_param_vals, left_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1], min_steps; kwargs...) # Go left
+    find_endpoint!(prob, right_param_vals, right_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2], min_steps; kwargs...) # Go right
     append!(combined_profiles, left_profiles, right_profiles) # Now combine the profiles 
     append!(combined_param_vals, left_param_vals, right_param_vals) # Now combine the parameter values 
     # Make sure the results are sorted 
@@ -135,11 +137,11 @@ function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, t
     keepat!(combined_profiles, idx)
     return combined_profiles, combined_param_vals
 end
-@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges; kwargs...)
-    return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges; kwargs...)
+@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps; kwargs...)
+    return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps; kwargs...)
 end
-@inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines; kwargs...)
-    _prof, _θ = profile(prob, sol, n, alg, threshold, param_ranges[n]; kwargs...)
+@inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines, min_steps; kwargs...)
+    _prof, _θ = profile(prob, sol, n, alg, threshold, param_ranges[n], min_steps; kwargs...)
     param_vals[n] = _θ
     profile_vals[n] = _prof
     try
@@ -157,6 +159,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     resolution=200,
     param_ranges=construct_profile_ranges(prob, sol, resolution),
     use_threads=false,
+    min_steps = 1,
     kwargs...)
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
@@ -170,7 +173,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     #    end
     #else
     for n in 1:N
-        profile!(prob, sol, n, alg, threshold, param_ranges, prof, θ, splines; kwargs...)
+        profile!(prob, sol, n, alg, threshold, param_ranges, prof, θ, splines, min_steps; kwargs...)
     end
     #end
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
@@ -226,6 +229,7 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 - `threshold`: When the normalised profile log-likelihood function drops below this `threshold`, stop.
 - `cache`: Cache array for storing the `n`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
 - `param_ranges`: Values to try for profiling. See also [`construct_profile_ranges`](@ref).
+- `min_steps`: Minimum number of steps to take.
 
 # Keyword Arguments 
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
@@ -233,11 +237,13 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 # Outputs 
 Returns nothing, but `profile_vals` gets updated with the found values and `param_vals` with the used parameter values.
 """
-function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges; kwargs...)
+function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps; kwargs...)
+    steps = 1
     for θₙ in param_ranges
         push!(param_vals, θₙ)
         profile!(prob, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
-        if profile_vals[end] ≤ threshold 
+        steps += 1
+        if profile_vals[end] ≤ threshold && steps > min_steps
             return nothing 
         end
     end
