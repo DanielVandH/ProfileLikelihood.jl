@@ -1,11 +1,12 @@
 """
     mle(prob::LikelihoodProblem[, alg = PolyOpt()], args...; kwargs...) 
+    mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
 
 Computes the maximum likelihood estimates for the given [`LikelihoodProblem`](@ref).
 
 ## Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
-- `alg = PolyOpt()`: The solver to use from `Optimization.jl`.
+- `alg = PolyOpt()`: The solver to use from `Optimization.jl`. This can also be given as a `Tuple`, in which case the solutions are solved with the algorithms in order, using the previous solution as the revised initial guess at each new algorithm.
 - `args...`: Arguments for `Optimization.solve`. 
 
 ## Keyword Arguments 
@@ -17,6 +18,16 @@ The output is a [`LikelihoodSolution`](@ref) struct. See [`LikelihoodSolution`](
 @inline function mle(prob::LikelihoodProblem, alg=PolyOpt(), args...; kwargs...)
     sol = solve(prob.prob, alg, args...; kwargs...)
     return LikelihoodSolution(sol, prob; alg)
+end
+@inline function mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
+    sol = mle(prob, alg[begin], args...; kwargs...)
+    for _alg in alg[begin+1:end]
+        optprob = prob.prob 
+        prob_newu0 = remake(optprob; u0 = sol.θ)
+        prob = remake(prob; prob = prob_newu0, θ₀ = sol.θ)
+        sol = mle(prob, _alg, args...; kwargs...)
+    end
+    return sol
 end
 
 """

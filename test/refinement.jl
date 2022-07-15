@@ -11,6 +11,21 @@ using Dierckx
 using LoopVectorization
 using OptimizationMultistartOptimization
 using OptimizationPolyalgorithms
+using OptimizationOptimJL
+using OptimizationBBO
+
+## Multiple algorithms 
+prob, loglikk, θ, dat = MultipleLinearRegressionBounded()
+sol = mle(prob, (BBO_adaptive_de_rand_1_bin_radiuslimited(), NLopt.LN_NELDERMEAD))
+@test maximum(sol) ≈ loglikk(reduce(vcat, θ), data(prob)) rtol=1e-2
+@test mle(sol) ≈ reduce(vcat, θ) rtol=1e-2
+@test ProfileLikelihood.algorithm_name(sol) == "Nelder-Mead simplex algorithm (local, no-derivative)"
+
+prob, loglikk, θ, dat = MultipleLinearRegressionBounded()
+_sol = mle(prob, (BBO_adaptive_de_rand_1_bin_radiuslimited(), NLopt.LN_NELDERMEAD, PolyOpt(), Optim.LBFGS()))
+@test maximum(_sol) ≈ loglikk(reduce(vcat, θ), data(prob)) rtol=1e-2
+@test mle(_sol) ≈ reduce(vcat, θ) rtol=1e-2
+@test algorithm_name(_sol) == :LBFGS
 
 ## Latin grids 
 Random.seed!(92992881)
