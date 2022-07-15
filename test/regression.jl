@@ -104,7 +104,7 @@ end
 resolution = 1000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
 a1, b1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1])
-a2, b2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2])
+a2, b2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2], 5)
 a3, b3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3])
 a4, b4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
 a5, b5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
@@ -214,6 +214,34 @@ end
         @test prof[i].spline == prof.spline[i]
         @test prof[i].confidence_intervals == prof.confidence_intervals[i]
         @test prof[i](b[i]) ≈ a[i]
+    end
+end
+
+@testset "Checking minimum steps" begin 
+    prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false, min_steps = 500)
+    for i in 1:num_params(prob)
+        @test length(prof[i].θ) === 999
+        @test length(prof[i].profile) === 999
+    end
+    @test σ ∈ prof.confidence_intervals[1]
+    @test β[1] ∈ prof.confidence_intervals[2]
+    @test β[2] ∈ prof.confidence_intervals[3]
+    @test β[3] ∈ prof.confidence_intervals[4]
+    @test β[4] ∈ prof.confidence_intervals[5]
+    @test 1000.0 ∉ prof.confidence_intervals[5]
+    @test prof.confidence_intervals isa Dict{Int64,ProfileLikelihood.ConfidenceInterval{Float64,Float64}}
+    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol=1e-3
+    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol=1e-3
+    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol=1e-3
+    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol=1e-3
+    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol=1e-3
+    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol=1e-3
+    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol=1e-3
+    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol=1e-3
+    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol=1e-3
+    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol=1e-3
+    for i in 1:5
+        @test prof.confidence_intervals[i].level == 0.99
     end
 end
 

@@ -107,7 +107,7 @@ giving the values to use a tuple, with the first tuple being the values used whe
 the first entry the MLE, and similarly for the second tuple. See [`construct_profile_ranges`](@ref). 
 - `use_threads = false`: Whether to profile all parameters using multithreading. This thread only applies to the profiling of all parameters, i.e. you could profile 
 multiple parameters at the same time, but the individual computations within a single parameter's profile are performed serially. (Doesn't actually do anything currently.)
-- `min_steps = 1`: Minimum number of steps to take in each direction.
+- `min_steps = 10`: Minimum number of steps to take in each direction.
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
 
 # Outputs 
@@ -137,7 +137,7 @@ function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, t
     keepat!(combined_profiles, idx)
     return combined_profiles, combined_param_vals
 end
-@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps; kwargs...)
+@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps = 10; kwargs...)
     return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps; kwargs...)
 end
 @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines, min_steps; kwargs...)
@@ -159,7 +159,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     resolution=200,
     param_ranges=construct_profile_ranges(prob, sol, resolution),
     use_threads=false,
-    min_steps = 1,
+    min_steps = 10,
     kwargs...)
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
@@ -239,13 +239,21 @@ Returns nothing, but `profile_vals` gets updated with the found values and `para
 """
 function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps; kwargs...)
     steps = 1
+    old_θ₀ = copy(θ₀)
     for θₙ in param_ranges
         push!(param_vals, θₙ)
-        profile!(prob, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
+        profile!(prob, profile_vals, n, θₙ, old_θ₀, ℓₘₐₓ, alg, cache; kwargs...)
         steps += 1
-        if profile_vals[end] ≤ threshold && steps > min_steps
-            return nothing 
+        if profile_vals[end] ≤ threshold
+           break
         end
+    end
+    if steps ≤ min_steps 
+        new_range = LinRange(param_vals[1], param_vals[end], min_steps)
+        empty!(param_vals)
+        empty!(profile_vals)
+        find_endpoint!(prob, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, typemin(threshold), cache, new_range, 0; kwargs...)
+        return nothing
     end
     return nothing 
 end
