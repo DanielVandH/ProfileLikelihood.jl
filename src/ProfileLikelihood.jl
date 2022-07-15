@@ -28,7 +28,7 @@ include("utils.jl");                  export gaussian_loglikelihood
 include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc
 include("step_profile.jl");           ###
 include("update_optimiser.jl");       ###    
-include("profile.jl");                export profile, confidence_intervals
+include("profile.jl");                export profile, confidence_intervals, construct_profile_ranges
 function __init__()
     @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin 
         include("plotting.jl")
