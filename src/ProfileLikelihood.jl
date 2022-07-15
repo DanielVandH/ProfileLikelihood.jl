@@ -26,7 +26,6 @@ include("confidence_intervals.jl");   export ConfidenceInterval, bounds
 include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
 include("utils.jl");                  export gaussian_loglikelihood
 include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc
-include("step_profile.jl");           ###
 include("update_optimiser.jl");       export update_prob
 include("profile.jl");                export profile, confidence_intervals, construct_profile_ranges
 function __init__()
