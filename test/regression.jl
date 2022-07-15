@@ -109,6 +109,11 @@ a3, b3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_rang
 a4, b4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
 a5, b5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
 prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false)
+@test length(prof[1].θ) == length(prof[1].profile) == 198
+@test length(prof[2].θ) == length(prof[2].profile) == 156
+@test length(prof[3].θ) == length(prof[3].profile) == 264
+@test length(prof[4].θ) == length(prof[4].profile) == 139
+@test length(prof[5].θ) == length(prof[5].profile) === 95
 fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
 
 @testset "Problem configuration" begin
