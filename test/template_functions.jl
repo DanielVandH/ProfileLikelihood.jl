@@ -130,7 +130,7 @@ function LinearExponentialODE()
     prob = LikelihoodProblem(loglik, 3, ode_fnc, y₀, (0.0, T), 1.0, t;
         data=(yᵒ, n), θ₀, lb=[-10.0, 1e-6, 0.5], ub=[10.0, 10.0, 25.0], ode_kwargs=(verbose=false,),
         names=[L"\lambda", L"\sigma", L"y_0"],
-        syms = [:λ, :σ, :y₀])
+        syms=[:λ, :σ, :y₀])
     integrator = setup_integrator(ode_fnc, y₀, (0.0, T), 1.0, t)
     @inferred loglik(prob.θ₀, ProfileLikelihood.data(prob), integrator)
     @inferred prob.prob.f(prob.θ₀, ProfileLikelihood.data(prob))

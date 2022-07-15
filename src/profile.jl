@@ -18,7 +18,7 @@ Prepares the cache arrays and `prob` for profiling.
 - `combined_profiles`: Vector that combines the normalised profile log-likelihood function values going left and right.
 - `combined_param_vals`: Vector that combines the parameter values going left and right.
 """
-function prepare_profile(prob::OptimizationProblem, θₘₗₑ, n, param_ranges) 
+function prepare_profile(prob::OptimizationProblem, θₘₗₑ, n, param_ranges)
     left_profiles = Vector{Float64}([])
     right_profiles = Vector{Float64}([])
     left_param_vals = Vector{Float64}([])
@@ -76,6 +76,7 @@ end
 """
     profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges)
     profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges)
+    profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines)
     profile(prob::LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,D,θ₀Type,ℓ}, sol::LikelihoodSolution; <keyword arguments>)
 
 Computes the normalised profile log-likelihood function for the given `LikelihoodProblem` for all variables, or only for 
@@ -90,6 +91,7 @@ the `n`th variable if `n` is provided.
 - `param_ranges`: Parameter ranges for the `n`th parameter; see [`construct_profile_ranges`](@ref) (and below).
 - `θₘₗₑ`: The maximum likelihood estimates, `mle(sol)`.
 - `ℓₘₐₓ`: The maximum log-likelihood, `maximum(sol)`.
+- `splines`: Dictionary holding the splines of the data.
 
 The third method also has keyword arguments, given below.
 
@@ -102,6 +104,8 @@ The third method also has keyword arguments, given below.
 - `param_ranges = construct_profile_ranges(prob, sol, resolution)`: A `Vector{NTuple{2, LinRange{Float64, Int64}}}` of length `num_params(prob)`, with the `i`th entry 
 giving the values to use a tuple, with the first tuple being the values used when going to the left of the MLE, with 
 the first entry the MLE, and similarly for the second tuple. See [`construct_profile_ranges`](@ref). 
+- `use_threads = false`: Whether to profile all parameters using multithreading. This thread only applies to the profiling of all parameters, i.e. you could profile 
+multiple parameters at the same time, but the individual computations within a single parameter's profile are performed serially. (Doesn't actually do anything currently.)
 
 # Outputs 
 If `n` is provided, then we return 
@@ -133,25 +137,40 @@ end
 @inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges)
     return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges)
 end
+@inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines)
+    _prof, _θ = profile(prob, sol, n, alg, threshold, param_ranges[n])
+    param_vals[n] = _θ
+    profile_vals[n] = _prof
+    try
+        splines[n] = Spline1D(_θ, _prof)
+    catch
+        error("Error creating the spline. Try increasing the grid resolution for parameter $n.")
+    end
+    return nothing
+end
 function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     alg=sol.alg,
     conf_level=0.95,
     spline=true,
     threshold=-0.5quantile(Chisq(1), conf_level),
-    resolution = 200,
-    param_ranges=construct_profile_ranges(prob, sol, resolution))
+    resolution=200,
+    param_ranges=construct_profile_ranges(prob, sol, resolution),
+    use_threads=false)
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
     prof = Dict{Int64,Vector{Float64}}([])
     splines = Vector{Spline1D}(undef, N)
     sizehint!(θ, N)
     sizehint!(prof, N)
+    #if use_threads
+    #    Threads.@threads for n in 1:N
+    #        profile!(prob, sol, n, alg, threshold, param_ranges, prof, θ, splines)
+    #    end
+    #else
     for n in 1:N
-        profile_vals, param_vals = profile(prob, sol, n, alg, threshold, param_ranges[n])
-        θ[n] = param_vals
-        prof[n] = profile_vals
-        splines[n] = Spline1D(param_vals, profile_vals)
+        profile!(prob, sol, n, alg, threshold, param_ranges, prof, θ, splines)
     end
+    #end
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
     conf_ints = confidence_intervals(θ, prof; conf_level, spline)
     profile_sol = ProfileLikelihoodSolution(θ, prof, prob, sol, splines, conf_ints)
