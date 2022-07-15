@@ -71,17 +71,18 @@ function Base.show(io::IO, ::MIME"text/plain", sol::T) where {T<:ProfileLikeliho
             no_color, "     $(100level(CIs[i]))% CI for $(sym_param_names[i]): ($(lower(CIs[i])), $(upper(CIs[i])))")
     end
 end
-function Base.show(io::IO, ::MIME"text/plain", sol::T) where {I,PLS,V,LP,LS,Spl,CT,CF, T <: ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF}}
+function Base.show(io::IO, ::MIME"text/plain", sol::T) where {I,PLS,V,LP,LS,Spl,CT,CF,T<:ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF}}
     type_color, no_color = SciMLBase.get_colorizers(io)
-    prof = sol.parent 
+    prof = sol.parent
     param_name = sym_names(prof)[I]
     CIs = confidence_intervals(prof)[I]
-    println(io, 
+    println(io,
         type_color, "Profile likelihood",
-        no_color, " for parameter $param_name",
+        no_color, " for parameter",
+        type_color, " $param_name",
         no_color, ". MLE retcode: ",
         type_color, retcode(prof))
-    println(io, 
+    println(io,
         no_color, "MLE: $(mle(prof)[I])")
     print(io,
         no_color, "$(100level(CIs))% CI for $(param_name): ($(lower(CIs)), $(upper(CIs)))")
