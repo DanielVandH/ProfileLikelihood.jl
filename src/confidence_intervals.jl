@@ -102,7 +102,7 @@ function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
             return ConfidenceInterval(extrema(ab)..., conf_level)
         catch
             @warn("Failed to find a valid confidence interval for parameter $i. Attempting to find confidence interval without using a spline.")
-            return ConfidenceInterval(θ, prof, i; conf_level, spline=false)
+            return confidence_intervals(θ, prof, i; conf_level, spline=false)
         end
     else
         conf_region = θ[i] .≥ conf_val
