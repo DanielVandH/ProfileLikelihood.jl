@@ -48,7 +48,7 @@ Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikel
 The `Figure` with the plots.
 """
 function plot_profiles end
-@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs)
+@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs=nothing)
     param_name = names(sol)[k]
     lower_ci, upper_ci = confidence_intervals(sol)[k]
     θ_vals = sol.θ[k]
@@ -58,11 +58,19 @@ function plot_profiles end
     formatted_conf_level = parse(Float64, Printf.format(Printf.Format("%.2g"), 100conf_level))
     formatted_lower_ci = parse(Float64, Printf.format(Printf.Format("%.3g"), lower_ci))
     formatted_upper_ci = parse(Float64, Printf.format(Printf.Format("%.3g"), upper_ci)) # This is what @sprintf is doing, but we need to do this so that we can extract the returned value to inteprolate into LaTeXStrings
-    ax = CairoMakie.Axis(fig[i, j],
-        xlabel=param_name,
-        ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-        title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
-        titlealign=:left; axis_kwargs...)
+    if axis_kwargs !== nothing
+        ax = CairoMakie.Axis(fig[i, j],
+            xlabel=param_name,
+            ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
+            title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            titlealign=:left; axis_kwargs...)
+    else
+        ax = CairoMakie.Axis(fig[i, j],
+            xlabel=param_name,
+            ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
+            title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            titlealign=:left; axis_kwargs...)
+    end
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
     if !spline
         CairoMakie.lines!(ax, θ_vals, ℓ_vals)
