@@ -69,7 +69,7 @@ function plot_profiles end
             xlabel=param_name,
             ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
             title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
-            titlealign=:left; axis_kwargs...)
+            titlealign=:left)
     end
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
     if !spline
