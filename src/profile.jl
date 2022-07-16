@@ -264,7 +264,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     return profile_sol
 end
 function profile!(prof::ProfileLikelihoodSolution, n;
-    alg = sol.alg,
+    alg = prof.mle.alg,
     conf_level=0.95,
     spline=true,
     threshold=-0.5quantile(Chisq(1), conf_level),
