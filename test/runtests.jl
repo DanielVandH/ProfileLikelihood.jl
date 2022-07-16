@@ -1,6 +1,8 @@
 using Test
-using ProfileLikelihood
 using CairoMakie
+
+using ProfileLikelihood
+
 
 include("template_functions.jl")
 @testset "Regression" begin

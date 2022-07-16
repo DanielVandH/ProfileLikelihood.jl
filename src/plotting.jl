@@ -20,13 +20,14 @@ function choose_grid_layout(num_plots, cols, rows)
 end
 
 """
-    plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val) 
+    plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs) 
     plot_profiles(sol::ProfileLikelihoodSolution; <keyword arguments>)
 
 Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikelihoodSolution`](@ref) `sol`.
 
 # Arguments 
 - `sol::ProfileLikelihoodSolution`: The [`ProfileLikelihoodSolution`](@ref).
+- `axis_kwargs...`: Additional arguments for the `Makie` axes.
 - `fig`: An existing figure to put the plot into.
 - `k`: The index of the variable to plot for.
 - `(i, j)`: The axis position to put the plot into.
@@ -40,13 +41,14 @@ Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikel
 - `spline=true`: Whether to plot the spline through the data.
 - `show_mles=true`: Whether to plot a line at the MLEs.
 - `shade_ci=true`: Whether to shade the area under the curve between the confidence interval.
-- `plot_kwargs...`: Additional keyword arguments for the `Makie` plot objects.
+- `axis_kwargs...`: Additional arguments for the `Makie` axes. Should be a `NamedTuple` (when provided to `plot_profiles`).
+- `fig_kwargs...`: Additional keyword arguments for the `Makie` `Figure` objects. Should be a `NamedTuple`.
 
 # Output 
 The `Figure` with the plots.
 """
 function plot_profiles end
-@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true)
+@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs)
     param_name = names(sol)[k]
     lower_ci, upper_ci = confidence_intervals(sol)[k]
     θ_vals = sol.θ[k]
@@ -60,7 +62,7 @@ function plot_profiles end
         xlabel=param_name,
         ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
         title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
-        titlealign=:left)
+        titlealign=:left; axis_kwargs...)
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
     if !spline
         CairoMakie.lines!(ax, θ_vals, ℓ_vals)
@@ -86,13 +88,21 @@ function plot_profiles end
     return nothing
 end
 function plot_profiles(sol::ProfileLikelihoodSolution; ncol=nothing, nrow=nothing,
-    true_vals=repeat([nothing], num_params(sol)), spline=true, show_mles=true, shade_ci=true, plot_kwargs...) where {T<:ProfileLikelihoodSolution}
+    true_vals=repeat([nothing], num_params(sol)), spline=true, show_mles=true, shade_ci=true, fig_kwargs=nothing, axis_kwargs=nothing) where {T<:ProfileLikelihoodSolution}
     num_plots = num_params(sol)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
-    fig = CairoMakie.Figure(; plot_kwargs...)
+    if fig_kwargs !== nothing
+        fig = CairoMakie.Figure(; fig_kwargs...)
+    else
+        fig = CairoMakie.Figure()
+    end
     for k in 1:num_plots
         i, j = plot_positions[k]
-        plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci)
+        if axis_kwargs !== nothing
+            plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci; axis_kwargs)
+        else
+            plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci)
+        end
     end
     return fig
 end

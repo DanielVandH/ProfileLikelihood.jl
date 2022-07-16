@@ -114,7 +114,7 @@ prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false)
 @test length(prof[3].θ) == length(prof[3].profile) == 264
 @test length(prof[4].θ) == length(prof[4].profile) == 139
 @test length(prof[5].θ) == length(prof[5].profile) === 95
-fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
+fig = plot_profiles(prof; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
 
 @testset "Problem configuration" begin
     ## Parameter values
