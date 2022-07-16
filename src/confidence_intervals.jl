@@ -17,9 +17,9 @@ Upper bound of the confidence interval.
 Confidence level for the confidence interval.
 """
 Base.@kwdef struct ConfidenceInterval{T,F}
-    lower::T 
-    upper::T 
-    level::F 
+    lower::T
+    upper::T
+    level::F
 end
 
 """
@@ -28,8 +28,8 @@ end
 
 Returns the `lower` or `upper` bound of the confidence interval `CI`.
 """
-@inline lower(CI::ConfidenceInterval) = CI.lower 
-@doc (@doc lower) @inline upper(CI::ConfidenceInterval) = CI.upper 
+@inline lower(CI::ConfidenceInterval) = CI.lower
+@doc (@doc lower) @inline upper(CI::ConfidenceInterval) = CI.upper
 
 """
     level(CI::ConfidenceInterval)
@@ -52,7 +52,7 @@ Indexes the given confidence interval `CI`. If `i==1` then the lower bound is re
 `i == 2` then the upper bound is returned. Otherwise, a `BoundsError` is thrown.
 """
 @inline Base.Base.@propagate_inbounds function Base.getindex(CI::ConfidenceInterval, i::Int)
-    if i == 1 
+    if i == 1
         return lower(CI)
     elseif i == 2
         return upper(CI)
@@ -70,7 +70,7 @@ Determines if `x` is in the confidence interval `CI`. Returns `true` if so and
 Base.in(x, CI::ConfidenceInterval) = lower(CI) ≤ x ≤ upper(CI)
 
 @inline Base.@propagate_inbounds Base.iterate(CI::ConfidenceInterval, state=1) = state > 2 ? nothing : (CI[state], state + 1)
-@inline Base.eltype(::ConfidenceInterval{T,F}) where {T,F} = T 
+@inline Base.eltype(::ConfidenceInterval{T,F}) where {T,F} = T
 @inline Base.length(::ConfidenceInterval) = 2
 
 """
@@ -93,21 +93,31 @@ computes the interval for the `i`th variable, otherwise computes all of them.
 - `CI`: A [`ConfidenceInterval`](@ref) with the lower and upper bounds. If confidence intervals were computed for all variables, this is instead a dictionary of such objects.
 """
 function confidence_intervals end
-function confidence_intervals(θ, prof, i; conf_level = 0.99, spline = true)
+function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
     conf_val = -0.5quantile(Chisq(1), conf_level)
-    if spline 
+    if spline
         itp = Spline1D(θ[i], prof[i] .- conf_val)
         ab = sort(roots(itp))
-        return ConfidenceInterval(extrema(ab)..., conf_level)
+        try
+            return ConfidenceInterval(extrema(ab)..., conf_level)
+        catch
+            @warn("Failed to find a valid confidence interval for parameter $i. Attempting to find confidence interval without using a spline.")
+            return ConfidenceInterval(θ, prof, i; conf_level, spline=false)
+        end
     else
-        conf_region = θ[i] .≥ conf_val 
+        conf_region = θ[i] .≥ conf_val
         idx = findall(conf_region)
         ab = extrema(θ[i][idx])
-        return ConfidenceInterval(ab..., conf_level)
+        try
+            return ConfidenceInterval(ab..., conf_level)
+        catch
+            @warn("Failed to find a valid confidence interval for parameter $i. Returning the extrema of the parameter values.")
+            return ConfidenceInterval(extrema(θ)..., conf_level)
+        end
     end
 end
-function confidence_intervals(θ, prof; conf_level = 0.99, spline = true)
-    conf_ints = Dict{Int64, ConfidenceInterval{eltype(θ[begin]), typeof(conf_level)}}([])
+function confidence_intervals(θ, prof; conf_level=0.99, spline=true)
+    conf_ints = Dict{Int64,ConfidenceInterval{eltype(θ[begin]),typeof(conf_level)}}([])
     sizehint!(conf_ints, length(θ))
     for n in eachindex(θ)
         conf_ints[n] = confidence_intervals(θ, prof, n; conf_level, spline)
