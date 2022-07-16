@@ -117,7 +117,7 @@ function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
     end
 end
 function confidence_intervals(θ, prof; conf_level=0.99, spline=true)
-    conf_ints = Dict{Int64,ConfidenceInterval{eltype(θ[begin]),typeof(conf_level)}}([])
+    conf_ints = Dict{Int64,ConfidenceInterval{eltype(θ[1]),typeof(conf_level)}}([])
     sizehint!(conf_ints, length(θ))
     for n in eachindex(θ)
         conf_ints[n] = confidence_intervals(θ, prof, n; conf_level, spline)
