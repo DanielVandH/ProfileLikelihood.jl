@@ -99,20 +99,24 @@ function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
         itp = Spline1D(θ[i], prof[i] .- conf_val)
         ab = sort(roots(itp))
         try
-            return ConfidenceInterval(extrema(ab)..., conf_level)
+            res = ConfidenceInterval(extrema(ab)..., conf_level)
+            return res
         catch
             @warn("Failed to find a valid confidence interval for parameter $i. Attempting to find confidence interval without using a spline.")
-            return confidence_intervals(θ, prof, i; conf_level, spline=false)
+            res = confidence_intervals(θ, prof, i; conf_level, spline=false)
+            return res
         end
     else
         conf_region = θ[i] .≥ conf_val
         idx = findall(conf_region)
         ab = extrema(θ[i][idx])
         try
-            return ConfidenceInterval(ab..., conf_level)
+            res = ConfidenceInterval(ab..., conf_level)
+            return res
         catch
             @warn("Failed to find a valid confidence interval for parameter $i. Returning the extrema of the parameter values.")
-            return ConfidenceInterval(extrema(θ)..., conf_level)
+            res = ConfidenceInterval(extrema(θ)..., conf_level)
+            return res
         end
     end
 end

@@ -85,6 +85,15 @@ refined_sol = refine(sol; local_method=NLopt.LN_NELDERMEAD())
 @test refined_sol.alg[1] == MultistartOptimization.TikTak(100, 10, 0.1, 0.995, 0.5)
 @test refined_sol.alg[2] == NLopt.LN_NELDERMEAD
 
+prof = profile(prob, refined_sol; alg = NLopt.LN_NELDERMEAD, abstol = 1e-1, resolution = 10, min_steps = 6)
+oldprof = deepcopy(prof)
+fig = plot_profiles(prof; spline = false)
+profile!(prof, 4; alg = NLopt.LD_LBFGS(), abstol = 1e-13)
+fig = plot_profiles(prof; spline = false)
+@test prof.θ[4] ≠ oldprof.θ[4]
+@test prof.profile[4] ≠ oldprof.profile[4]
+@test prof.confidence_intervals[4] ≠ oldprof.confidence_intervals[4]
+
 ## Linear exponential ODE 
 Random.seed!(29999988)
 prob, loglikk, θ, yᵒ, n = LinearExponentialODE()
