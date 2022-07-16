@@ -7,6 +7,10 @@
 
 Methods for transforming results by the given function(s). When transforming confidence intervals, it is 
 assumed that `F` is injective.
+
+!!! warning 
+
+    These methods DO NOT transform the `other_mles` field in `ProfileLikelihoodSolution`.
 """
 function transform_result end 
 function transform_result(sol::LikelihoodSolution,  F::Vector{Fnc} where Fnc <: Function) 
@@ -46,7 +50,7 @@ function transform_result(sol::ProfileLikelihoodSolution, F::Vector{Fnc} where {
         new_CI[i] = transform_result(sol.confidence_intervals[i], F[i])
     end
     ## Done 
-    return ProfileLikelihoodSolution(new_θ, sol.profile, sol.prob, new_mle, new_spline, new_CI)
+    return ProfileLikelihoodSolution(new_θ, sol.profile, sol.prob, new_mle, new_spline, new_CI, sol.other_mles)
 end
 function transform_result(sol::ProfileLikelihoodSolution, F::Fnc) where {Fnc <: Function}
     return transform_result(sol, repeat([F], num_params(sol)))
