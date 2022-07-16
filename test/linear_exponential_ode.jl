@@ -72,11 +72,11 @@ end
 ################################################################################
 resolution = 10000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
-a1, b1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
-a2, b2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
-a3, b3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
+a1, b1, c1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
+a2, b2, c2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
+a3, b3, c3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
-fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
+fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
 
 @testset "Problem configuration" begin
     ## Parameter values
@@ -113,10 +113,24 @@ fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
         0.1074310958975970564655000316633959300816059112548828125
         15.084663612381799424611017457209527492523193359375]
     for i in 1:3
-        @test prof.confidence_intervals[i].lower ≈ lower_confs[i] rtol=1e-3
-        @test prof.confidence_intervals[i].upper ≈ upper_confs[i] rtol=1e-3
+        @test prof.confidence_intervals[i].lower ≈ lower_confs[i] rtol = 1e-3
+        @test prof.confidence_intervals[i].upper ≈ upper_confs[i] rtol = 1e-3
         @test prof.confidence_intervals[i].level == 0.95
     end
+
+    ## Other MLEs 
+    @test sum(c1) ≈ [1.8568069168356351
+        285.75641172766734]
+    @test sum(c2) ≈ [-459.5222731495931
+        13807.623664736382]
+    @test sum(c3) ≈ [-37.553972000912495
+        7.305249382439507]
+    @test length(c1) == length(a1) == length(b1)
+    @test length(c2) == length(a2) == length(b2)
+    @test length(c3) == length(a3) == length(b3)
+    @test prof.other_mles[1] == c1 
+    @test prof.other_mles[2] == c2 
+    @test prof.other_mles[3] == c3
 end
 
 @testset "Problem solution" begin

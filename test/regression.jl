@@ -103,11 +103,11 @@ end
 
 resolution = 1000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
-a1, b1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1])
-a2, b2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2], 5)
-a3, b3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3])
-a4, b4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
-a5, b5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
+a1, b1, c1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1])
+a2, b2, c2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2], 5)
+a3, b3, c3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3])
+a4, b4, c4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
+a5, b5, c5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
 prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false)
 @test length(prof[1].θ) == length(prof[1].profile) == 198
 @test length(prof[2].θ) == length(prof[2].profile) == 156
@@ -165,6 +165,38 @@ fig = plot_profiles(prof; fig_kwargs = (fontsize = 20, resolution = (1600, 800))
     for i in 1:5
         @test prof.confidence_intervals[i].level == 0.99
     end
+
+    ## Other MLEs 
+    @test sum(c1) ≈ [-197.15720802760532
+    197.61391412899405
+     98.41471405325326
+    594.1845576101321]
+    @test sum(c2) ≈ [7.179095145173143
+    155.69493130146472
+     77.52228199445916
+    468.1451686301226]
+    @test sum(c3) ≈ [12.148970073165131
+    -262.87561689281057
+     131.21985435889783
+     792.282239857978]
+    @test sum(c4) ≈ [6.3970931478274
+    -138.39464499635085
+     138.72921917771941
+     417.1285024670855]
+    @test sum(c5) ≈ [4.372313669611411
+    -94.59561941220197
+     94.81690137691011
+     47.21912381678868]
+     @test length(c1) == length(a1) == length(b1)
+     @test length(c2) == length(a2) == length(b2)
+     @test length(c3) == length(a3) == length(b3)
+     @test length(c4) == length(a4) == length(b4)
+     @test length(c5) == length(a5) == length(b5)
+     @test prof.other_mles[1] == c1 
+     @test prof.other_mles[2] == c2 
+     @test prof.other_mles[3] == c3
+     @test prof.other_mles[4] == c4
+     @test prof.other_mles[5] == c5
 end
 
 @testset "Problem solution" begin

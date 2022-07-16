@@ -79,12 +79,12 @@ end
 ################################################################################
 resolution = 10000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
-a1, b1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
-a2, b2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
-a3, b3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
-a4, b4 = profile(prob, sol, 4, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[4])
+a1, b1, c1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
+a2, b2, c2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
+a3, b3, c3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
+a4, b4, c4 = profile(prob, sol, 4, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[4])
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
-fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
+fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
 
 @testset "Problem configuration" begin
     ## Parameter values
@@ -127,10 +127,32 @@ fig = plot_profiles(prof; fontsize=20, resolution=(1600, 800))
         0.11775663655200267754263876440745661966502666473388671875
         0.6204495782497130296206933053326793015003204345703125]
     for i in 1:4
-        @test prof.confidence_intervals[i].lower ≈ conf_lowers[i] rtol=1e-3
-        @test prof.confidence_intervals[i].upper ≈ conf_uppers[i] rtol=1e-3
+        @test prof.confidence_intervals[i].lower ≈ conf_lowers[i] rtol = 1e-3
+        @test prof.confidence_intervals[i].upper ≈ conf_uppers[i] rtol = 1e-3
         @test prof.confidence_intervals[i].level == 0.95
     end
+
+    ## Other MLEs 
+    @test sum(c1) ≈ [3990.3692741550503
+    396.43338672511356
+   2175.447953769169]
+    @test sum(c2) ≈ [285.07025082054685
+    34.845669221266434
+   179.16097653498687]
+    @test sum(c3) ≈ [975.9017732829145
+    1285.9752078484817
+     674.085170079816]
+    @test sum(c4) ≈ [1527.6326494278355
+    1742.7329031728939
+     175.6705010389628]
+     @test length(c1) == length(a1) == length(b1)
+     @test length(c2) == length(a2) == length(b2)
+     @test length(c3) == length(a3) == length(b3)
+     @test length(c4) == length(a4) == length(b4)
+     @test prof.other_mles[1] == c1 
+     @test prof.other_mles[2] == c2 
+     @test prof.other_mles[3] == c3
+     @test prof.other_mles[4] == c4
 end
 
 @testset "Problem solution" begin

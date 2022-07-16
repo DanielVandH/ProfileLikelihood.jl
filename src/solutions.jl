@@ -77,7 +77,7 @@ end
 end
 
 """
-    ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF} <: AbstractLikelihoodSolution
+    ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF,OM} <: AbstractLikelihoodSolution
 
 Struct for the normalised profile log-likelihood. See [`profile`](@ref) for a constructor.
 
@@ -101,6 +101,9 @@ This is a dictionary such that `spline[i]` is a spline through the data `(θ[i],
 
 This is a dictonary such that `confidence_intervals[i]` is a confidence interval for the `i`th parameter.
 
+- `other_mles::OM`
+
+This is a dictionary such that `other_mles[i]` gives the vector for the MLEs of the other parameters not being profiled, for each datum.
 # Spline evaluation 
 
 This struct is callable. We define the method 
@@ -109,13 +112,14 @@ This struct is callable. We define the method
 
 that evaluates the spline through the `i`th profile at the point `θ`.
 """
-Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF} <: AbstractLikelihoodSolution
+Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF,OM} <: AbstractLikelihoodSolution
     θ::Dict{I,V}
     profile::Dict{I,V}
     prob::LP
     mle::LS
     spline::Dict{I,Spl}
     confidence_intervals::Dict{I,ConfidenceInterval{CT,CF}}
+    other_mles::OM
 end
 (prof::ProfileLikelihoodSolution)(θ, i) = prof.spline[i](θ)
 
@@ -125,7 +129,7 @@ end
 @inline confidence_intervals(sol::ProfileLikelihoodSolution, i) = confidence_intervals(sol)[i]
 @inline retcode(sol::ProfileLikelihoodSolution) = retcode(sol.mle)
 
-Base.@kwdef struct ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF} <: AbstractLikelihoodSolution
+Base.@kwdef struct ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF,OM} <: AbstractLikelihoodSolution
     parent::PLS
     θ::V
     profile::V
@@ -133,12 +137,13 @@ Base.@kwdef struct ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF} <: Abs
     mle::LS
     spline::Spl
     confidence_intervals::ConfidenceInterval{CT,CF}
+    other_mles::OM
 end
 
 Base.@propagate_inbounds @inline function Base.getindex(sol::ProfileLikelihoodSolution, i::Int)
-    ProfileLikelihoodSolutionView{i,typeof(sol),promote_type(typeof(sol.θ[i]),typeof(sol.profile[i])),
+    ProfileLikelihoodSolutionView{i,typeof(sol),promote_type(typeof(sol.θ[i]), typeof(sol.profile[i])),
         typeof(sol.prob),typeof(sol.mle[i]),typeof(sol.spline[i]),
-        typeof(sol.confidence_intervals[i].lower),typeof(sol.confidence_intervals[i].upper)}(sol, 
-        sol.θ[i], sol.profile[i], sol.prob, sol.mle[i], sol.spline[i], sol.confidence_intervals[i])
+        typeof(sol.confidence_intervals[i].lower),typeof(sol.confidence_intervals[i].upper),typeof(sol.other_mles[i])}(sol,
+        sol.θ[i], sol.profile[i], sol.prob, sol.mle[i], sol.spline[i], sol.confidence_intervals[i], sol.other_mles[i])
 end
 (prof::ProfileLikelihoodSolutionView)(θ) = prof.spline(θ)

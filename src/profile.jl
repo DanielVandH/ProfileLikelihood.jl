@@ -13,27 +13,35 @@ Prepares the cache arrays and `prob` for profiling.
 - `prob`: This is the `OptimizationProblem`, except now updated so that the lower and upper bounds exclude the `n`th variable and also has an initial guess with the updated dimensions.
 - `left`/`right_profile`: This is the vector which will store the values of the normalised profile log-likelihood function at the corresponding values in `left`/`right_param_vals`.
 - `left`/`right_param_vals`: This is the vector which will store the parameter values for the `n`th variable going `left`/`right`.
+- `left`/`right_other_mles`: This is the vector which will store the MLEs for the other parameters for the `n`th variable going `left`/`right`.
 - `cache`: Cache array for storing the `i`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
 - `θ₀`: This is the vector which will continually be updated with the current initial guess.
 - `combined_profiles`: Vector that combines the normalised profile log-likelihood function values going left and right.
 - `combined_param_vals`: Vector that combines the parameter values going left and right.
+- `combined_other_mles`: Vector that combines the parameter values going left and right.
 """
 function prepare_profile(prob::OptimizationProblem, θₘₗₑ, n, param_ranges)
     left_profiles = Vector{Float64}([])
     right_profiles = Vector{Float64}([])
     left_param_vals = Vector{Float64}([])
     right_param_vals = Vector{Float64}([])
+    left_other_mles = Vector{Vector{Float64}}([])
+    right_other_mles = Vector{Vector{Float64}}([])
     combined_profiles = Vector{Float64}([])
     combined_param_vals = Vector{Float64}([])
+    combined_other_mles = Vector{Vector{Float64}}([])
     sizehint!(left_profiles, length(param_ranges[1]))
     sizehint!(right_profiles, length(param_ranges[2]))
     sizehint!(combined_profiles, length(param_ranges[1]) + length(param_ranges[2]))
     sizehint!(combined_param_vals, length(param_ranges[1]) + length(param_ranges[2]))
+    sizehint!(combined_other_mles, length(param_ranges[1]) + length(param_ranges[2]))
     cache = dualcache(zeros(length(θₘₗₑ)))
     θ₀ = θₘₗₑ[Not(n)]
     prob = update_prob(prob, n) # Update the lower and upper bounds to exclude n     
     prob = update_prob(prob, θ₀) # This is replaced immediately, but just helps the problem start with the correct dimensions 
-    return prob, left_profiles, right_profiles, left_param_vals, right_param_vals, cache, θ₀, combined_profiles, combined_param_vals
+    return prob, left_profiles, right_profiles, left_param_vals, right_param_vals, left_other_mles, right_other_mles, 
+    cache, θ₀, 
+    combined_profiles, combined_param_vals, combined_other_mles
 end
 
 """
@@ -75,13 +83,14 @@ end
 
 
 """
-    profile!(prob::OptimizationProblem, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
+    profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
 
 Computes the normalised profile log-likelihood function for the `n`th variable at `θₙ`.
 
 # Arguments 
 - `prob::OptimizationProblem`: The `OptimizationProblem`. This should be already updated from [`update_prob`](@ref).
 - `profile_vals`: Values of the normalised profile log-likelihood function. Gets updated with the new value at the index `i`.
+- `other_mles`: This will get updated with the MLEs for the other parameters not being profiled.
 - `n`: The index of the parameter being profiled.
 - `θₙ`: The value to fix the `n`th variable at. 
 - `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `n`th variable). This gets updated in-place with the new guesses.
@@ -95,18 +104,22 @@ Computes the normalised profile log-likelihood function for the `n`th variable a
 # Output 
 There is no output, but `profile_vals` gets updated (via `push!`) with the new normalised profile log-likelihood value at `θₙ`.
 """
-function profile!(prob::OptimizationProblem, profile_vals, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
+function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
     soln = solve(prob, alg; kwargs...)
     for j in eachindex(θ₀)
         θ₀[j] = soln.u[j]
     end
     push!(profile_vals, -soln.minimum - ℓₘₐₓ)
+    push!(other_mles, soln.u)
     return nothing
+end
+function profile!(prob::OptimizationProblem, n, θₙ, θ₀, ℓₘₐₓ, alg, cache; kwargs...)
+
 end
 
 """
-    find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges; kwargs...)
+    find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges; kwargs...)
 
 Optimises the profile likelihood until exceeding `threshold`, going in the direction specified by `Δθ`.
 
@@ -114,6 +127,7 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 - `prob`: The `OptimizationProblem`. This should be already updated from [`update_prob`](@ref).
 - `param_vals`: Parameter values to use for the normalised profile log-likelihood function.
 - `profile_vals`: Values of the normalised profile log-likelihood function at the corresponding values in `param_vals`.
+- `other_mles`: This will get updated with the MLEs for the other parameters not being profiled.
 - `θ₀`: Initial guesses for the parameters to optimise over (i.e. initial guesses for the parameters without the `n`th variable).
 - `ℓₘₐₓ`: The value of the log-likelihood function at the MLEs.
 - `n`: The variable being profiled.
@@ -129,12 +143,12 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 # Outputs 
 Returns nothing, but `profile_vals` gets updated with the found values and `param_vals` with the used parameter values.
 """
-function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps; kwargs...)
+function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps; kwargs...)
     steps = 1
     old_θ₀ = copy(θ₀)
     for θₙ in param_ranges
         push!(param_vals, θₙ)
-        profile!(prob, profile_vals, n, θₙ, old_θ₀, ℓₘₐₓ, alg, cache; kwargs...)
+        profile!(prob, profile_vals, other_mles, n, θₙ, old_θ₀, ℓₘₐₓ, alg, cache; kwargs...)
         steps += 1
         if profile_vals[end] ≤ threshold
             break
@@ -142,20 +156,22 @@ function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, θ�
     end
     if steps ≤ min_steps
         new_range = LinRange(param_vals[1], param_vals[end], min_steps)
-        empty!(param_vals)
-        empty!(profile_vals)
-        find_endpoint!(prob, param_vals, profile_vals, θ₀, ℓₘₐₓ, n, alg, typemin(threshold), cache, new_range, 0; kwargs...)
+        !isempty(param_vals) && empty!(param_vals)
+        !isempty(profile_vals) && empty!(profile_vals)
+        !isempty(other_mles) && empty!(other_mles)
+        find_endpoint!(prob, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, typemin(threshold), cache, new_range, 0; kwargs...)
         return nothing
     end
     return nothing
 end
 
 """
-    profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges; kwargs...)
-    profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges; kwargs...)
-    profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines; kwargs...)
-    profile(prob::LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,D,θ₀Type,ℓ}, sol::LikelihoodSolution; <keyword arguments>)
-    profile!(prof::ProfileLikelihoodSolution, n; <keyword arguments>)
+    [1] profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges; kwargs...)
+    [2] profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges; kwargs...)
+    [3] profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines; kwargs...)
+    [4] profile(prob::LikelihoodProblem, sol::LikelihoodSolution; <keyword arguments>)
+    [5] profile!(prof::ProfileLikelihoodSolution, n; <keyword arguments>)
+    [6] profile!(prof::ProfileLikelihoodSolution; n = 1:num_params(prof.prob), alg = prof.mle.alg, spline=true, use_threads=false; kwargs...)
 
 Computes the normalised profile log-likelihood function for the given `LikelihoodProblem` for all variables, or only for 
 the `n`th variable if `n` is provided.
@@ -187,45 +203,59 @@ the first entry the MLE, and similarly for the second tuple. See [`construct_pro
 multiple parameters at the same time, but the individual computations within a single parameter's profile are performed serially. (Doesn't actually do anything currently.)
 - `min_steps = 10`: Minimum number of steps to take in each direction.
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
+- `n = 1:num_params(prof.prob)`: Parameters to refine, if using the sixth method.
 
 # Outputs 
 If `n` is provided, then we return 
 
 - `profile_vals`: Values for the normalised profile log-likelihood function.
 - `param_vals`: The values for the `i`th parameter that correspond to the values in `profile_vals`.
+- `other_mles`: The MLEs for the other parameters, i.e. those not being profiled, corresponding to the above data.
 
 Otherwise, returns a [`ProfileLikelihoodSolution`](@ref) struct.
 
 # Refinement 
-If you want to refine the profile for a parameter, you can use the fifth method. The keyword arguments in this case are the same as for the fourth method,
-with the exception that `param_ranges` should now be specific to the `n`th parameter.
+If you want to refine the profile for a parameter, potentially using more gridpoints, you can use the fifth method. 
+The keyword arguments in this case are the same as for the fourth method, with the exception that `param_ranges` should now be 
+specific to the `n`th parameter.
+
+If you instead want to keep the same gridpoints and just re-optimise at each parameter value, you can use the last method. This method simply 
+goes over each existing parameter value for the provided `n` and olves the optimisation problem again. Of course, if you do not change 
+the algorithm or any of the solver keyword arguments, then nothing will change, so be sure that you use different settings if you decide to use 
+this method.
 """
 function profile end
 function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges, min_steps; kwargs...)
     prob, left_profiles, right_profiles,
     left_param_vals, right_param_vals,
-    cache, θ₀, combined_profiles, combined_param_vals = prepare_profile(prob, θₘₗₑ, n, param_ranges)
-    find_endpoint!(prob, left_param_vals, left_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1], min_steps; kwargs...) # Go left
-    find_endpoint!(prob, right_param_vals, right_profiles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2], min_steps; kwargs...) # Go right
+    left_other_mles, right_other_mles,
+    cache, θ₀, 
+    combined_profiles, combined_param_vals, combined_other_mles = prepare_profile(prob, θₘₗₑ, n, param_ranges)
+    find_endpoint!(prob, left_param_vals, left_profiles, left_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1], min_steps; kwargs...) # Go left
+    find_endpoint!(prob, right_param_vals, right_profiles, right_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2], min_steps; kwargs...) # Go right
     append!(combined_profiles, left_profiles, right_profiles) # Now combine the profiles 
     append!(combined_param_vals, left_param_vals, right_param_vals) # Now combine the parameter values 
+    append!(combined_other_mles, left_other_mles, right_other_mles) # Now combine the other MLEs
     # Make sure the results are sorted 
     sort_idx = sortperm(combined_param_vals)
     permute!(combined_param_vals, sort_idx)
     permute!(combined_profiles, sort_idx)
+    permute!(combined_other_mles, sort_idx)
     # Some cleanup duplicate indices
     idx = unique(i -> combined_param_vals[i], eachindex(combined_param_vals))
     keepat!(combined_param_vals, idx)
     keepat!(combined_profiles, idx)
-    return combined_profiles, combined_param_vals
+    keepat!(combined_other_mles, idx)
+    return combined_profiles, combined_param_vals, combined_other_mles
 end
 @inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10; kwargs...)
     return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps; kwargs...)
 end
-@inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, splines, min_steps; kwargs...)
-    _prof, _θ = profile(prob, sol, n, alg, threshold, param_ranges, min_steps; kwargs...)
+@inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps; kwargs...)
+    _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps; kwargs...)
     param_vals[n] = _θ
     profile_vals[n] = _prof
+    other_mles[n] = _other_mles
     try
         splines[n] = Spline1D(_θ, _prof)
     catch
@@ -246,34 +276,37 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
     prof = Dict{Int64,Vector{Float64}}([])
+    other_mles = Dict{Int64, Vector{Vector{Float64}}}([])
     splines = Vector{Spline1D}(undef, N)
     sizehint!(θ, N)
     sizehint!(prof, N)
-    #if use_threads
-    #    Threads.@threads for n in 1:N
-    #        profile!(prob, sol, n, alg, threshold, param_ranges, prof, θ, splines)
-    #    end
-    #else
     for n in 1:N
-        profile!(prob, sol, n, alg, threshold, param_ranges[n], prof, θ, splines, min_steps; kwargs...)
+        profile!(prob, sol, n, alg, threshold, param_ranges[n], prof, θ, other_mles, splines, min_steps; kwargs...)
     end
-    #end
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
     conf_ints = confidence_intervals(θ, prof; conf_level, spline)
-    profile_sol = ProfileLikelihoodSolution(θ, prof, prob, sol, splines, conf_ints)
+    profile_sol = ProfileLikelihoodSolution(θ, prof, prob, sol, splines, conf_ints, other_mles)
     return profile_sol
 end
 function profile!(prof::ProfileLikelihoodSolution, n;
-    alg = prof.mle.alg,
+    alg=prof.mle.alg,
     conf_level=0.95,
     spline=true,
     threshold=-0.5quantile(Chisq(1), conf_level),
     resolution=200,
-    param_ranges = construct_profile_ranges(prof.prob, prof.mle, resolution)[n],
+    param_ranges=construct_profile_ranges(prof.prob, prof.mle, resolution)[n],
     use_threads=false,
     min_steps=10,
     kwargs...)
-    profile!(prof.prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.spline, min_steps; kwargs...)
+    profile!(prof.prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.other_mles, prof.spline, min_steps; kwargs...)
     prof.confidence_intervals[n] = confidence_intervals(prof.θ, prof.profile, n; conf_level, spline)
-    return nothing 
+    return nothing
+end
+function profile!(prof::ProfileLikelihoodSolution;
+    n=1:num_params(prof.prob),
+    alg=prof.mle.alg,
+    spline=true,
+    use_threads=false,
+    kwargs...)
+
 end
