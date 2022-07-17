@@ -45,9 +45,10 @@ function prepare_profile(prob::OptimizationProblem, θₘₗₑ, n, param_ranges
 end
 
 """
+    construct_profile_ranges(sol::LikelihoodSolution, resolution, n, param_bounds)
     construct_profile_ranges(prob::LikelihoodProblem, sol::LikelihoodSolution, resolution::Int; param_bounds = bounds(prob))
 
-Construct ranges for each parameter in `prob` to use for profiling.
+Construct ranges for each parameter in `prob` to use for profiling. `n` can be provided to construct a range only for the `n`th parameter.
 
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
@@ -62,6 +63,17 @@ The output is a `Vector{NTuple{2, LinRange{Float64, Int64}}}` of length `num_par
 giving the values to use a tuple, with the first tuple being the values used when going to the left of the MLE, with 
 the first entry the MLE, and similarly for the second tuple.
 """
+function construct_profile_ranges(sol::LikelihoodSolution, resolution, n, param_bounds)
+    θᵢ = mle(sol)[n]
+    ℓ, u = param_bounds
+    if ⊻(isinf(ℓ), isinf(u))
+        error("The provided parameter bounds must be finite.")
+    end
+    left_range = LinRange(θᵢ, ℓ, resolution)
+    right_range = LinRange(θᵢ, u, resolution)
+    param_ranges = (left_range, right_range)
+    return param_ranges
+end
 function construct_profile_ranges(prob::LikelihoodProblem, sol::LikelihoodSolution, resolution; param_bounds=bounds(prob))
     if resolution isa Number
         resolution = repeat([resolution], num_params(prob))
@@ -69,14 +81,7 @@ function construct_profile_ranges(prob::LikelihoodProblem, sol::LikelihoodSoluti
     param_ranges = Vector{NTuple{2,LinRange{Float64,Int64}}}(undef, num_params(prob))
     mles = mle(sol)
     for i in eachindex(mles)
-        θᵢ = mles[i]
-        ℓ, u = param_bounds[i]
-        if ⊻(isinf(ℓ), isinf(u))
-            error("The provided parameter bounds must be finite.")
-        end
-        left_range = LinRange(θᵢ, ℓ, resolution[i])
-        right_range = LinRange(θᵢ, u, resolution[i])
-        param_ranges[i] = (left_range, right_range)
+        param_ranges[i] = construct_profile_ranges(sol, resolution[i], i, param_bounds[i])
     end
     param_ranges
 end
