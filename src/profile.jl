@@ -217,6 +217,7 @@ multiple parameters at the same time, but the individual computations within a s
 - `min_steps = 10`: Minimum number of steps to take in each direction.
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
 - `n = 1:num_params(prof.prob)`: Parameters to refine, if using the sixth method.
+- `mle_scale=(false,false)`: Whether to scale the parameters by the MLE when optimising so that all of their estimates are O(1). The first entry is for scaling to start with, whereas the second indicates if you want to unscale; if `!mle_scale[1]` but `mle_scale[2]`, then nothing happens.
 
 # Outputs 
 If `n` is provided, then we return 
@@ -285,7 +286,15 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     param_ranges=construct_profile_ranges(prob, sol, resolution),
     use_threads=false,
     min_steps=10,
+    mle_scale=(false,false),
     kwargs...)
+    mles = copy(mle(sol))
+    if mle_scale[1] 
+        cache = dualcache(zeros(length(mles)))
+        prob = scale_prob(prob, mles, cache)
+        param_ranges = scale_param_ranges(prob, mles, param_ranges)
+        sol = transform_result(sol, [x -> x / mles[i] for i in 1:num_params(prob)])
+    end
     N = num_params(prob)
     θ = Dict{Int64,Vector{Float64}}([])
     prof = Dict{Int64,Vector{Float64}}([])
@@ -299,7 +308,14 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
     conf_ints = confidence_intervals(θ, prof; conf_level, spline)
     profile_sol = ProfileLikelihoodSolution(θ, prof, prob, sol, splines, conf_ints, other_mles)
-    return profile_sol
+    if mle_scale[2] && mle_scale[1]
+        profile_sol_transform = transform_result(profile_sol, [x -> x * mles[i] for i in 1:num_params(prob)])
+        unscaled_prob = scale_prob(prob, 1 ./ mles, cache)
+        profile_sol_transform_remade = remake(profile_sol_transform; prob = unscaled_prob)
+        return profile_sol_transform_remade
+    else
+        return profile_sol
+    end
 end
 @doc (@doc profile) function profile!(prof::ProfileLikelihoodSolution, n;
     alg=prof.mle.alg,

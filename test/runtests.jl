@@ -23,3 +23,6 @@ end
 @testset "Refinement" begin
     include("refinement.jl")
 end
+@testset "Scaling" begin 
+    include("scaling.jl")
+end
