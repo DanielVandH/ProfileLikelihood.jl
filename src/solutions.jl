@@ -60,9 +60,10 @@ If the solver is wrapped from an alternative solver ecosystem, such as `Optim.jl
 # Constructor 
 We define the constructor 
 
-    LikelihoodSolution(sol::SciMLBase.AbstractOptimizationSolution, prob::LikelihoodProblem)
+    LikelihoodSolution(sol::SciMLBase.AbstractOptimizationSolution, prob::LikelihoodProblem; scale=true, alg::A)
 
-that constructs a [`LikelihoodSolution`](@ref) struct from a solution from `Optimization.jl`.
+that constructs a [`LikelihoodSolution`](@ref) struct from a solution from `Optimization.jl`. `scale` is the amount to divide the final 
+maximum likelihood by, and `alg` is the algorithm used.
 """
 Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,D,ℓ<:Function} <: AbstractLikelihoodSolution
     θ::θType₃
@@ -72,8 +73,8 @@ Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,ii
     retcode::Symbol
     original::O
 end
-@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}; alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,iip,F,θType₁,θType₂,P,B,LC,UC,S,K,D,ℓ,A}
-    return LikelihoodSolution{θType₁,θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,iip,F,P,B,LC,UC,S,K,D,ℓ}(sol.u, prob, alg, -sol.minimum, sol.retcode, sol.original)
+@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}; scale=true, alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,iip,F,θType₁,θType₂,P,B,LC,UC,S,K,D,ℓ,A}
+    return LikelihoodSolution{θType₁,θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,iip,F,P,B,LC,UC,S,K,D,ℓ}(sol.u, prob, alg, -sol.minimum / scale, sol.retcode, sol.original)
 end
 
 """

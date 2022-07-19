@@ -147,12 +147,42 @@ Scales the parameter ranges (see also [`construct_profile_ranges`](@ref)) by `ml
 @inline function scale_param_ranges(prob::LikelihoodProblem, mles, param_ranges)
     scaled_param_ranges = similar(param_ranges)
     for i in 1:num_params(prob)
-        left_range, right_range = param_ranges[i] 
-        left_range = left_range / mles[i] 
-        right_range = right_range / mles[i] 
+        left_range, right_range = param_ranges[i]
+        left_range = left_range / mles[i]
+        right_range = right_range / mles[i]
         scaled_param_ranges[i] = (left_range, right_range)
     end
     return scaled_param_ranges
 end
 
+"""
+    scaled_f(prob::OptimizationProblem, scale)
+    scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+    scale_prob(prob::LikelihoodProblem, scale)
 
+Returns a function or problem that scales the objective by `scale` (meaning divides)
+"""
+@inline function scaled_f(prob::OptimizationProblem, scale)
+    new_f = @inline (θ, p) -> begin
+        return prob.f(θ, p) / scale
+    end
+    new_f
+end
+@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+    new_f = scaled_f(prob, scale)
+    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
+    }(new_f,
+        prob.f.adtype, prob.f.grad,
+        prob.f.hess, prob.f.hv,
+        prob.f.cons, prob.f.cons_j, prob.f.cons_h,
+        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype,
+        prob.f.syms,
+        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec,
+        prob.f.expr, prob.f.cons_expr)
+    return remake(prob; f=f)
+end
+@inline function scale_prob(prob::LikelihoodProblem, scale)
+    new_optprob = scale_prob(prob.prob, scale)
+    new_likprob = remake(prob; prob=new_optprob)
+    return new_likprob
+end

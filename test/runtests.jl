@@ -26,3 +26,6 @@ end
 @testset "Parameter scaling" begin 
     include("parameter_scaling.jl")
 end
+@testset "Objective scaling" begin 
+    include("objective_scaling.jl")
+end
