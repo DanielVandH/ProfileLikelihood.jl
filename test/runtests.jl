@@ -23,6 +23,6 @@ end
 @testset "Refinement" begin
     include("refinement.jl")
 end
-@testset "Scaling" begin 
-    include("scaling.jl")
+@testset "Parameter scaling" begin 
+    include("parameter_scaling.jl")
 end
