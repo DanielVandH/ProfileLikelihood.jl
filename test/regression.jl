@@ -103,19 +103,20 @@ end
 
 resolution = 1000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
-a1, b1, c1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1])
-a2, b2, c2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2], 5)
-a3, b3, c3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3])
-a4, b4, c4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4])
-a5, b5, c5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5])
-prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false)
+a1, b1, c1 = profile(prob, sol, 1, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[1], 10, false)
+a2, b2, c2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[2], 10, false)
+a3, b3, c3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3], 10, false)
+a4, b4, c4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4], 10, false)
+a5, b5, c5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5], 10, false)
+prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false, min_steps=10,normalise=false)
 @test length(prof[1].θ) == length(prof[1].profile) == 198
 @test length(prof[2].θ) == length(prof[2].profile) == 156
 @test length(prof[3].θ) == length(prof[3].profile) == 264
 @test length(prof[4].θ) == length(prof[4].profile) == 139
 @test length(prof[5].θ) == length(prof[5].profile) === 95
 fig = plot_profiles(prof; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
-
+resize_to_layout!(fig)
+fig
 @testset "Problem configuration" begin
     ## Parameter values
     @test prof.θ isa Dict{Int64,Vector{Float64}}

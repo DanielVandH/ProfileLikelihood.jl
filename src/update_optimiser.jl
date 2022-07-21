@@ -162,13 +162,13 @@ end
 
 Returns a function or problem that scales the objective by `scale` according to the function `op`.
 """
-@inline function scaled_f(prob::OptimizationProblem, scale; op = /)
+@inline function scaled_f(prob::OptimizationProblem, scale; op=/)
     new_f = @inline (θ, p) -> begin
         return op(prob.f(θ, p), scale)
     end
     new_f
 end
-@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op = /) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op=/) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
     new_f = scaled_f(prob, scale; op)
     f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
     }(new_f,
@@ -181,7 +181,7 @@ end
         prob.f.expr, prob.f.cons_expr)
     return remake(prob; f=f)
 end
-@inline function scale_prob(prob::LikelihoodProblem, scale; op = /)
+@inline function scale_prob(prob::LikelihoodProblem, scale; op=/)
     new_optprob = scale_prob(prob.prob, scale; op)
     new_likprob = remake(prob; prob=new_optprob)
     return new_likprob

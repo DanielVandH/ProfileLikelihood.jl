@@ -79,10 +79,11 @@ end
 ################################################################################
 resolution = 10000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution)
-a1, b1, c1 = profile(prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
-a2, b2, c2 = profile(prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
-a3, b3, c3 = profile(prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
-a4, b4, c4 = profile(prob, sol, 4, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[4])
+_prob = ProfileLikelihood.scale_prob(prob, maximum(sol); op = +)
+a1, b1, c1 = profile(_prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[1])
+a2, b2, c2 = profile(_prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
+a3, b3, c3 = profile(_prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
+a4, b4, c4 = profile(_prob, sol, 4, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[4])
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
 fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
 
@@ -102,7 +103,6 @@ fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
     @test prof.profile[4] == a4
 
     ## Problem and MLE structure
-    @test prof.prob == prob
     @test prof.mle.θ ≈ sol.θ
 
     ## Spline and calling the structure
@@ -201,7 +201,6 @@ end
         @test prof[i].parent === prof
         @test prof[i].θ == prof.θ[i]
         @test prof[i].profile == prof.profile[i]
-        @test prof[i].prob === prob
         @test prof[i].mle == prof.mle[i]
         @test prof[i].spline == prof.spline[i]
         @test prof[i].confidence_intervals == prof.confidence_intervals[i]

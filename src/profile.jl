@@ -102,7 +102,7 @@ Computes the normalised profile log-likelihood function for the `n`th variable a
 - `ℓₘₐₓ`: The value of the log-likelihood function at the MLEs.
 - `alg`: Algorithm to use for optimising `prob`.
 - `cache`: Cache array for storing the `n`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
-- `scale`: Value to divide the objective function by when optimising (`true` is the same as scaling by `1`). 
+- `normalise::Bool`: Whether to normalise the profile log-likelihood during the optimisation routine.
 
 # Keyword Arguments
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
@@ -110,13 +110,13 @@ Computes the normalised profile log-likelihood function for the `n`th variable a
 # Output 
 There is no output, but `profile_vals` gets updated (via `push!`) with the new normalised profile log-likelihood value at `θₙ`.
 """
-function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, scale; kwargs...)
+function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, normalise::Bool; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
     soln = solve(prob, alg; kwargs...)
     for j in eachindex(θ₀)
         θ₀[j] = soln.u[j]
     end
-    push!(profile_vals, -soln.minimum * scale - ℓₘₐₓ)
+    push!(profile_vals, -soln.minimum - ℓₘₐₓ * !normalise)
     push!(other_mles, soln.u)
     return nothing
 end
@@ -133,7 +133,7 @@ function profile(prob::OptimizationProblem, n, θₙ, θ₀, ℓₘₐₓ, alg, 
 end
 
 """
-    find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges; kwargs...)
+    find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps, normalise::Bool; kwargs...)
 
 Optimises the profile likelihood until exceeding `threshold`, going in the direction specified by `Δθ`.
 
@@ -150,7 +150,7 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 - `cache`: Cache array for storing the `n`th variable along with the other variables. See its use in [`construct_new_f`](@ref).
 - `param_ranges`: Values to try for profiling. See also [`construct_profile_ranges`](@ref).
 - `min_steps`: Minimum number of steps to take.
-- `scale`: Value to divide the objective function by when optimising (`true` is the same as scaling by `1`). 
+- `normalise::Bool=true`: Whether to normalise the profile log-likelihood during the optimisation routine.
 
 # Keyword Arguments 
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
@@ -158,12 +158,12 @@ Optimises the profile likelihood until exceeding `threshold`, going in the direc
 # Outputs 
 Returns nothing, but `profile_vals` gets updated with the found values and `param_vals` with the used parameter values.
 """
-function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps, scale; kwargs...)
+function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, threshold, cache, param_ranges, min_steps, normalise::Bool; kwargs...)
     steps = 1
     old_θ₀ = copy(θ₀)
     for θₙ in param_ranges
         push!(param_vals, θₙ)
-        profile!(prob, profile_vals, other_mles, n, θₙ, old_θ₀, ℓₘₐₓ, alg, cache, scale; kwargs...)
+        profile!(prob, profile_vals, other_mles, n, θₙ, old_θ₀, ℓₘₐₓ, alg, cache, normalise; kwargs...)
         steps += 1
         if profile_vals[end] ≤ threshold
             break
@@ -174,7 +174,7 @@ function find_endpoint!(prob::OptimizationProblem, param_vals, profile_vals, oth
         !isempty(param_vals) && empty!(param_vals)
         !isempty(profile_vals) && empty!(profile_vals)
         !isempty(other_mles) && empty!(other_mles)
-        find_endpoint!(prob, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, typemin(threshold), cache, new_range, 0, scale; kwargs...)
+        find_endpoint!(prob, param_vals, profile_vals, other_mles, θ₀, ℓₘₐₓ, n, alg, typemin(threshold), cache, new_range, 0, normalise; kwargs...)
         return nothing
     end
     return nothing
@@ -182,8 +182,8 @@ end
 
 """
     [1] profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges; kwargs...)
-    [2] profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, scale=true; flag=true, kwargs...)
-    [3] profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, scale; flag=false, kwargs...)
+    [2] profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, normalise=true; flag=true, kwargs...)
+    [3] profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise; flag=false, kwargs...)
     [4] profile(prob::LikelihoodProblem, sol::LikelihoodSolution; <keyword arguments>)
     [5] profile!(prof::ProfileLikelihoodSolution, n; <keyword arguments>)
     [6] profile!(prof::ProfileLikelihoodSolution; n = 1:num_params(prof.prob), alg = prof.mle.alg, spline=true, use_threads=false, conf_level, kwargs...)
@@ -219,7 +219,7 @@ multiple parameters at the same time, but the individual computations within a s
 - `min_steps = 10`: Minimum number of steps to take in each direction.
 - `kwargs...`: Extra keyword arguments to pass to the optimisers.
 - `n = 1:num_params(prof.prob)`: Parameters to refine, if using the sixth method.
-- `scale=true`: Value to divide the objective function by when optimising (`true` is the same as scaling by `1`). 
+- `normalise::Bool=true`: Whether to normalise the profile log-likelihood during the optimisation routine.
 - `mle_scale=(false,false)`: Whether to scale the parameters by the MLE when optimising so that all of their estimates are O(1). The first entry is for scaling to start with, whereas the second indicates if you want to unscale; if `!mle_scale[1]` but `mle_scale[2]`, then nothing happens.
 
 # Outputs 
@@ -242,14 +242,14 @@ the algorithm or any of the solver keyword arguments, then nothing will change, 
 this method.
 """
 function profile end
-function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges, min_steps, scale; kwargs...)
+function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges, min_steps, normalise::Bool; kwargs...)
     prob, left_profiles, right_profiles,
     left_param_vals, right_param_vals,
     left_other_mles, right_other_mles,
     cache, θ₀,
     combined_profiles, combined_param_vals, combined_other_mles = prepare_profile(prob, θₘₗₑ, n, param_ranges)
-    find_endpoint!(prob, left_param_vals, left_profiles, left_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1], min_steps, scale; kwargs...) # Go left
-    find_endpoint!(prob, right_param_vals, right_profiles, right_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2], min_steps, scale; kwargs...) # Go right
+    find_endpoint!(prob, left_param_vals, left_profiles, left_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[1], min_steps, normalise; kwargs...) # Go left
+    find_endpoint!(prob, right_param_vals, right_profiles, right_other_mles, copy(θ₀), ℓₘₐₓ, n, alg, threshold, cache, param_ranges[2], min_steps, normalise; kwargs...) # Go right
     append!(combined_profiles, left_profiles, right_profiles) # Now combine the profiles 
     append!(combined_param_vals, left_param_vals, right_param_vals) # Now combine the parameter values 
     append!(combined_other_mles, left_other_mles, right_other_mles) # Now combine the other MLEs
@@ -265,14 +265,14 @@ function profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, t
     keepat!(combined_other_mles, idx)
     return combined_profiles, combined_param_vals, combined_other_mles
 end
-@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, scale=true; flag=true, kwargs...)
-    if flag && scale !== 1
-        @warn("When using this method with a non-unity scale, ensure that the provided problem has already been scaled. See the main function for how to do this properly.")
+@inline function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, normalise=true; flag=true, kwargs...)
+    if flag && normalise
+        @warn("When using this method with the normalise option, ensure that the provided problem has already been normalised. See the main function for how to do this properly.")
     end
-    return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps, scale; kwargs...)
+    return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps, normalise; kwargs...)
 end
-@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, scale; flag=false,kwargs...)
-    _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps, scale; flag, kwargs...)
+@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise::Bool; flag=false,kwargs...)
+    _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps,normalise; flag, kwargs...)
     param_vals[n] = _θ
     profile_vals[n] = _prof
     other_mles[n] = _other_mles
@@ -293,10 +293,10 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     use_threads=false,
     min_steps=10,
     mle_scale=(false, false),
-    scale=true,
+    normalise::Bool=true,
     kwargs...)
     mles = copy(mle(sol))
-    new_prob = scale_prob(prob, scale)
+    new_prob = normalise ? scale_prob(prob, maximum(sol); op = +) : prob#+ rather than - because the normalisation is applied to the objective function of the OptimizationProblem, which is -loglik
     if mle_scale[1]
         cache = dualcache(zeros(length(mles)))
         new_prob = scale_prob(new_prob, mles, cache)
@@ -311,23 +311,23 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     sizehint!(θ, N)
     sizehint!(prof, N)
     for n in 1:N
-        profile!(new_prob, sol, n, alg, threshold, param_ranges[n], prof, θ, other_mles, splines, min_steps, scale; flag=false, kwargs...)
+        profile!(new_prob, sol, n, alg, threshold, param_ranges[n], prof, θ, other_mles, splines, min_steps, normalise; flag=false, kwargs...)
     end
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
     conf_ints = confidence_intervals(θ, prof; conf_level, spline)
     if mle_scale[2] && mle_scale[1]
-        orig_prob = scale == 1 ? new_prob : scale_prob(new_prob, oneunit(scale) / scale)
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         profile_sol_transform = transform_result(profile_sol, [x -> x * mles[i] for i in 1:num_params(orig_prob)])
         unscaled_prob = scale_prob(orig_prob, 1 ./ mles, cache)
         profile_sol_transform_remade = remake(profile_sol_transform; prob=unscaled_prob)
         return profile_sol_transform_remade
     elseif mle_scale[1]
-        orig_prob = scale == 1 ? new_prob : scale_prob(new_prob, oneunit(scale) / scale)
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         return profile_sol
     else
-        orig_prob = scale == 1 ? prob : scale_prob(new_prob, oneunit(scale) / scale)
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         return profile_sol
     end
@@ -341,10 +341,10 @@ end
     param_ranges=construct_profile_ranges(prof.prob, prof.mle, resolution)[n],
     use_threads=false,
     min_steps=10,
-    scale=true,
+    normalise::Bool=true,
     kwargs...)
-    new_prob = scale_prob(prof.prob, scale)
-    profile!(new_prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.other_mles, prof.spline, min_steps, scale; kwargs...)
+    new_prob = normalise ? scale_prob(prof.prob, maximum(prof.mle); op = +) : prob
+    profile!(new_prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.other_mles, prof.spline, min_steps, normalise; kwargs...)
     prof.confidence_intervals[n] = confidence_intervals(prof.θ, prof.profile, n; conf_level, spline)
     return nothing
 end
@@ -354,18 +354,18 @@ end
     spline=true,
     use_threads=false,
     conf_level=0.95,
-    scale=true,
+    normalise::Bool=true,
     kwargs...)
     ## Setup
     cache = dualcache(zeros(num_params(prof.prob)))
-    likprob = scale_prob(prof.prob, scale)
     ℓₘₐₓ = maximum(prof.mle)
+    likprob = normalise ? scale_prob(prof.prob, ℓₘₐₓ; op = +) : prof.prob
     ## Optimise
     for _n in n
         optprob = update_prob(likprob.prob, _n)
         for (i, other_θ) in pairs(prof.other_mles[_n])
             soln = profile(optprob, _n, prof.θ[_n][i], other_θ, ℓₘₐₓ, alg, cache; kwargs...)
-            prof.profile[_n][i] = -soln.minimum * scale - ℓₘₐₓ
+            prof.profile[_n][i] = -soln.minimum - ℓₘₐₓ * !normalise
             prof.other_mles[_n][i] .= soln.u
         end
         ## Get the new spline 
