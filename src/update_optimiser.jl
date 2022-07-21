@@ -44,7 +44,7 @@ function update_prob end
 @inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i::Int) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
     return remake(prob; lb=prob.lb[Not(i)], ub=prob.ub[Not(i)])
 end
-@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i::Int) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
+@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, ::Int) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
     prob
 end
 @inline function update_prob(prob::OptimizationProblem, u0::AbstractVector)
@@ -156,20 +156,20 @@ Scales the parameter ranges (see also [`construct_profile_ranges`](@ref)) by `ml
 end
 
 """
-    scaled_f(prob::OptimizationProblem, scale)
-    scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
-    scale_prob(prob::LikelihoodProblem, scale)
+    scaled_f(prob::OptimizationProblem, scale; op = /)
+    scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op = /) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+    scale_prob(prob::LikelihoodProblem, scale; op =)
 
-Returns a function or problem that scales the objective by `scale` (meaning divides)
+Returns a function or problem that scales the objective by `scale` according to the function `op`.
 """
-@inline function scaled_f(prob::OptimizationProblem, scale)
+@inline function scaled_f(prob::OptimizationProblem, scale; op = /)
     new_f = @inline (θ, p) -> begin
-        return prob.f(θ, p) / scale
+        return op(prob.f(θ, p), scale)
     end
     new_f
 end
-@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
-    new_f = scaled_f(prob, scale)
+@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op = /) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+    new_f = scaled_f(prob, scale; op)
     f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
     }(new_f,
         prob.f.adtype, prob.f.grad,
@@ -181,8 +181,8 @@ end
         prob.f.expr, prob.f.cons_expr)
     return remake(prob; f=f)
 end
-@inline function scale_prob(prob::LikelihoodProblem, scale)
-    new_optprob = scale_prob(prob.prob, scale)
+@inline function scale_prob(prob::LikelihoodProblem, scale; op = /)
+    new_optprob = scale_prob(prob.prob, scale; op)
     new_likprob = remake(prob; prob=new_optprob)
     return new_likprob
 end
