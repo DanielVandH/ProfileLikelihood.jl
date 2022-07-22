@@ -115,7 +115,7 @@ function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ,
     t0 = time()
     soln = solve(prob, alg; kwargs...)
     t1 = time()
-    @show soln.maximum, t1 - t0
+    @show -soln.minimum, t1 - t0
     for j in eachindex(θ₀)
         θ₀[j] = soln.u[j]
     end
