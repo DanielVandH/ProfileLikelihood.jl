@@ -112,7 +112,10 @@ There is no output, but `profile_vals` gets updated (via `push!`) with the new n
 """
 function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, normalise::Bool; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
+    t0 = time()
     soln = solve(prob, alg; kwargs...)
+    t1 = time()
+    @show soln.maximum, t1 - t0
     for j in eachindex(θ₀)
         θ₀[j] = soln.u[j]
     end
@@ -271,8 +274,8 @@ end
     end
     return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps, normalise; kwargs...)
 end
-@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise::Bool; flag=false,kwargs...)
-    _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps,normalise; flag, kwargs...)
+@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise::Bool; flag=false, kwargs...)
+    _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps, normalise; flag, kwargs...)
     param_vals[n] = _θ
     profile_vals[n] = _prof
     other_mles[n] = _other_mles
@@ -296,7 +299,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     normalise::Bool=true,
     kwargs...)
     mles = copy(mle(sol))
-    new_prob = normalise ? scale_prob(prob, maximum(sol); op = +) : prob#+ rather than - because the normalisation is applied to the objective function of the OptimizationProblem, which is -loglik
+    new_prob = normalise ? scale_prob(prob, maximum(sol); op=+) : prob#+ rather than - because the normalisation is applied to the objective function of the OptimizationProblem, which is -loglik
     if mle_scale[1]
         cache = dualcache(zeros(length(mles)))
         new_prob = scale_prob(new_prob, mles, cache)
@@ -316,18 +319,18 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
     conf_ints = confidence_intervals(θ, prof; conf_level, spline)
     if mle_scale[2] && mle_scale[1]
-        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : new_prob
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op=-) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         profile_sol_transform = transform_result(profile_sol, [x -> x * mles[i] for i in 1:num_params(orig_prob)])
         unscaled_prob = scale_prob(orig_prob, 1 ./ mles, cache)
         profile_sol_transform_remade = remake(profile_sol_transform; prob=unscaled_prob)
         return profile_sol_transform_remade
     elseif mle_scale[1]
-        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : new_prob
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op=-) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         return profile_sol
     else
-        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op = -) : prob
+        orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op=-) : prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         return profile_sol
     end
@@ -343,7 +346,7 @@ end
     min_steps=10,
     normalise::Bool=true,
     kwargs...)
-    new_prob = normalise ? scale_prob(prof.prob, maximum(prof.mle); op = +) : prob
+    new_prob = normalise ? scale_prob(prof.prob, maximum(prof.mle); op=+) : prob
     profile!(new_prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.other_mles, prof.spline, min_steps, normalise; kwargs...)
     prof.confidence_intervals[n] = confidence_intervals(prof.θ, prof.profile, n; conf_level, spline)
     return nothing
@@ -359,7 +362,7 @@ end
     ## Setup
     cache = dualcache(zeros(num_params(prof.prob)))
     ℓₘₐₓ = maximum(prof.mle)
-    likprob = normalise ? scale_prob(prof.prob, ℓₘₐₓ; op = +) : prof.prob
+    likprob = normalise ? scale_prob(prof.prob, ℓₘₐₓ; op=+) : prof.prob
     ## Optimise
     for _n in n
         optprob = update_prob(likprob.prob, _n)
