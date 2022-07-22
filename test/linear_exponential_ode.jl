@@ -46,6 +46,8 @@ end
     @test ProfileLikelihood.upper_bounds(prob) == [10.0, 10.0, 25.0]
     @test ProfileLikelihood.sym_names(prob) == [:λ, :σ, :y₀]
 
+    @test ProfileLikelihood.lower_bounds(prob; make_open=true) == [-10.0 + ProfileLikelihood.OPEN_EXT, 1e-6 + ProfileLikelihood.OPEN_EXT, 0.5 + ProfileLikelihood.OPEN_EXT]
+    @test ProfileLikelihood.upper_bounds(prob; make_open=true) == [10.0 - ProfileLikelihood.OPEN_EXT, 10.0 - ProfileLikelihood.OPEN_EXT, 25.0 - ProfileLikelihood.OPEN_EXT]
     ## Solution
     @test ProfileLikelihood.num_params(sol) == 3
     @test ProfileLikelihood.data(sol) == (yᵒ, n)
@@ -65,6 +67,15 @@ end
     @test sol[1] == sol.θ[1] == sol[:λ]
     @test sol[2] == sol.θ[2] == sol[:σ]
     @test sol[3] == sol.θ[3] == sol[:y₀]
+
+    @test ProfileLikelihood.lower_bounds(sol; make_open=true) == [-10.0, 1e-6, 0.5] .+ ProfileLikelihood.OPEN_EXT
+    @test ProfileLikelihood.upper_bounds(sol; make_open=true) == [10.0, 10.0, 25.0] .- ProfileLikelihood.OPEN_EXT
+    @test ProfileLikelihood.lower_bounds(prob, 1; make_open=true) == -10.0 + ProfileLikelihood.OPEN_EXT
+    @test ProfileLikelihood.upper_bounds(prob, 3; make_open=true) == 25.0 - ProfileLikelihood.OPEN_EXT
+    @test ProfileLikelihood.bounds(prob, 1; make_open=true) == (-10.0 + ProfileLikelihood.OPEN_EXT, 10.0 - ProfileLikelihood.OPEN_EXT)
+    @test ProfileLikelihood.bounds(prob, 2; make_open=true) == (1e-6 + ProfileLikelihood.OPEN_EXT, 10.0 - ProfileLikelihood.OPEN_EXT)
+    @test ProfileLikelihood.bounds(prob, 3; make_open=true) == (0.5 + ProfileLikelihood.OPEN_EXT, 25.0 - ProfileLikelihood.OPEN_EXT)
+    @test ProfileLikelihood.bounds(prob; make_open=true) == [(-10.0 + ProfileLikelihood.OPEN_EXT, 10.0 - ProfileLikelihood.OPEN_EXT), (1e-6 + ProfileLikelihood.OPEN_EXT, 10.0 - ProfileLikelihood.OPEN_EXT), (0.5 + ProfileLikelihood.OPEN_EXT, 25.0 - ProfileLikelihood.OPEN_EXT)]
 end
 
 ################################################################################

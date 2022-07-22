@@ -28,34 +28,36 @@ Returns the vector of names used for the likelihood problem `prob` for plotting.
 """
 @inline Base.names(prob::AbstractLikelihoodProblem) = prob.names
 
+const OPEN_EXT = 1e-12 
 """
-    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem})
-    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i) 
-    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem})
-    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i) 
-    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i)
-    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i)
+    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}; make_open = false)
+    lower_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i; make_open = false) 
+    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}; make_open = false)
+    upper_bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i; make_open = false) 
+    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i; make_open = false)
+    bounds(prob::Union{OptimizationProblem, AbstractLikelihoodProblem}, i; make_open = false)
 
 Returns the lower or upper bounds used for the constraints in the likelihood / optimisation
 problem `prob`. `bounds` instead returns a tuple of the lower and upper bounds, or a vector of 
-these tuples of `i` is not given.
+these tuples of `i` is not given. If `make_open`, the bounds are returned with $OPEN_EXT added (for lower bounds) and 
+subtracted (for upper bounds).
 """
 function bounds end 
-@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem) = prob.lb 
-@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem) = lower_bounds(prob.prob)
-@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem) = prob.ub 
-@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem) = upper_bounds(prob.prob)
-@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem, i) = prob.lb[i]
-@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem, i) = lower_bounds(prob.prob, i)
-@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem, i) = prob.ub[i] 
-@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem, i) = upper_bounds(prob.prob, i)
-@doc (@doc bounds) @inline function bounds(::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
+@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem; make_open = false) = prob.lb .+ OPEN_EXT * make_open
+@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem; make_open = false) = lower_bounds(prob.prob; make_open)
+@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem; make_open = false) = prob.ub .- OPEN_EXT * make_open
+@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem; make_open = false) = upper_bounds(prob.prob; make_open)
+@doc (@doc bounds) @inline lower_bounds(prob::OptimizationProblem, i;  make_open = false) = prob.lb[i] + OPEN_EXT * make_open
+@doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = lower_bounds(prob.prob, i; make_open)
+@doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem, i;  make_open = false) = prob.ub[i] - OPEN_EXT * make_open
+@doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = upper_bounds(prob.prob, i; make_open)
+@doc (@doc bounds) @inline function bounds(::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i; make_open = false) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
     (nothing, nothing)
 end
-@doc (@doc bounds) @inline bounds(prob::OptimizationProblem, i) = (lower_bounds(prob, i), upper_bounds(prob, i))
-@doc (@doc bounds) @inline bounds(prob::OptimizationProblem) = [bounds(prob, i) for i in 1:num_params(prob)]
-@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem, i) = bounds(prob.prob, i)
-@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem) = bounds(prob.prob)
+@doc (@doc bounds) @inline bounds(prob::OptimizationProblem, i; make_open = false) = (lower_bounds(prob, i; make_open), upper_bounds(prob, i; make_open))
+@doc (@doc bounds) @inline bounds(prob::OptimizationProblem; make_open = false) = [bounds(prob, i; make_open) for i in 1:num_params(prob)]
+@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = bounds(prob.prob, i; make_open)
+@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem; make_open = false) = bounds(prob.prob; make_open)
 
 """
     finite_bounds(prob::OptimizationProblem)

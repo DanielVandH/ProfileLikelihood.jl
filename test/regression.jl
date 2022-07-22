@@ -58,6 +58,17 @@ end
     @test ProfileLikelihood.bounds(prob) == [(0.0, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf)]
     @test ProfileLikelihood.sym_names(prob) == Symbol.(["θ₁", "θ₂", "θ₃", "θ₄", "θ₅"])
 
+    @test ProfileLikelihood.lower_bounds(prob; make_open=true) == [ProfileLikelihood.OPEN_EXT, -Inf * ones(4)...]
+    @test ProfileLikelihood.upper_bounds(prob; make_open=true) == Inf * ones(5)
+    @test ProfileLikelihood.lower_bounds(prob, 1; make_open=true) == ProfileLikelihood.OPEN_EXT
+    @test ProfileLikelihood.upper_bounds(prob, 3; make_open=true) == Inf
+    @test ProfileLikelihood.bounds(prob, 1; make_open=true) == (ProfileLikelihood.OPEN_EXT, Inf)
+    @test ProfileLikelihood.bounds(prob, 2; make_open=true) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 3; make_open=true) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 4; make_open=true) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob, 5; make_open=true) == (-Inf, Inf)
+    @test ProfileLikelihood.bounds(prob; make_open=true) == [(ProfileLikelihood.OPEN_EXT, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf)]
+    
     ## Solution
     @test ProfileLikelihood.num_params(sol) == 5
     @test ProfileLikelihood.data(sol) == dat

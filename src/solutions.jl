@@ -6,9 +6,11 @@ reason to have this separate struct is to avoid type piracy.
 """
 abstract type AbstractLikelihoodSolution end
 
-for op in (:num_params, :data, :lower_bounds, :upper_bounds, :sym_names, :(Base.names))
+for op in (:num_params, :data, :sym_names, :(Base.names))
     @eval @inline $op(sol::AbstractLikelihoodSolution) = $op(sol.prob)
 end
+@inline lower_bounds(sol::AbstractLikelihoodSolution; make_open = false) = lower_bounds(sol.prob; make_open)
+@inline upper_bounds(sol::AbstractLikelihoodSolution; make_open = false) = upper_bounds(sol.prob; make_open)
 @inline Base.maximum(sol::AbstractLikelihoodSolution) = sol.maximum
 @inline mle(sol::AbstractLikelihoodSolution) = sol.θ
 @inline retcode(sol::AbstractLikelihoodSolution) = sol.retcode
