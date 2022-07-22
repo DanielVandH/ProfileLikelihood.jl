@@ -133,7 +133,6 @@ If multithreading should be used, set `use_threads = true`.
 function get_lhc_params(prob, n, gens; use_threads=false)
     d = num_params(prob)
     plan, _ = LHCoptim(n, d, gens; threading=use_threads)
-    bnds = bounds(prob)
-    bnds = [(x+1e-12, y-1e-12) for (x, y) in bnds]
+    bnds = bounds(prob; make_open=true)
     return scaleLHC(plan, bnds)'
 end
