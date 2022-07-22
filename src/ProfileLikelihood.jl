@@ -25,7 +25,7 @@ include("problems.jl");               export LikelihoodProblem, setup_integrator
 include("confidence_intervals.jl");   export ConfidenceInterval, bounds
 include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
 include("utils.jl");                  export gaussian_loglikelihood
-include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc
+include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc, grid_search
 include("update_optimiser.jl");       export update_prob
 include("profile.jl");                export profile, confidence_intervals, construct_profile_ranges, profile!
 function __init__()
@@ -36,5 +36,6 @@ function __init__()
 end
 include("display.jl");                ###
 include("transform_results.jl");      export transform_result
+include("grid_search.jl");            export grid_search, GridSearch
 end
 # new line

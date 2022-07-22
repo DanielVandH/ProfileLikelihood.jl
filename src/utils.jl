@@ -61,6 +61,9 @@ function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
     if sol.alg isa Tuple{TikTak,Algorithm}
         return string(sol.alg)
     end
+    if sol.alg == :GridSearch 
+        return string(sol.alg)
+    end
     return OptimizationNLopt.algorithm_name(sol.alg)
 end
 @inline OptimizationNLopt.algorithm_name(sol::ProfileLikelihoodSolution) = OptimizationNLopt.algorithm_name(sol.mle)

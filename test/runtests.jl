@@ -29,3 +29,6 @@ end
 @testset "Objective scaling" begin 
     include("objective_scaling.jl")
 end
+@testset "Grid search" begin 
+    include("grid_search.jl")
+end

@@ -31,7 +31,7 @@ end
         prob = update_prob(new_prob, sol)
         sol = mle(new_prob, _alg, args...; scale, kwargs...)
     end
-    return remake(sol; maximum = maximum(sol) * scale)
+    return remake(sol; maximum=maximum(sol) * scale)
 end
 
 """
