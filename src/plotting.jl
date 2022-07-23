@@ -84,8 +84,10 @@ function plot_profiles end
         CairoMakie.lines!(ax, data_vals, sol(data_vals, k))
         CairoMakie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
         Δθ₂ = (upper_ci - lower_ci) / max(length(θ_vals), 1000)
-        ci_vals = lower_ci:Δθ₂:upper_ci
-        shade_ci && CairoMakie.band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
+        if Δθ₂ ≠ 0.0
+            ci_vals = lower_ci:Δθ₂:upper_ci
+            shade_ci && CairoMakie.band!(ax, ci_vals, sol(ci_vals, k), repeat([threshold], length(ci_vals)), color=(:blue, 0.35))
+        end
     end
     if !isnothing(true_vals)
         CairoMakie.vlines!(ax, [true_vals], color=:black, linetype=:dashed)
