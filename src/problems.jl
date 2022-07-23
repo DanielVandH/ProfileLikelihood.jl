@@ -329,7 +329,7 @@ Base.@kwdef struct LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,D,θ₀Type,�
 end
 function LikelihoodProblem(
     loglik::F, num_params::Integer;
-    names=[L"\theta_%$i" for i in 1:num_params],
+    names=[L"\theta_{%$i}" for i in 1:num_params],
     θ₀=nothing, data=SciMLBase.NullParameters(),
     lb=nothing, ub=nothing,
     lcons=nothing, ucons=nothing,
