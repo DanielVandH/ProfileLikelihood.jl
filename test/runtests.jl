@@ -3,7 +3,6 @@ using CairoMakie
 
 using ProfileLikelihood
 
-
 include("template_functions.jl")
 @testset "Regression" begin
     include("regression.jl")
