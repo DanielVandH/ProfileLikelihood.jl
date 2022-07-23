@@ -112,10 +112,7 @@ There is no output, but `profile_vals` gets updated (via `push!`) with the new n
 """
 function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, normalise::Bool; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
-    t0 = time()
     soln = solve(prob, alg; kwargs...)
-    t1 = time()
-    @show -soln.minimum, t1 - t0
     for j in eachindex(θ₀)
         θ₀[j] = soln.u[j]
     end
