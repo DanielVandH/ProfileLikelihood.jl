@@ -112,10 +112,11 @@ There is no output, but `profile_vals` gets updated (via `push!`) with the new n
 """
 function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, normalise::Bool; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
+    t0=time()
     soln = solve(prob, alg; kwargs...)
-    for j in eachindex(θ₀)
-        θ₀[j] = soln.u[j]
-    end
+    t1=time()
+    @show soln.minimum, soln.u, θ₀, soln.retcode, t1-t0
+    θ₀ .= soln.u
     push!(profile_vals, -soln.minimum - ℓₘₐₓ * !normalise)
     push!(other_mles, soln.u)
     return nothing
