@@ -330,6 +330,12 @@ end
         0.8076923076923077
         0.46153846153846156
         3.2307692307692317]
+    
+    Random.seed!(88888)
+    lg1 = grid_search(prob, mlr_bounds, 10, 50)
+    Random.seed!(88888)
+    lg2 = grid_search(θ -> prob.loglik(θ, data(prob)), mlr_bounds, 10, 50; find_max = Val(true))
+    @test maximum(lg1) == lg2[1] && mle(lg1) == lg2[2]
 end
 
 @testset "Linear exponential ODE" begin
