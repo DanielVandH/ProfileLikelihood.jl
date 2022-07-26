@@ -50,7 +50,7 @@ or [`refine_lhc`](@ref).
 
 # Output 
 The output is another [`LikelihoodSolution`](@ref) with the refined results.
-"""
+""" 
 function refine(sol::LikelihoodSolution, args...; method=:tiktak, kwargs...)
     likprob = sol.prob
     !finite_bounds(likprob) && error("Problem must have finite lower/upper bounds to use refinement methods. Consider using `remake` to choose new bounds on the problem.")
