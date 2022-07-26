@@ -10,8 +10,8 @@ We provide the following constructors:
     GridSearch(f, grid::AbstractGrid{N,B,intype}) where {N,B,intype}
     GridSearch(f, bounds, resolution)
     GridSearch(f, bounds, m, gens; use_threads=false)
-    GridSearch(prob::AbstractLikelihoodProblem, bounds, resolution)
-    GridSearch(prob::AbstractLikelihoodProblem, bounds,m,gens;use_threads=false)
+    GridSearch(prob::AbstractLikelihoodProblem, bounds = bounds(prob; make_open=true), resolution)
+    GridSearch(prob::AbstractLikelihoodProblem, bounds=bounds(prob;make_open=true),m,gens;use_threads=false)
 """
 Base.@kwdef struct GridSearch{F<:Function,N,B,intype,G<:AbstractGrid{N,B,intype},outtype}
     f::F
@@ -30,13 +30,13 @@ function GridSearch(f, bounds, m, gens; use_threads=false)
     grid = LatinGrid(bounds, m, gens; use_threads)
     return GridSearch(f, grid)
 end
-function GridSearch(prob::AbstractLikelihoodProblem, bounds, resolution)
+function GridSearch(prob::AbstractLikelihoodProblem, bounds=bounds(prob; make_open=true), resolution)
     grid = UniformGrid(bounds, resolution)
     p = data(prob)
     f = @inline θ -> prob.loglik(θ, p)
     return GridSearch(f, grid)
 end
-function GridSearch(prob::AbstractLikelihoodProblem, bounds, m, gens; use_threads=false)
+function GridSearch(prob::AbstractLikelihoodProblem, bounds=bounds(prob; make_open=true), m, gens; use_threads=false)
     grid = LatinGrid(bounds, m, gens; use_threads)
     p = data(prob)
     f = @inline θ -> prob.loglik(θ, p)
@@ -50,10 +50,10 @@ end
 Pre-allocates the grid of function values for the grid search.
 """
 function prepare_grid end
-@inline function prepare_grid(grid::UniformGrid{N,B,R,S,T}) where {N,B,R,S,T}
-    zeros(T, [resolution(grid, i) for i in 1:N]...)
+function prepare_grid(grid::UniformGrid{N,B,R,S,T}) where {N,B,R,S,T}
+    zeros(T, [resolution(grid, i) for i in 1:N]...) # can't just use grid.resolution... since resolution can be a scalar
 end
-@inline function prepare_grid(::LatinGrid{N,M,B,G,T}) where {N,M,B,G,T}
+function prepare_grid(::LatinGrid{N,M,B,G,T}) where {N,M,B,G,T}
     zeros(T, M)
 end
 
@@ -83,7 +83,7 @@ function grid_search end
                 x_argmax .= cur_x
                 f_max = f_val
             end
-            if save_res == Val(true)
+            if save_res
                 (Base.Cartesian.@nref $N f_res i) = f_val
             end
         end
@@ -100,13 +100,13 @@ function grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(fals
     if save_res == Val(true)
         f_res = prepare_grid(prob.grid)
     end
-    for (i, θ) in enumerate(eachcol(prob.grid.grid))
+    for (i, θ) in enumerate(eachcol(prob.grid))
         f_val = prob.f(θ)
         if f_val > f_max
-            x_argmax .= θ
+            x_argmax .= cur_x
             f_max = f_val
         end
-        if save_res == Val(true)
+        if save_res
             f_res[i] = f_val
         end
     end
@@ -116,51 +116,51 @@ function grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(fals
         return f_max, x_argmax
     end
 end
-@inline function grid_search(f, bounds, resolution; save_res=Val(false), find_max=Val(true))
+function grid_search(f, bounds, resolution; save_res = Val(false), find_max = Val(true))
     if find_max == Val(false)
         g = x -> -f(x)
         gs = GridSearch(g, bounds, resolution)
         res = grid_search(gs; save_res)
         if save_res == Val(true)
-            return res[1], res[2], -res[3]
-        else
-            return res
+            return res[1], res[2], -res[3] 
+        else 
+            return res 
         end
     end
-    gs = GridSearch(f, bounds, resolution)
+    gs = GridSearch(f, bounds, resolutions)
     return grid_search(gs; save_res)
 end
-@inline function grid_search(f, bounds, m, gens; save_res=Val(false), find_max=Val(true), use_threads=false)
+function grid_search(f, bounds, m, gens; save_res = Val(false), find_max = Val(true), use_threads = false)
     if find_max == Val(false)
         g = x -> -f(x)
         gs = GridSearch(g, bounds, m, gens; use_threads)
         res = grid_search(gs; save_res)
         if save_res == Val(true)
-            return res[1], res[2], -res[3]
-        else
-            return res
+            return res[1], res[2], -res[3] 
+        else 
+            return res 
         end
     end
-    gs = GridSearch(f, bounds, m, gens; use_threads)
+    gs = GridSearch(f, bounds, resolutions)
     return grid_search(gs; save_res)
 end
-@inline function grid_search(prob::AbstractLikelihoodProblem, bounds, resolution; save_res=Val(false))
+function grid_search(prob::AbstractLikelihoodProblem, bounds, resolution; save_res = Val(false))
     gs = GridSearch(prob, bounds, resolution)
     if save_res == Val(true)
         ℓ_max, θ_argmax, f_res = grid_search(gs; save_res)
-    else
+    else 
         ℓ_max, θ_argmax = grid_search(gs; save_res)
     end
     sol = LikelihoodSolution(θ_argmax, prob, :UniformGridSearch, ℓ_max, :Success, nothing)
     save_res == Val(true) ? (sol, f_res) : sol
 end
-@inline function grid_search(prob::AbstractLikelihoodProblem, bounds, m, gens; save_res=Val(false), use_threads=false)
+function grid_search(prob::AbstractLikelihoodProblem, bounds, m, gens; save_res = Val(false), use_threads = false)
     gs = GridSearch(prob, bounds, m, gens; use_threads)
     if save_res == Val(true)
         ℓ_max, θ_argmax, f_res = grid_search(gs; save_res)
-    else
+    else 
         ℓ_max, θ_argmax = grid_search(gs; save_res)
     end
-    sol = LikelihoodSolution(θ_argmax, prob, :LatinGridSearch, ℓ_max, :Success, nothing)
+    sol = LikelihoodSolution(θ_argmax, prob, LatinGridSearch, ℓ_max, :Success, nothing)
     save_res == Val(true) ? (sol, f_res) : sol
 end

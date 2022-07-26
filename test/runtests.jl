@@ -1,5 +1,7 @@
 using Test
 using CairoMakie
+using LinearAlgebra
+using Random
 
 using ProfileLikelihood
 

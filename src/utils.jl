@@ -61,7 +61,7 @@ function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
     if sol.alg isa Tuple{TikTak,Algorithm}
         return string(sol.alg)
     end
-    if sol.alg == :GridSearch 
+    if sol.alg == :UniformGridSearch || sol.alg == :LatinGridSearch 
         return string(sol.alg)
     end
     return OptimizationNLopt.algorithm_name(sol.alg)

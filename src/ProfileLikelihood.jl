@@ -36,6 +36,7 @@ function __init__()
 end
 include("display.jl");                ###
 include("transform_results.jl");      export transform_result
-include("grid_search.jl");            export grid_search, GridSearch
+include("parameter_grid.jl");         export AbstractGrid, UniformGrid, LatinGrid
+include("grid_search.jl");            export GridSearch, grid_search
 end
 # new line
