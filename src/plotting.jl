@@ -22,15 +22,17 @@ function choose_grid_layout(num_plots, cols, rows)
 end
 
 """
-    plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs) 
-    plot_profiles(sol::ProfileLikelihoodSolution; <keyword arguments>)
+    plot_profile!(sol::ProfileLikelihoodSolution, fig, ℓ, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs) 
+    plot_profiles(sol::ProfileLikelihoodSolution, vars = 1:num_params(sol); <keyword arguments>)
 
 Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikelihoodSolution`](@ref) `sol`.
 
 # Arguments 
 - `sol::ProfileLikelihoodSolution`: The [`ProfileLikelihoodSolution`](@ref).
+- `vars = 1:num_params(sol)`: Which variables to plot.
 - `axis_kwargs...`: Additional arguments for the `Makie` axes.
 - `fig`: An existing figure to put the plot into.
+- `ℓ`: The plot number.
 - `k`: The index of the variable to plot for.
 - `(i, j)`: The axis position to put the plot into.
 - `spline`: If `spline`, the curve plotting is a spline through the actual data. If `!spline`, then the actual data is plotted.
@@ -50,7 +52,7 @@ Plots the normalised profile log-likelihoods corresponding to the [`ProfileLikel
 The `Figure` with the plots.
 """
 function plot_profiles end
-@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs=nothing)
+@doc (@doc plot_profiles) function plot_profile!(sol::ProfileLikelihoodSolution, fig, ℓ, k, i, j, spline, true_vals, mle_val=nothing, shade_ci=true; axis_kwargs=nothing)
     param_name = names(sol)[k]
     lower_ci, upper_ci = confidence_intervals(sol)[k]
     θ_vals = sol.θ[k]
@@ -64,13 +66,13 @@ function plot_profiles end
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
             ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=L"(%$(ALPHABET[k])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            title=L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left; axis_kwargs...)
     else
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
             ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=L"(%$(ALPHABET[k])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            title=L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left)
     end
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
@@ -99,21 +101,21 @@ function plot_profiles end
     end
     return nothing
 end
-function plot_profiles(sol::ProfileLikelihoodSolution; ncol=nothing, nrow=nothing,
+function plot_profiles(sol::ProfileLikelihoodSolution, vars = 1:num_params(sol); ncol=nothing, nrow=nothing,
     true_vals=repeat([nothing], num_params(sol)), spline=true, show_mles=true, shade_ci=true, fig_kwargs=nothing, axis_kwargs=nothing) where {T<:ProfileLikelihoodSolution}
-    num_plots = num_params(sol)
+    num_plots = length(vars)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
         fig = CairoMakie.Figure(; fig_kwargs...)
     else
         fig = CairoMakie.Figure()
     end
-    for k in 1:num_plots
-        i, j = plot_positions[k]
+    for (ℓ, k) in pairs(vars)
+        i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci; axis_kwargs)
+            plot_profile!(sol, fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci; axis_kwargs)
         else
-            plot_profile!(sol, fig, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci)
+            plot_profile!(sol, fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? mle(sol)[k] : nothing, shade_ci)
         end
     end
     return fig
