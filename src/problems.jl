@@ -51,13 +51,13 @@ function bounds end
 @doc (@doc bounds) @inline lower_bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = lower_bounds(prob.prob, i; make_open)
 @doc (@doc bounds) @inline upper_bounds(prob::OptimizationProblem, i;  make_open = false) = prob.ub[i] - OPEN_EXT * make_open
 @doc (@doc bounds) @inline upper_bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = upper_bounds(prob.prob, i; make_open)
-@doc (@doc bounds) @inline function bounds(::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i; make_open = false) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
+@inline function bounds(::OptimizationProblem{iip,FF,θType,P,Nothing,LC,UC,Sns,K}, i; make_open = false) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,LC,UC,Sns,K}
     (nothing, nothing)
 end
-@doc (@doc bounds) @inline bounds(prob::OptimizationProblem, i; make_open = false) = (lower_bounds(prob, i; make_open), upper_bounds(prob, i; make_open))
-@doc (@doc bounds) @inline bounds(prob::OptimizationProblem; make_open = false) = [bounds(prob, i; make_open) for i in 1:num_params(prob)]
-@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = bounds(prob.prob, i; make_open)
-@doc (@doc bounds) @inline bounds(prob::AbstractLikelihoodProblem; make_open = false) = bounds(prob.prob; make_open)
+@inline bounds(prob::OptimizationProblem, i; make_open = false) = (lower_bounds(prob, i; make_open), upper_bounds(prob, i; make_open))
+@inline bounds(prob::OptimizationProblem; make_open = false) = [bounds(prob, i; make_open) for i in 1:num_params(prob)]
+@inline bounds(prob::AbstractLikelihoodProblem, i; make_open = false) = bounds(prob.prob, i; make_open)
+@inline bounds(prob::AbstractLikelihoodProblem; make_open = false) = bounds(prob.prob; make_open)
 
 """
     finite_bounds(prob::OptimizationProblem)
