@@ -128,6 +128,10 @@ prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false, min_s
 fig = plot_profiles(prof; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
 resize_to_layout!(fig)
 fig
+
+fig = plot_profiles(prof, [1, 3, 5]; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
+resize_to_layout!(fig)
+fig
 @testset "Problem configuration" begin
     ## Parameter values
     @test prof.θ isa Dict{Int64,Vector{Float64}}
