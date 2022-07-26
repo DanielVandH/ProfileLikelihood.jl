@@ -1,3 +1,5 @@
+const ALPHABET = join('a':'z')
+
 """
     choose_grid_layout(num_plots, cols, rows)
 
@@ -62,13 +64,13 @@ function plot_profiles end
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
             ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            title=L"(%$(ALPHABET[k])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left; axis_kwargs...)
     else
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
             ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=L"$%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            title=L"(%$(ALPHABET[k])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left)
     end
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
