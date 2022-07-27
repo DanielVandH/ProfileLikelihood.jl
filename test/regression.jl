@@ -7,7 +7,7 @@ using Test
 using PreallocationTools
 using LinearAlgebra
 using Optimization
-using Dierckx
+using Interpolations
 using LoopVectorization
 
 prob, loglikk, θ, dat = MultipleLinearRegression()
@@ -154,7 +154,7 @@ fig
     @test prof.mle == sol
 
     ## Spline and calling the structure
-    @test prof.spline isa Dict{Int64,T} where {T<:Spline1D}
+    @test prof.spline isa Dict{Int64,T} where {T<:AbstractExtrapolation}
     @test prof.spline[1](b1) ≈ a1
     @test prof.spline[2](b2) ≈ a2
     @test prof.spline[3](b3) ≈ a3
@@ -242,7 +242,7 @@ end
         @test ProfileLikelihood.lower(confidence_intervals(prof, i)) == prof.confidence_intervals[i].lower == confidence_intervals(prof, i)[1]
         @test ProfileLikelihood.upper(confidence_intervals(prof, i)) == prof.confidence_intervals[i].upper == confidence_intervals(prof, i)[2]
         @test ProfileLikelihood.level(confidence_intervals(prof, i)) == prof.confidence_intervals[i].level
-        @test bounds(confidence_intervals(prof, i)) == (prof.confidence_intervals[i].lower, prof.confidence_intervals[i].upper)
+        @test ProfileLikelihood.bounds(confidence_intervals(prof, i)) == (prof.confidence_intervals[i].lower, prof.confidence_intervals[i].upper)
         ℓ, u = confidence_intervals(prof, i)
         @test ℓ == prof.confidence_intervals[i].lower
         @test u == prof.confidence_intervals[i].upper
@@ -297,4 +297,3 @@ end
         @test prof.confidence_intervals[i].level == 0.99
     end
 end
-

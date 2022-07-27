@@ -7,7 +7,7 @@ using Test
 using PreallocationTools
 using LinearAlgebra
 using Optimization
-using Dierckx
+using Interpolations
 using LoopVectorization
 
 function MultipleLinearRegression()

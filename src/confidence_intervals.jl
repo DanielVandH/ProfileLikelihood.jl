@@ -74,8 +74,23 @@ Base.in(x, CI::ConfidenceInterval) = lower(CI) ≤ x ≤ upper(CI)
 @inline Base.length(::ConfidenceInterval) = 2
 
 """
-    confidence_intervals(θ, prof, i; conf_level = 0.99, spline = true)  
-    confidence_intervals(θ, prof; conf_level = 0.99, spline = true)
+    itp_roots(itp)
+
+Finds the roots of the interpolant `itp`, assumed to come from a normalised profile log-likelihood minus the threshold.
+"""
+function itp_roots(itp)
+    ## Left value 
+    left_bracket = (itp.knots[begin], itp.knots[end ÷ 2]) # MLE is at end ÷ 2
+    ℓ = find_zero(itp, left_bracket, Bisection())
+    ## Right value 
+    right_bracket = (itp.knots[end ÷ 2], itp.knots[end])
+    u = find_zero(itp, right_bracket, Bisection())
+    return [ℓ, u]
+end
+
+"""
+    confidence_intervals(θ, prof, i; conf_level=0.99, spline=true, spline_alg = FritschCarlsonMonotonicInterpolation, extrap = Throw)
+    confidence_intervals(θ, prof, i; conf_level=0.99, spline=true, spline_alg = FritschCarlsonMonotonicInterpolation, extrap = Throw)
 
 Computes a confidence interval for given normalised profile log-likelihood values. If `i` is provided, 
 computes the interval for the `i`th variable, otherwise computes all of them.
@@ -88,18 +103,20 @@ computes the interval for the `i`th variable, otherwise computes all of them.
 ## Keyword Arguments 
 - `conf_level = 0.99`: The confidence level for the interval.
 - `spline = true`: Whether a spline should be used for finding the interval endpoints.
+- `spline_alg=FritschCarlsonMonotonicInterpolation`: The spline algorithm.
+- `extrap=Throw`: The extrapolation algorithm.
 
 ## Output 
 - `CI`: A [`ConfidenceInterval`](@ref) with the lower and upper bounds. If confidence intervals were computed for all variables, this is instead a dictionary of such objects.
 """
 function confidence_intervals end
-function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
+function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true, spline_alg=FritschCarlsonMonotonicInterpolation, extrap=Throw)
     conf_val = -0.5quantile(Chisq(1), conf_level)
     if spline
-        itp = Spline1D(θ[i], prof[i] .- conf_val)
-        ab = sort(roots(itp))
+        itp = spline_profile(θ[i], prof[i] .- conf_val; alg=spline_alg, extrap)
         try
-            res = ConfidenceInterval(extrema(ab)..., conf_level)
+            ℓ, u = itp_roots(itp.itp) # itp is an Extrapolation, so itp.itp is the interpolant
+            res = ConfidenceInterval(ℓ, u, conf_level)
             return res
         catch
             @warn("Failed to find a valid confidence interval for parameter $i. Attempting to find confidence interval without using a spline.")
@@ -120,11 +137,11 @@ function confidence_intervals(θ, prof, i; conf_level=0.99, spline=true)
         end
     end
 end
-function confidence_intervals(θ, prof; conf_level=0.99, spline=true)
+function confidence_intervals(θ, prof; conf_level=0.99, spline=true, spline_alg=FritschCarlsonMonotonicInterpolation, extrap=Throw)
     conf_ints = Dict{Int64,ConfidenceInterval{eltype(θ[1]),typeof(conf_level)}}([])
     sizehint!(conf_ints, length(θ))
     for n in eachindex(θ)
-        conf_ints[n] = confidence_intervals(θ, prof, n; conf_level, spline)
+        conf_ints[n] = confidence_intervals(θ, prof, n; conf_level, spline, spline_alg, extrap)
     end
     return conf_ints
 end

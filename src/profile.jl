@@ -86,6 +86,17 @@ function construct_profile_ranges(prob::LikelihoodProblem, sol::LikelihoodSoluti
     param_ranges
 end
 
+"""
+    spline_profile(θ, prof; alg = FritschCarlsonMonotonicInterpolation, extrap = Throw)
+
+Fits a monotonic cubic interpolant (using the algorithm `alg`) to the ddata `(θ, prof)`, with the extrapolation 
+method specified by `extrap`.
+"""
+function spline_profile(θ, prof; alg=FritschCarlsonMonotonicInterpolation, extrap=Throw)
+    itp = interpolate(θ, prof, alg isa Type ? alg() : alg) # So that alg and alg() can both be provided, we just check
+    eitp = extrapolate(itp, extrap isa Type ? extrap() : extrap) # ^
+    return eitp
+end
 
 """
     profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, scale; kwargs...)
@@ -112,10 +123,7 @@ There is no output, but `profile_vals` gets updated (via `push!`) with the new n
 """
 function profile!(prob::OptimizationProblem, profile_vals, other_mles, n, θₙ, θ₀, ℓₘₐₓ, alg, cache, normalise::Bool; kwargs...)
     prob = update_prob(prob, n, θₙ, cache, θ₀) # Update the objective function and initial guess 
-    #t0=time()
     soln = solve(prob, alg; kwargs...)
-    #t1=time()
-    #@show soln.minimum, soln.u, θ₀, soln.retcode, t1-t0
     θ₀ .= soln.u
     push!(profile_vals, -soln.minimum - ℓₘₐₓ * !normalise)
     push!(other_mles, soln.u)
@@ -183,11 +191,11 @@ end
 
 """
     [1] profile(prob::OptimizationProblem, θₘₗₑ, ℓₘₐₓ, n, alg, threshold, param_ranges; kwargs...)
-    [2] profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, normalise=true; flag=true, kwargs...)
+    [2] profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, min_steps=10, normalise=true; spline_alg = FritschCarlsonMonotonicInterpolation, extrap = Throw, flag=true, kwargs...)
     [3] profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise; flag=false, kwargs...)
     [4] profile(prob::LikelihoodProblem, sol::LikelihoodSolution; <keyword arguments>)
     [5] profile!(prof::ProfileLikelihoodSolution, n; <keyword arguments>)
-    [6] profile!(prof::ProfileLikelihoodSolution; n = 1:num_params(prof.prob), alg = prof.mle.alg, spline=true, use_threads=false, conf_level, kwargs...)
+    [6] profile!(prof::ProfileLikelihoodSolution; n = 1:num_params(prof.prob), alg = prof.mle.alg, spline=true, use_threads=false, conf_level=0.95,, spline_alg=FritschCarlsonMonotonicInterpolation, extrap=Throw, kwargs...)
 
 Computes the normalised profile log-likelihood function for the given `LikelihoodProblem` for all variables, or only for 
 the `n`th variable if `n` is provided.
@@ -222,6 +230,8 @@ multiple parameters at the same time, but the individual computations within a s
 - `n = 1:num_params(prof.prob)`: Parameters to refine, if using the sixth method.
 - `normalise::Bool=true`: Whether to normalise the profile log-likelihood during the optimisation routine.
 - `mle_scale=(false,false)`: Whether to scale the parameters by the MLE when optimising so that all of their estimates are O(1). The first entry is for scaling to start with, whereas the second indicates if you want to unscale; if `!mle_scale[1]` but `mle_scale[2]`, then nothing happens.
+- `spline_alg = FritschCarlsonMonotonicInterpolation`: The algorithm to use for fitting the spline. 
+- `extrap = Throw`: The extrapolation method for fitting the spline.
 
 # Outputs 
 If `n` is provided, then we return 
@@ -272,13 +282,15 @@ end
     end
     return profile(prob.prob, mle(sol), maximum(sol), n, alg, threshold, param_ranges, min_steps, normalise; kwargs...)
 end
-@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold, param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise::Bool; flag=false, kwargs...)
+@doc (@doc profile) @inline function profile!(prob::LikelihoodProblem, sol::LikelihoodSolution, n, alg, threshold,
+    param_ranges, profile_vals, param_vals, other_mles, splines, min_steps, normalise::Bool;
+    spline_alg=FritschCarlsonMonotonicInterpolation, extrap=Throw, flag=false, kwargs...)
     _prof, _θ, _other_mles = profile(prob, sol, n, alg, threshold, param_ranges, min_steps, normalise; flag, kwargs...)
     param_vals[n] = _θ
     profile_vals[n] = _prof
     other_mles[n] = _other_mles
     try
-        splines[n] = Spline1D(_θ, _prof)
+        splines[n] = spline_profile(_θ, _prof; alg=spline_alg, extrap)
     catch
         error("Error creating the spline. Try increasing the grid resolution for parameter $n or increasing min_steps.")
     end
@@ -295,10 +307,12 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     min_steps=10,
     mle_scale=(false, false),
     normalise::Bool=true,
+    spline_alg=FritschCarlsonMonotonicInterpolation,
+    extrap=Throw,
     kwargs...)
     mles = copy(mle(sol))
     new_prob = normalise ? scale_prob(prob, maximum(sol); op=+) : prob#+ rather than - because the normalisation is applied to the objective function of the OptimizationProblem, which is -loglik
-    if mle_scale[1]
+    if mle_scale[1] # Do we want to scale the parameters by the MLE so that they are O(1)?
         cache = dualcache(zeros(length(mles)))
         new_prob = scale_prob(new_prob, mles, cache)
         param_ranges = scale_param_ranges(new_prob, mles, param_ranges)
@@ -308,22 +322,22 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution;
     θ = Dict{Int64,Vector{Float64}}([])
     prof = Dict{Int64,Vector{Float64}}([])
     other_mles = Dict{Int64,Vector{Vector{Float64}}}([])
-    splines = Vector{Spline1D}(undef, N)
+    splines = Vector{Any}(undef, N) # cleaner than Interpolations.Extrapolation{Float64, 1, Interpolations.MonotonicInterpolation{Float64, Float64, Float64, Float64, Float64, FritschCarlsonMonotonicInterpolation, Vector{Float64}, Vector{Float64}}, Union{FritschCarlsonMonotonicInterpolation, NoInterp, Tuple{Vararg{Union{FritschCarlsonMonotonicInterpolation, NoInterp}}}}, Throw{Nothing}}
     sizehint!(θ, N)
     sizehint!(prof, N)
     for n in 1:N
-        profile!(new_prob, sol, n, alg, threshold, param_ranges[n], prof, θ, other_mles, splines, min_steps, normalise; flag=false, kwargs...)
+        profile!(new_prob, sol, n, alg, threshold, param_ranges[n], prof, θ, other_mles, splines, min_steps, normalise; spline_alg, extrap, flag=false, kwargs...)
     end
     splines = Dict(1:N .=> splines) # We define the Dict here rather than above to make sure we get the types right
-    conf_ints = confidence_intervals(θ, prof; conf_level, spline)
-    if mle_scale[2] && mle_scale[1]
+    conf_ints = confidence_intervals(θ, prof; conf_level, spline, spline_alg, extrap)
+    if mle_scale[2] && mle_scale[1] # Do we want to go back to the original parameter scale?
         orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op=-) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         profile_sol_transform = transform_result(profile_sol, [x -> x * mles[i] for i in 1:num_params(orig_prob)])
         unscaled_prob = scale_prob(orig_prob, 1 ./ mles, cache)
         profile_sol_transform_remade = remake(profile_sol_transform; prob=unscaled_prob)
         return profile_sol_transform_remade
-    elseif mle_scale[1]
+    elseif mle_scale[1] # We might not want to go back to the original parameter scale, in which case we can just return the solution. (We might not want to go back e.g. if we want to refine some more later.)
         orig_prob = normalise ? scale_prob(new_prob, maximum(sol); op=-) : new_prob
         profile_sol = ProfileLikelihoodSolution(θ, prof, orig_prob, sol, splines, conf_ints, other_mles)
         return profile_sol
@@ -346,7 +360,7 @@ end
     kwargs...)
     new_prob = normalise ? scale_prob(prof.prob, maximum(prof.mle); op=+) : prob
     profile!(new_prob, prof.mle, n, alg, threshold, param_ranges, prof.profile, prof.θ, prof.other_mles, prof.spline, min_steps, normalise; kwargs...)
-    prof.confidence_intervals[n] = confidence_intervals(prof.θ, prof.profile, n; conf_level, spline)
+    prof.confidence_intervals[n] = confidence_intervals(prof.θ, prof.profile, n; conf_level, spline, spline_alg=prof.spline[n].itp.it, extrap=prof.spline[n].et)
     return nothing
 end
 @doc (@doc profile) function profile!(prof::ProfileLikelihoodSolution;
@@ -370,9 +384,9 @@ end
             prof.other_mles[_n][i] .= soln.u
         end
         ## Get the new spline 
-        prof.spline[_n] = Spline1D(prof.θ[_n], prof.profile[_n])
+        prof.spline[_n] = spline_profile(prof.θ[_n], prof.profile[_n]; alg=prof.spline[_n].itp.it, extrap=prof.spline[_n].et)
         ## Get the new confidence interval 
-        prof.confidence_intervals[_n] = confidence_intervals(prof.θ, prof.profile, _n; conf_level, spline)
+        prof.confidence_intervals[_n] = confidence_intervals(prof.θ, prof.profile, _n; conf_level, spline, spline_alg=prof.spline[_n].itp.it, extrap=prof.spline[_n].et)
     end
     return nothing
 end

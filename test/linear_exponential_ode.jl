@@ -5,7 +5,7 @@ using OptimizationNLopt
 using DifferentialEquations
 using Test
 using Optimization
-using Dierckx
+using Interpolations
 
 prob, loglikk, θ, yᵒ, n = LinearExponentialODE()
 λ, σ, y₀ = θ
@@ -88,7 +88,8 @@ a1, b1, c1 = profile(_prob, sol, 1, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1)
 a2, b2, c2 = profile(_prob, sol, 2, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[2])
 a3, b3, c3 = profile(_prob, sol, 3, NLopt.LN_NELDERMEAD(), -0.5quantile(Chisq(1), 0.95), param_ranges[3])
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD(), conf_level=0.95, param_ranges)
-fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
+fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)), spline=false)
+fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)), spline=true)
 
 @testset "Problem configuration" begin
     ## Parameter values
@@ -107,7 +108,7 @@ fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
     @test prof.mle.θ ≈ sol.θ
 
     ## Spline and calling the structure
-    @test prof.spline isa Dict{Int64,T} where {T<:Spline1D}
+    @test prof.spline isa Dict{Int64,T} where {T<:AbstractExtrapolation}
     @test prof.spline[1](b1) ≈ a1
     @test prof.spline[2](b2) ≈ a2
     @test prof.spline[3](b3) ≈ a3

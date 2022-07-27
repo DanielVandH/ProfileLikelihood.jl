@@ -5,7 +5,7 @@ using OptimizationNLopt
 using DifferentialEquations
 using Test
 using Optimization
-using Dierckx
+using Interpolations
 using PreallocationTools
 
 prob, loglikk, θ, uᵒ, n = LogisticODE();

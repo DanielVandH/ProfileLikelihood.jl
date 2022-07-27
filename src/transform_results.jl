@@ -42,7 +42,7 @@ function transform_result(sol::ProfileLikelihoodSolution, F::Vector{Fnc} where {
     ## Remake the splines 
     new_spline = typeof(sol.spline)([])
     for i in keys(sol.spline)
-        new_spline[i] = Spline1D(new_θ[i], sol.profile[i])
+        new_spline[i] = spline_profile(new_θ[i], sol.profile[i]; alg = sol.spline[i].itp.it, extrap = sol.spline[i].et)
     end
     ## Transform the confidence intervals 
     new_CI = typeof(sol.confidence_intervals)([])

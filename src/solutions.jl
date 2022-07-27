@@ -80,7 +80,7 @@ end
 end
 
 """
-    ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF,OM} <: AbstractLikelihoodSolution
+    ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl,CT,CF,OM} <: AbstractLikelihoodSolution
 
 Struct for the normalised profile log-likelihood. See [`profile`](@ref) for a constructor.
 
@@ -99,7 +99,7 @@ The original [`LikelihoodProblem`](@ref).
 The solution to the full problem.
 - `spline::Dict{I, Spl}`
 
-This is a dictionary such that `spline[i]` is a spline through the data `(θ[i], profile[i])`. This spline can be evaluated at a point `ψ` for the `i`th variable by calling an instance of the struct with arguments `(ψ, i)`.
+This is a dictionary such that `spline[i]` is a spline through the data `(θ[i], profile[i])`. This spline can be evaluated at a point `ψ` for the `i`th variable by calling an instance of the struct with arguments `(ψ, i)`. See also [`spline_profile`](@ref).
 - `confidence_intervals::Dict{I, Tuple{T, T}}`
 
 This is a dictonary such that `confidence_intervals[i]` is a confidence interval for the `i`th parameter.
@@ -115,7 +115,7 @@ This struct is callable. We define the method
 
 that evaluates the spline through the `i`th profile at the point `θ`.
 """
-Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl<:Spline1D,CT,CF,OM} <: AbstractLikelihoodSolution
+Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl,CT,CF,OM} <: AbstractLikelihoodSolution
     θ::Dict{I,V}
     profile::Dict{I,V}
     prob::LP

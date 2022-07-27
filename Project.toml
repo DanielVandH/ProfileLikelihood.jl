@@ -1,13 +1,13 @@
 name = "ProfileLikelihood"
 uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
 authors = ["DanielVandH <danj.vandenheuvel@gmail.com>"]
-version = "0.16.2"
+version = "0.17.0"
 
 [deps]
-Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
+Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LatinHypercubeSampling = "a5e1c1ea-c99a-51d3-a14d-a9a37257b02d"
@@ -23,9 +23,9 @@ PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 
 [compat]
-Dierckx = "0.5"
 DifferentialEquations = "7"
 Distributions = "0.25"
 FiniteDiff = "2"

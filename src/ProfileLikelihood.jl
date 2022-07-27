@@ -14,11 +14,12 @@ using DifferentialEquations
 using LinearAlgebra 
 using LoopVectorization 
 using InvertedIndices 
-using Dierckx 
 using PreallocationTools
 using Printf 
 using LatinHypercubeSampling
 using Requires
+using Interpolations
+using Roots
 
 ## Include some code
 include("problems.jl");               export LikelihoodProblem, setup_integrator, data, num_params

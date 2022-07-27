@@ -5,6 +5,8 @@ using Random
 
 using ProfileLikelihood
 
+const bounds = ProfileLikelihood.bounds
+
 include("template_functions.jl")
 @testset "Regression" begin
     include("regression.jl")

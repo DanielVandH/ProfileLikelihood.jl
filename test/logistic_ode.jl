@@ -5,7 +5,7 @@ using OptimizationNLopt
 using DifferentialEquations
 using Test
 using Optimization
-using Dierckx
+using Interpolations
 
 prob, loglikk, θ, uᵒ, n = LogisticODE();
 λ, K, σ, u₀ = θ
@@ -106,7 +106,7 @@ fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)))
     @test prof.mle.θ ≈ sol.θ
 
     ## Spline and calling the structure
-    @test prof.spline isa Dict{Int64,T} where {T<:Spline1D}
+    @test prof.spline isa Dict{Int64,T} where {T<:AbstractExtrapolation}
     @test prof.spline[1](b1) ≈ a1
     @test prof.spline[2](b2) ≈ a2
     @test prof.spline[3](b3) ≈ a3
