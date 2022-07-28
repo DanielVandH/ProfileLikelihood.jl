@@ -41,6 +41,7 @@ OptimizationOptimJL = "0.1"
 OptimizationPolyalgorithms = "0.1"
 PreallocationTools = "0.4"
 Requires = "1"
+Roots = "2"
 julia = "1.8"
 
 [extras]
