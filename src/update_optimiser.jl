@@ -50,17 +50,17 @@ end
 @inline function update_prob(prob::OptimizationProblem, u0::AbstractVector)
     return remake(prob; u0=u0)
 end
-@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i, val, cache) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+@inline function update_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, i, val, cache) where {iip,AD,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS},θType,P,B,LC,UC,Sns,K}
     new_f = construct_new_f(prob, i, val, cache)#didn't use to have all the type signatures above ^ but it's needed for type stability. Without them, this function runs in about 1.410 μs with 2.52 KiB memory (8 allocs), but with them it's 32.897 ns and 0 bytes (~42x change). Amazing!
-    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
+    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS
     }(new_f,
         prob.f.adtype, prob.f.grad,
         prob.f.hess, prob.f.hv,
-        prob.f.cons, prob.f.cons_j, prob.f.cons_h,
-        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype,
-        prob.f.syms,
-        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec,
-        prob.f.expr, prob.f.cons_expr)
+        prob.f.cons, prob.f.cons_j, prob.f.cons_h, prob.f.lag_h,
+        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype, prob.f.lag_hess_prototype,
+        prob.f.syms, prob.f.paramsyms,
+        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec, prob.f.lag_hess_colorvec,
+        prob.f.expr, prob.f.cons_expr, prob.f.sys)
     return remake(prob; f=f)
 end
 @inline function update_prob(prob::OptimizationProblem, i, val, cache, u0)
@@ -109,17 +109,17 @@ end
     end
     return new_f
 end
-@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, mles, cache) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, mles, cache) where {iip,AD,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS},θType,P,B,LC,UC,Sns,K}
     new_f = scaled_f(prob, mles, cache)
-    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
+    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS
     }(new_f,
         prob.f.adtype, prob.f.grad,
         prob.f.hess, prob.f.hv,
-        prob.f.cons, prob.f.cons_j, prob.f.cons_h,
-        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype,
-        prob.f.syms,
-        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec,
-        prob.f.expr, prob.f.cons_expr)
+        prob.f.cons, prob.f.cons_j, prob.f.cons_h, prob.f.lag_h,
+        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype, prob.f.lag_hess_prototype,
+        prob.f.syms, prob.f.paramsyms,
+        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec, prob.f.lag_hess_colorvec,
+        prob.f.expr, prob.f.cons_expr, prob.f.sys)
     if !isnothing(prob.lb) && !isnothing(prob.ub)
         new_lb = prob.lb ./ mles
         new_ub = prob.ub ./ mles
@@ -168,17 +168,17 @@ Returns a function or problem that scales the objective by `scale` according to 
     end
     new_f
 end
-@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op=/) where {iip,AD,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX},θType,P,B,LC,UC,Sns,K}
+@inline function scale_prob(prob::OptimizationProblem{iip,FF,θType,P,B,LC,UC,Sns,K}, scale; op=/) where {iip,AD,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS,F,FF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS},θType,P,B,LC,UC,Sns,K}
     new_f = scaled_f(prob, scale; op)
-    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,HP,CJP,CHP,S,HCV,CJCV,CHCV,EX,CEX
+    f = OptimizationFunction{iip,AD,typeof(new_f),G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS
     }(new_f,
         prob.f.adtype, prob.f.grad,
         prob.f.hess, prob.f.hv,
-        prob.f.cons, prob.f.cons_j, prob.f.cons_h,
-        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype,
-        prob.f.syms,
-        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec,
-        prob.f.expr, prob.f.cons_expr)
+        prob.f.cons, prob.f.cons_j, prob.f.cons_h, prob.f.lag_h,
+        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype, prob.f.lag_hess_prototype,
+        prob.f.syms, prob.f.paramsyms,
+        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec, prob.f.lag_hess_colorvec,
+        prob.f.expr, prob.f.cons_expr, prob.f.sys)
     return remake(prob; f=f)
 end
 @inline function scale_prob(prob::LikelihoodProblem, scale; op=/)
