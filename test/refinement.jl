@@ -22,7 +22,7 @@ sol = mle(prob, (BBO_adaptive_de_rand_1_bin_radiuslimited(), NLopt.LN_NELDERMEAD
 @test ProfileLikelihood.algorithm_name(sol) == "Nelder-Mead simplex algorithm (local, no-derivative)"
 
 prob, loglikk, θ, dat = MultipleLinearRegressionBounded()
-_sol = mle(prob, (BBO_adaptive_de_rand_1_bin_radiuslimited(), NLopt.LN_NELDERMEAD, PolyOpt(), Optim.LBFGS()))
+_sol = mle(prob, (BBO_adaptive_de_rand_1_bin_radiuslimited(), NLopt.LN_NELDERMEAD, LBFGS(), Optim.LBFGS()))
 @test maximum(_sol) ≈ loglikk(reduce(vcat, θ), data(prob)) rtol = 1e-2
 @test mle(_sol) ≈ reduce(vcat, θ) rtol = 1e-2
 @test algorithm_name(_sol) == :LBFGS
@@ -64,7 +64,7 @@ end
 
 ## Regression 
 nprob, loglikk, θ, dat = MultipleLinearRegression()
-nsol = mle(nprob)
+nsol = mle(nprob, LBFGS())
 @test_throws "Problem must have finite" refine(nsol; local_method=NLopt.LD_LBFGS())
 
 prob, loglikk, θ, dat = MultipleLinearRegressionBounded()

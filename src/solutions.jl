@@ -9,8 +9,8 @@ abstract type AbstractLikelihoodSolution end
 for op in (:num_params, :data, :sym_names, :(Base.names))
     @eval @inline $op(sol::AbstractLikelihoodSolution) = $op(sol.prob)
 end
-@inline lower_bounds(sol::AbstractLikelihoodSolution; make_open = false) = lower_bounds(sol.prob; make_open)
-@inline upper_bounds(sol::AbstractLikelihoodSolution; make_open = false) = upper_bounds(sol.prob; make_open)
+@inline lower_bounds(sol::AbstractLikelihoodSolution; make_open=false) = lower_bounds(sol.prob; make_open)
+@inline upper_bounds(sol::AbstractLikelihoodSolution; make_open=false) = upper_bounds(sol.prob; make_open)
 @inline Base.maximum(sol::AbstractLikelihoodSolution) = sol.maximum
 @inline mle(sol::AbstractLikelihoodSolution) = sol.θ
 @inline retcode(sol::AbstractLikelihoodSolution) = sol.retcode
@@ -67,16 +67,16 @@ We define the constructor
 that constructs a [`LikelihoodSolution`](@ref) struct from a solution from `Optimization.jl`. `scale` is the amount to divide the final 
 maximum likelihood by, and `alg` is the algorithm used.
 """
-Base.@kwdef struct LikelihoodSolution{θType₁,θType₂,θType₃,A,Tf,O,ST,iip,F,P,B,LC,UC,S,K,D,ℓ<:Function} <: AbstractLikelihoodSolution
+Base.@kwdef struct LikelihoodSolution{θType₂,θType₃,A,Tf,O,ST,Prb,D,ℓ<:Function} <: AbstractLikelihoodSolution
     θ::θType₃
-    prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}
+    prob::LikelihoodProblem{ST,Prb,D,θType₂,ℓ}
     alg::A
     maximum::Tf
     retcode::Symbol
     original::O
 end
-@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,iip,F,θType₁,P,B,LC,UC,S,K,D,θType₂,ℓ}; scale=true, alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,iip,F,θType₁,θType₂,P,B,LC,UC,S,K,D,ℓ,A}
-    return LikelihoodSolution{θType₁,θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,iip,F,P,B,LC,UC,S,K,D,ℓ}(sol.u, prob, alg, -sol.minimum / scale, sol.retcode, sol.original)
+@inline function LikelihoodSolution(sol::T, prob::LikelihoodProblem{ST,Prb,D,θType₂,ℓ}; scale=true, alg::A) where {T<:SciMLBase.AbstractOptimizationSolution,ST,θType₂,D,Prb,ℓ,A}
+    return LikelihoodSolution{θType₂,typeof(sol.u),A,typeof(sol.minimum),typeof(sol.original),ST,Prb,D,ℓ}(sol.u, prob, alg, -sol.minimum / scale, sol.retcode, sol.original)
 end
 
 """

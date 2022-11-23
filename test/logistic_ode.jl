@@ -37,7 +37,7 @@ end
         0.5354131612786698912742622269433923065662384033203125]
     @test sol.prob == prob
     @test sol.maximum ≈ 86.54963187499551
-    @test sol.retcode == :XTOL_REACHED
+    @test sol.retcode == :Failure
 end
 
 @testset "New methods" begin

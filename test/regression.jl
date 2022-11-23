@@ -2,6 +2,7 @@ using LaTeXStrings
 using Random
 using Distributions
 using OptimizationNLopt
+using OptimizationOptimJL
 using DifferentialEquations
 using Test
 using PreallocationTools
@@ -12,7 +13,7 @@ using LoopVectorization
 
 prob, loglikk, θ, dat = MultipleLinearRegression()
 σ, β = θ
-sol = mle(prob)
+sol = mle(prob, Optim.LBFGS())
 
 ## Test 
 @testset "Problem configuration" begin
@@ -34,10 +35,10 @@ end
         -0.99574347488690573282354989714804105460643768310546875
         0.99805007135858925249038975380244664847850799560546875
         0.497044010369973865426374004528042860329151153564453125
-        3.00093210914198404992703217430971562862396240234375]
+        3.00093210914198404992703217430971562862396240234375] 
     @test sol.prob == prob
-    @test sol.maximum ≈ 499.0546530363559440957033075392246246337890625
-    @test sol.retcode == Symbol("true")
+    @test sol.maximum ≈ 499.0546530363559440957033075392246246337890625 
+    @test sol.retcode == :Success
 end
 
 @testset "New methods" begin
@@ -68,7 +69,7 @@ end
     @test ProfileLikelihood.bounds(prob, 4; make_open=true) == (-Inf, Inf)
     @test ProfileLikelihood.bounds(prob, 5; make_open=true) == (-Inf, Inf)
     @test ProfileLikelihood.bounds(prob; make_open=true) == [(ProfileLikelihood.OPEN_EXT, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf), (-Inf, Inf)]
-    
+
     ## Solution
     @test ProfileLikelihood.num_params(sol) == 5
     @test ProfileLikelihood.data(sol) == dat
@@ -81,7 +82,7 @@ end
         0.99805007135858925249038975380244664847850799560546875
         0.497044010369973865426374004528042860329151153564453125
         3.00093210914198404992703217430971562862396240234375]
-    @test ProfileLikelihood.algorithm_name(sol) == :PolyOpt
+    @test ProfileLikelihood.algorithm_name(sol) == :LBFGS
     @test sol[1] == sol.θ[1]
     @test sol[2] == sol.θ[2]
     @test sol[3] == sol.θ[3]
@@ -119,17 +120,17 @@ a2, b2, c2 = profile(prob, sol, 2, sol.alg, -0.5quantile(Chisq(1), 0.99), param_
 a3, b3, c3 = profile(prob, sol, 3, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[3], 10, false)
 a4, b4, c4 = profile(prob, sol, 4, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[4], 10, false)
 a5, b5, c5 = profile(prob, sol, 5, sol.alg, -0.5quantile(Chisq(1), 0.99), param_ranges[5], 10, false)
-prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false, min_steps=10,normalise=false)
+prof = profile(prob, sol; conf_level=0.99, param_ranges, spline=false, min_steps=10, normalise=false)
 @test length(prof[1].θ) == length(prof[1].profile) == 198
 @test length(prof[2].θ) == length(prof[2].profile) == 156
 @test length(prof[3].θ) == length(prof[3].profile) == 264
 @test length(prof[4].θ) == length(prof[4].profile) == 139
 @test length(prof[5].θ) == length(prof[5].profile) === 95
-fig = plot_profiles(prof; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
+fig = plot_profiles(prof; fig_kwargs=(fontsize=20, resolution=(1600, 800)), axis_kwargs=(width=700, height=350))
 resize_to_layout!(fig)
 fig
 
-fig = plot_profiles(prof, [1, 3, 5]; fig_kwargs = (fontsize = 20, resolution = (1600, 800)), axis_kwargs = (width = 700, height = 350))
+fig = plot_profiles(prof, [1, 3, 5]; fig_kwargs=(fontsize=20, resolution=(1600, 800)), axis_kwargs=(width=700, height=350))
 resize_to_layout!(fig)
 fig
 @testset "Problem configuration" begin
@@ -168,51 +169,51 @@ fig
 
     ## Confidence intervals
     @test prof.confidence_intervals isa Dict{Int64,ProfileLikelihood.ConfidenceInterval{Float64,Float64}}
-    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol=1e-3
-    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol=1e-3
-    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol=1e-3
-    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol=1e-3
-    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol=1e-3
-    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol=1e-3
-    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol=1e-3
-    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol=1e-3
-    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol=1e-3
-    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol=1e-3
+    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol = 1e-3
+    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol = 1e-3
+    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol = 1e-3
+    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol = 1e-3
+    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol = 1e-3
+    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol = 1e-3
+    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol = 1e-3
+    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol = 1e-3
+    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol = 1e-3
+    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol = 1e-3
     for i in 1:5
         @test prof.confidence_intervals[i].level == 0.99
     end
 
     ## Other MLEs 
     @test sum(c1) ≈ [-197.15720802760532
-    197.61391412899405
-     98.41471405325326
-    594.1845576101321]
+        197.61391412899405
+        98.41471405325326
+        594.1845576101321]
     @test sum(c2) ≈ [7.179095145173143
-    155.69493130146472
-     77.52228199445916
-    468.1451686301226]
+        155.69493130146472
+        77.52228199445916
+        468.1451686301226]
     @test sum(c3) ≈ [12.148970073165131
-    -262.87561689281057
-     131.21985435889783
-     792.282239857978]
+        -262.87561689281057
+        131.21985435889783
+        792.282239857978]
     @test sum(c4) ≈ [6.3970931478274
-    -138.39464499635085
-     138.72921917771941
-     417.1285024670855]
+        -138.39464499635085
+        138.72921917771941
+        417.1285024670855]
     @test sum(c5) ≈ [4.372313669611411
-    -94.59561941220197
-     94.81690137691011
-     47.21912381678868]
-     @test length(c1) == length(a1) == length(b1)
-     @test length(c2) == length(a2) == length(b2)
-     @test length(c3) == length(a3) == length(b3)
-     @test length(c4) == length(a4) == length(b4)
-     @test length(c5) == length(a5) == length(b5)
-     @test prof.other_mles[1] == c1 
-     @test prof.other_mles[2] == c2 
-     @test prof.other_mles[3] == c3
-     @test prof.other_mles[4] == c4
-     @test prof.other_mles[5] == c5
+        -94.59561941220197
+        94.81690137691011
+        47.21912381678868]
+    @test length(c1) == length(a1) == length(b1)
+    @test length(c2) == length(a2) == length(b2)
+    @test length(c3) == length(a3) == length(b3)
+    @test length(c4) == length(a4) == length(b4)
+    @test length(c5) == length(a5) == length(b5)
+    @test prof.other_mles[1] == c1
+    @test prof.other_mles[2] == c2
+    @test prof.other_mles[3] == c3
+    @test prof.other_mles[4] == c4
+    @test prof.other_mles[5] == c5
 end
 
 @testset "Problem solution" begin
@@ -270,8 +271,8 @@ end
     end
 end
 
-@testset "Checking minimum steps" begin 
-    prof = profile(prob, sol; conf_level = 0.99, param_ranges, spline = false, min_steps = 500)
+@testset "Checking minimum steps" begin
+    prof = profile(prob, sol; conf_level=0.99, param_ranges, spline=false, min_steps=500)
     for i in 1:num_params(prob)
         @test length(prof[i].θ) === 999
         @test length(prof[i].profile) === 999
@@ -283,16 +284,16 @@ end
     @test β[4] ∈ prof.confidence_intervals[5]
     @test 1000.0 ∉ prof.confidence_intervals[5]
     @test prof.confidence_intervals isa Dict{Int64,ProfileLikelihood.ConfidenceInterval{Float64,Float64}}
-    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol=1e-3
-    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol=1e-3
-    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol=1e-3
-    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol=1e-3
-    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol=1e-3
-    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol=1e-3
-    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol=1e-3
-    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol=1e-3
-    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol=1e-3
-    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol=1e-3
+    @test prof.confidence_intervals[1].lower ≈ 0.04141751574983325301371195337196695618331432342529296875 rtol = 1e-3
+    @test prof.confidence_intervals[1].upper ≈ 0.05112522181324398451440771395937190391123294830322265625 rtol = 1e-3
+    @test prof.confidence_intervals[2].lower ≈ -1.0112190325565231230342533308430574834346771240234375 rtol = 1e-3
+    @test prof.confidence_intervals[2].upper ≈ -0.9802679172172743538027361864806152880191802978515625 rtol = 1e-3
+    @test prof.confidence_intervals[3].lower ≈ 0.97177367883809229187619393997010774910449981689453125 rtol = 1e-3
+    @test prof.confidence_intervals[3].upper ≈ 1.0243264638789992826417574178776703774929046630859375 rtol = 1e-3
+    @test prof.confidence_intervals[4].lower ≈ 0.48334717021014939053458192574908025562763214111328125 rtol = 1e-3
+    @test prof.confidence_intervals[4].upper ≈ 0.5107408505297854617310804314911365509033203125 rtol = 1e-3
+    @test prof.confidence_intervals[5].lower ≈ 2.97766403961401238120743073523044586181640625 rtol = 1e-3
+    @test prof.confidence_intervals[5].upper ≈ 3.024200178670172878270250294008292257785797119140625 rtol = 1e-3
     for i in 1:5
         @test prof.confidence_intervals[i].level == 0.99
     end

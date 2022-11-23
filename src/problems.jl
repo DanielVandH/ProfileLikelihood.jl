@@ -320,8 +320,8 @@ The third constructor also allows for the following two keyword arguments.
 - `ode_alg=nothing`: Algorithm to use for solving the ODEs. If `nothing`, one is chosen automatically.
 - `ode_kwargs=nothing`: Additional keyword arguments for the integrator interface.
 """
-Base.@kwdef struct LikelihoodProblem{ST,iip,F,θType,P,B,LC,UC,S,K,D,θ₀Type,ℓ<:Function} <: AbstractLikelihoodProblem
-    prob::OptimizationProblem{iip,F,θType,P,B,LC,UC,S,K}
+Base.@kwdef struct LikelihoodProblem{ST,Prb,D,θ₀Type,ℓ<:Function} <: AbstractLikelihoodProblem
+    prob::Prb
     data::D
     loglik::ℓ
     θ₀::θ₀Type
@@ -366,7 +366,7 @@ function LikelihoodProblem(
         lcons, ucons,
         sense,
         prob_kwargs)
-    return LikelihoodProblem{typeof(names),typeof(prob).parameters...,typeof(data),typeof(θ),typeof(loglik)}(prob, data, loglik, θ, names)
+    return LikelihoodProblem{typeof(names),typeof(prob),typeof(data),typeof(θ),typeof(loglik)}(prob, data, loglik, θ, names)
 end
 function LikelihoodProblem(loglik::F, num_params::Integer, integrator::Ti;
     adtype::SciMLBase.AbstractADType=Optimization.AutoFiniteDiff(), kwargs...) where {F<:Function,Ti<:SciMLBase.AbstractODEIntegrator}

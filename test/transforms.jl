@@ -1,6 +1,6 @@
 prob, loglikk, θ, dat = MultipleLinearRegression()
 σ, β = θ
-sol = mle(prob)
+sol = mle(prob, LBFGS())
 
 sol_remake = remake(sol; θ = [1,2,3,4,5])
 @test sol_remake.θ == [1,2,3,4,5]
@@ -39,7 +39,7 @@ sol4 = transform_result(sol, [identity, x -> x, sin ∘ cos, sqrt, x -> exp(x)])
 
 resolution = 1000
 param_ranges = ProfileLikelihood.construct_profile_ranges(prob, sol, resolution; param_bounds)
-sol = mle(prob)
+sol = mle(prob, LBFGS())
 prof = profile(prob, sol; param_ranges)
 CIs = confidence_intervals(prof)
 for CI in values(CIs) 
