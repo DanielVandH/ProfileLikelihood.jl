@@ -15,6 +15,7 @@ using LinearAlgebra
 using LoopVectorization 
 using InvertedIndices 
 using PreallocationTools
+import PreallocationTools: dualcache
 using Printf 
 using LatinHypercubeSampling
 using Requires
@@ -40,4 +41,7 @@ include("transform_results.jl");      export transform_result
 include("parameter_grid.jl");         export AbstractGrid, UniformGrid, LatinGrid
 include("grid_search.jl");            export GridSearch, grid_search
 end
+
+#include("likelihood.jl")
+
 # new line

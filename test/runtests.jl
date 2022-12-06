@@ -2,7 +2,7 @@ using Test
 using CairoMakie
 using LinearAlgebra
 using Random
-
+import PreallocationTools: dualcache
 using ProfileLikelihood
 
 const bounds = ProfileLikelihood.bounds
