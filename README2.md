@@ -40,7 +40,7 @@ Importantly, `loglik` in this case is now a function of the form `ℓ(θ, p, int
 
 ## Solving the problem: mle and LikelihoodSolution 
 
-The MLEs for a given `LikelihoodProblem` are found using the function `mle`, e.g. `mle(prob, Optim.LBFGS())` will optimise the likelihood function using the LBFGS algorithm from Optim.jl. This function returns a `LikelihoodSolution`, defined by:
+The MLEs for a given `LikelihoodProblem` are found using the function `mle`, e.g. `mle(prob, Optim.LBFGS())` will optimise the likelihood function using the LBFGS algorithm from Optim.jl (see also `?mle`). This function returns a `LikelihoodSolution`, defined by:
 
 ```julia
 struct LikelihoodSolution{Θ,P,M,R,A} <: AbstractLikelihoodSolution
@@ -56,7 +56,7 @@ If `sol isa LikelihoodSolution`, then you can use the `syms` from your original 
 
 ## Profiling the parameters: profile and ProfileLikelihoodSolution 
 
-The results for a profile likelihood, obtained from `profile(prob, sol)`, are stored in a `ProfileLikelihoodSolution` struct:
+The results for a profile likelihood, obtained from `profile(prob, sol)` (see also `?profile`), are stored in a `ProfileLikelihoodSolution` struct:
 
 ```julia
 struct ProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM}
@@ -101,7 +101,7 @@ X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
 y = X * β + ε
 ```
 
-The data `y` is now our noisy data. The likelihood function in this is $\ell(\sigma, \boldsymbol \beta \mid \boldsymbol y) = -(n/2)\log(2\mathrm{\pi}\sigma^2) - (1/2\sigma^2)\sum_{i=1}^n (y_i - \beta_0 - \beta_1x_{1i} - \beta_2x_{2i} - \beta_3x_{1i}x_{2i})^2$. We now define our likelihood function. To allow for automatic differentiation, we use `PreallocationTools.DiffCache` to define our cache vectors.
+The data `y` is now our noisy data. The likelihood function in this is $\ell(\sigma, \boldsymbol \beta \mid \boldsymbol y) = -(n/2)\log(2\mathrm{\pi}\sigma^2) - (1/2\sigma^2)\sum_i (y_i - \beta_0 - \beta_1x_{1i} - \beta_2x_{2i} - \beta_3x_{1i}x_{2i})^2$. We now define our likelihood function. To allow for automatic differentiation, we use `PreallocationTools.DiffCache` to define our cache vectors.
 
 ```julia 
 sse = DiffCache(zeros(n))
