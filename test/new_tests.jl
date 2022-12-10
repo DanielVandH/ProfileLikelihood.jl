@@ -1341,7 +1341,7 @@ fig = plot_profiles(prof;
     show_mles=true,
     shade_ci=true,
     true_vals=[λ, K, σ, u₀],
-    fig_kwargs=(fontsize=30, resolution=(1410.0f0, 880.0f0)),
+    fig_kwargs=(fontsize=30, resolution=(1430.0f0, 880.0f0)),
     axis_kwargs=(width=600, height=300))
 SAVE_FIGURE && save("figures/logistic_example.png", fig)
 
