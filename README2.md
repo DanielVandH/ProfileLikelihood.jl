@@ -320,7 +320,7 @@ Maximum likelihood estimates: 4-element Vector{Float64}
      u₀: 0.5354121514863078
 ```
 
-We can now profile. This time, we use a $90\%$ confidence interval.
+We can now profile. This time, we use a $90%$ confidence interval.
 
 ```julia
 prof = profile(prob, sol; conf_level=0.9)
