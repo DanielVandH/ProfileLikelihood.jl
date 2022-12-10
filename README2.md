@@ -239,7 +239,7 @@ xlims!(fig.content[2], -1.025, -0.975)
 xlims!(fig.content[4], 0.475, 0.525)
 ```
 
-![Regression profiles](https://github.com/DanielVandH/ProfileLikelihood/blob/main/test/figures/regression_profiles.png?raw=true)
+![Regression profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/regression_profiles.png?raw=true)
 
 You could also plot individual or specific parameters:
 
