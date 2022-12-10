@@ -249,3 +249,106 @@ plot_profiles(prof, [:σ, :β₁, :β₃]) # can use symbols
 plot_profiles(prof, 1) # can just provide an integer 
 plot_profiles(prof, :β₂) # symbols work
 ```
+
+## Logistic ordinary differential equation
+
+Now let us consider the logistic ordinary differential equation (ODE). For ODEs, our treatment is as follows: Let us have some ODE $\mathrm dy/\mathrm dt = f(y, t; \boldsymbol \theta)$ for some parameters $\boldsymbol\theta$ of interest. We will suppose that we have some data $y_i^o$ at time $t_i$, $i=1,\ldots,n$, with initial condition $y_0^o$ at time $t_0=0$, which we model according to a normal distribution $y_i^o \mid \boldsymbol \theta \sim \mathcal N(y_i(\boldsymbol \theta), \sigma^2)$, $i=0,1,\ldots,n$, where $y_i$ is a solution of the ODE at time $t_i$. This defines a likelihood that we can use for estimating the parameters.
+
+Let us now proceed with our example. We are considering $\mathrm du/\mathrm dt = \lambda u(1-u/K)$, $u(0)=u_0$, and our interest is in estimating $(\lambda, K, u_0)$, and also the variance of the noise $\sigma$. The exact solution to this problem is $u(t) = Ku_0/[(K-u_0)\mathrm{e}^{-\lambda t} + u_0]$ which we use for generating noisy data.
+
+```julia
+Random.seed!(2929911002)
+u₀, λ, K, n, T = 0.5, 1.0, 1.0, 100, 10.0
+t = LinRange(0, T, n)
+u = @. K * u₀ * exp(λ * t) / (K - u₀ + u₀ * exp(λ * t))
+σ = 0.1
+uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...] # add some noise 
+```
+
+Now having our data, we define the ODE and the likelihood function.
+
+```julia 
+@inline function ode_fnc(u, p, t)
+    local λ, K
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+@inline function loglik_fnc(θ, data, integrator)
+    local uᵒ, n, λ, K, σ, u0
+    uᵒ, n = data
+    λ, K, σ, u0 = θ
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u0)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, n)
+end
+```
+
+Now we can define our problem. We constrain the problem so that $0 \leq \lambda \leq 10$, $10^{-6} \leq K \leq 10$, $10^{-6} \leq \sigma \leq 10$, and $0 \leq u_0 \leq 10$.
+
+```julia
+using FiniteDiff, OrdinaryDiffEq
+θ₀ = [0.7, 2.0, 0.15, 0.4]
+lb = [0.0, 1e-6, 1e-6, 0.0]
+ub = [10.0, 10.0, 10.0, 10.0]
+syms = [:λ, :K, :σ, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
+    syms=syms,
+    data=(uᵒ, n),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Tsit5()
+)
+```
+
+Now we find the MLEs.
+
+```julia
+using OptimizationNLopt
+sol = mle(prob, NLopt.LN_BOBYQA; abstol=1e-16, reltol=1e-16)
+LikelihoodSolution. retcode: Failure
+Maximum likelihood: 86.54963187188535
+Maximum likelihood estimates: 4-element Vector{Float64}
+     λ: 0.7751485360202867
+     K: 1.0214251327023145
+     σ: 0.10183154994808913
+     u₀: 0.5354121514863078
+```
+
+We can now profile. This time, we use a $90\%$ confidence interval.
+
+```julia
+prof = profile(prob, sol; conf_level=0.9)
+ProfileLikelihoodSolution. MLE retcode: Failure
+Confidence intervals: 
+     90.0% CI for λ: (0.5447291688702172, 1.0597476103940162)
+     90.0% CI for K: (0.9958363404632838, 1.0519310547041105)
+     90.0% CI for σ: (0.09104488237974673, 0.11493628491475444)
+     90.0% CI for u₀: (0.46273795601666323, 0.6067706857612565)
+```
+
+```julia
+@test λ ∈ get_confidence_intervals(prof, :λ)
+@test K ∈ prof.confidence_intervals[2]
+@test σ ∈ get_confidence_intervals(prof[:σ])
+@test u₀ ∈ get_confidence_intervals(prof, 4)
+```
+
+We can visualise as we did before:
+
+```julia
+fig = plot_profiles(prof;
+    latex_names=[L"\lambda", L"K", L"\sigma", L"u_0"],
+    show_mles=true,
+    shade_ci=true,
+    true_vals=[λ, K, σ, u₀],
+    fig_kwargs=(fontsize=30, resolution=(1410.0f0, 880.0f0)),
+    axis_kwargs=(width=600, height=300))
+```
+
+![Logistic profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example.png?raw=true)
