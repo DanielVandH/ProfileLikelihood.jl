@@ -1,80 +1,43 @@
-"""
-    gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n) 
-    gaussian_loglikelihood(x::AbstractVector{<:AbstractVector{<:Real}}, μ::AbstractVector{<:AbstractVector{<:Real}}, σ, n)
+# https://stackoverflow.com/a/41847530
+number_type(x) = number_type(typeof(x))
+number_type(::Type{T}) where {T<:AbstractArray} = number_type(eltype(T))
+number_type(::Type{NTuple{N,F}}) where {N,F} = number_type(F)
+number_type(::Type{T}) where {T} = T
 
-Computes the log-likelihood function for `x ~ N(μ, σ²)`.
-"""
-function gaussian_loglikelihood end
-@inline function gaussian_loglikelihood(x::AbstractVector{<:Real}, μ::AbstractVector{<:Real}, σ, n)
+function get_default_extremum(::Type{T}, minimise::Type{M}) where {M,T}
+    f_opt = M == Val{false} ? typemin(T) : typemax(T)
+    return f_opt
+end
+
+function update_extremum!(new_x, new_f, old_x, old_f; minimise::M) where {M}
+    if M == Val{false}
+        if new_f > old_f
+            new_x .= old_x
+            return new_f
+        end
+        return old_f
+    elseif M == Val{true}
+        if new_f < old_f
+            new_x .= old_x
+            return new_f
+        end
+        return old_f
+    end
+    return nothing
+end
+
+@inline function gaussian_loglikelihood(x::AbstractArray{T}, μ::AbstractArray{T}, σ, n) where {T}
     ℓ = -0.5n * log(2π * σ^2)
-    s = zero(eltype(x))
-    @turbo for i ∈ eachindex(x, μ)
+    s = zero(T)
+    for i ∈ eachindex(x, μ)
         s += (x[i] - μ[i])^2
     end
     ℓ = ℓ - 0.5 / σ^2 * s
     return ℓ
 end
-@inline function gaussian_loglikelihood(x::AbstractVector{<:AbstractVector{<:Real}}, μ::AbstractVector{<:AbstractVector{<:Real}}, σ, n)
-    ℓ = -0.5n * log(2π * σ^2)#https://discourse.julialang.org/t/improving-the-performance-of-a-sum-over-a-vector-of-vectors/84150/10
-    T = eltype(eltype(x))
-    s = LoopVectorization.vzero(LoopVectorization.pick_vector_width(T), T)
-    fi = firstindex(x)
-    li = lastindex(x)
-    @assert (firstindex(μ) == fi) & (lastindex(μ) == li)
-    len = li - (fi - 1)
-    for i = 0:(len>>2)-1
-        _x0 = x[4i+fi]
-        _μ0 = μ[4i+fi]
-        _x1 = x[4i+fi+1]
-        _μ1 = μ[4i+fi+1]
-        _x2 = x[4i+fi+2]
-        _μ2 = μ[4i+fi+2]
-        _x3 = x[4i+fi+3]
-        _μ3 = μ[4i+fi+3]
-        @turbo for j ∈ eachindex(_x0)
-            s += (_x0[j] - _μ0[j])^2 + (_x1[j] - _μ1[j])^2 + (_x2[j] - _μ2[j])^2 + (_x3[j] - _μ3[j])^2
-        end
-    end
-    for i = fi+(len&-4):li
-        _x, _μ = x[i], μ[i]
-        @turbo for j ∈ eachindex(_x, _μ)
-            s += (_x[j] - _μ[j])^2
-        end
-    end
-    ℓ -= 0.5LoopVectorization.vsum(s) / σ^2
-    return ℓ
-end
 
-"""
-    check_solution(sol::SciMLBase.AbstractODESolution)
+get_chisq_threshold(level, d=1) = -0.5chisqinvcdf(d, level)
 
-Checks if the solution `sol` was successfully integrated, returning 
-`sol.retcode ≠ :Success`.
-"""
-@inline check_solution(sol::SciMLBase.AbstractODESolution) = sol.retcode ≠ :Success
-
-@inline OptimizationNLopt.algorithm_name(alg) = nameof(typeof(alg))
-function OptimizationNLopt.algorithm_name(sol::AbstractLikelihoodSolution)
-    if sol.alg isa Optim.AbstractConstrainedOptimizer # need to wrap in Fminbox...
-        return string(OptimizationNLopt.algorithm_name(sol.alg)) * "(" * string(nameof(typeof(sol.alg).parameters[1])) * ")" # e.g. Fminbox(BFGS)
-    end
-    if sol.alg isa Tuple{TikTak,Algorithm}
-        return string(sol.alg)
-    end
-    if sol.alg == :UniformGridSearch || sol.alg == :LatinGridSearch 
-        return string(sol.alg)
-    end
-    return OptimizationNLopt.algorithm_name(sol.alg)
-end
-@inline OptimizationNLopt.algorithm_name(sol::ProfileLikelihoodSolution) = OptimizationNLopt.algorithm_name(sol.mle)
-
-"""
-    subscriptnumber(i::Int)
-
-Given an integer `i`, returns the subscript `ᵢ`.
-
-Sourced from https://stackoverflow.com/a/64758370.
-"""
 function subscriptnumber(i::Int)#https://stackoverflow.com/a/64758370
     if i < 0
         c = [Char(0x208B)]
@@ -85,74 +48,4 @@ function subscriptnumber(i::Int)#https://stackoverflow.com/a/64758370
         push!(c, Char(0x2080 + d))
     end
     return join(c)
-end
-
-"""
-    clean_named_tuple(nt::NamedTuple)
-
-Given a `NamedTuple` `nt`, returns another `NamedTuple` with all keys removed that correspond to 
-a `Nothing` value.
-"""
-@inline function clean_named_tuple(nt::NamedTuple)
-    good_names = findall(!isnothing, nt)
-    nt_cleaned = length(good_names) > 0 ? NamedTuple{Tuple(good_names)}(nt) : nothing
-    return nt_cleaned
-end
-
-"""
-    setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs = nothing, kwargs...)
-    setup_integrator(prob, t, alg=nothing; kwargs...)
-
-Constructs the `integrator` for solving a differential equation with `DifferentialEquations.jl`, given 
-the ODEProblem `prob`, with solutions returned at the times `t`. If `alg = nothing`, then a default algorithm 
-is chosen. The second method constructs the `ODEProblem` required, `prob = ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)`.
-"""
-function setup_integrator end
-@inline function setup_integrator(prob, t, alg=nothing; kwargs...)
-    if isnothing(alg) ## Select default algorithm. ...\.julia\packages\DifferentialEquations\4jfQK\src\default_solve.jl
-        alg, new_kwargs = DifferentialEquations.default_algorithm(prob; kwargs...)
-        alg = DiffEqBase.prepare_alg(alg, prob.u0, prob.p, prob)
-        return DifferentialEquations.init(prob, alg, saveat=t; new_kwargs..., kwargs...)
-    else
-        return DifferentialEquations.init(prob, alg, saveat=t; kwargs...)
-    end
-end
-@inline function setup_integrator(f, u₀, tspan, p, t, alg=nothing; ode_problem_kwargs=nothing, kwargs...)
-    prob = isnothing(ode_problem_kwargs) ? ODEProblem(f, u₀, tspan, p) : ODEProblem(f, u₀, tspan, p; ode_problem_kwargs...)
-    return setup_integrator(prob, t, alg; kwargs...)
-end
-
-"""
-    get_lhc_params(prob, n, gens; use_threads = false) 
-    get_lhc_params(n, d, gens, bounds; use_threads=false)
-
-Finds the new parameters generated by LatinHypercubeSampling, with a problem 
-defined by `prob`. There will be `n` points used and `gens` generations. The returned 
-result is a matrix `A` such that `A[i, j]` is the `j`th value to use for the `i`th variable.
-If multithreading should be used, set `use_threads = true`. The latter method uses the bounds 
-directly.
-"""
-function get_lhc_params(n, d, gens, bounds; use_threads=false)
-    plan, _ = LHCoptim(n, d, gens; threading=use_threads)
-    return scaleLHC(plan, bounds)
-end
-function get_lhc_params(prob, n, gens; use_threads=false)
-    d = num_params(prob)
-    bnds = bounds(prob; make_open=true)
-    return get_lhc_params(n, d, gens, bnds; use_threads)'
-end
-
-"""
-    finite_bounds(bounds)
-
-Checks that all the bounds in `bounds` are finite.
-"""
-@inline function finite_bounds(bounds)
-    for i in eachindex(bounds)
-        lower, upper = bounds[i]
-        if !(lower isa Number) || !(upper isa Number) || !isfinite(lower) || !isfinite(upper) # use finite so that we detect NaN
-            throw(ArgumentError("All bounds must be finite."))
-        end
-    end
-    nothing 
 end

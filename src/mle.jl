@@ -1,144 +1,26 @@
 """
-    mle(prob::LikelihoodProblem[, alg = PolyOpt()], args...; kwargs...) 
+    mle(prob::LikelihoodProblem, alg, args...; kwargs...)
     mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
 
-Computes the maximum likelihood estimates for the given [`LikelihoodProblem`](@ref).
+Given the likelihood problem `prob` and an optimiser `alg`, finds the MLEs and returns a 
+[`LikelihoodSolution`](@ref) object. Extra arguments and keyword arguments for `solve` can be passed 
+through `args...` and `kwargs...`.
 
-## Arguments 
-- `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
-- `alg = PolyOpt()`: The solver to use from `Optimization.jl`. This can also be given as a `Tuple`, in which case the solutions are solved with the algorithms in order, using the previous solution as the revised initial guess at each new algorithm.
-- `args...`: Arguments for `Optimization.solve`. 
-
-## Keyword Arguments 
-- `scale=true`: Value to divide the objective function by when optimising (`true` is the same as scaling by `1`). 
-- `kwargs...`: Keyword arguments for `Optimization.solve`.
- 
-## Output 
-The output is a [`LikelihoodSolution`](@ref) struct. See [`LikelihoodSolution`](@ref) for more details. 
+If `alg` is a `Tuple`, then the problem is re-optimised after each algorithm with the next element in alg, 
+starting from `alg[1]`, with initial estimate coming from the solution with the 
+previous algorithm (starting with `get_initial_estimate(prob)`).
 """
-@inline function mle(prob::LikelihoodProblem, alg=PolyOpt(), args...; scale=true, kwargs...)
-    new_prob = scale_prob(prob, scale)
-    sol = solve(new_prob.prob, alg, args...; kwargs...)
-    return LikelihoodSolution(sol, prob; scale=oneunit(scale) / scale, alg)
+function mle(prob::LikelihoodProblem, alg, args...; kwargs...)
+    opt_prob = get_problem(prob)
+    opt_sol = solve(opt_prob, alg, args...; kwargs...)
+    return LikelihoodSolution(opt_sol, prob)
 end
-@inline function mle(prob::LikelihoodProblem, alg::Tuple, args...; scale=true, kwargs...)
-    new_prob = scale_prob(prob, scale)
-    sol = mle(new_prob, alg[begin], args...; scale, kwargs...)
+function mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
+    opt_prob = get_problem(prob)
+    opt_sol = solve(opt_prob, alg[begin], args...; kwargs...)
     for _alg in alg[begin+1:end]
-        #optprob = prob.prob 
-        #prob_newu0 = remake(optprob; u0 = sol.θ)
-        #prob = remake(prob; prob = prob_newu0, θ₀ = sol.θ)
-        prob = update_prob(new_prob, sol)
-        sol = mle(new_prob, _alg, args...; scale, kwargs...)
+        updated_problem = update_initial_estimate(opt_prob, opt_sol)
+        opt_sol = solve(updated_problem, _alg, args...; kwargs...)
     end
-    return remake(sol; maximum=maximum(sol) * scale)
-end
-
-"""
-    refine(sol::LikelihoodSolution, args...; method = :tiktak, kwargs...)
-
-Given a [`LikelihoodSolution`](@ref) `sol` (from [`mle`](@ref), say), refines the result using [`refine_tiktak`](@ref)
-or [`refine_lhc`](@ref).
-
-# Arguments 
-- `sol::LikelihoodSolution`: A [`LikelihoodSolution`](@ref).
-- `args...`: Extra positional arguments that get passed into the refinement method; see [`refine_tiktak`](@ref) or [`refine_lhc`](@ref) for the options.
-
-# Keyword Arguments
-- `method = :tiktak`: Method to use. Can be one of `tiktak` or `lhc`.
-- `kwargs...`: Extra keyword arguments that get passed into the refinement method; see [`refine_tiktak`](@ref) or [`refine_lhc`](@ref) for the options.
-
-# Output 
-The output is another [`LikelihoodSolution`](@ref) with the refined results.
-""" 
-function refine(sol::LikelihoodSolution, args...; method=:tiktak, kwargs...)
-    likprob = sol.prob
-    !finite_bounds(likprob) && error("Problem must have finite lower/upper bounds to use refinement methods. Consider using `remake` to choose new bounds on the problem.")
-    #optprob = likprob.prob
-    #prob_newu0 = remake(optprob; u0=sol.θ)
-    #new_likprob = remake(likprob; prob=prob_newu0, θ₀ = sol.θ)
-    new_likprob = update_prob(likprob, sol)
-    if method == :tiktak
-        return refine_tiktak(new_likprob, args...; kwargs...)
-    elseif method == :lhc
-        return refine_lhc(new_likprob, args...; kwargs...)
-    else
-        throw(ArgumentError("The provided method, $method, is invalid. It must be one of `:tiktak` or `:lhc`. See `?refine`."))
-    end
-end
-
-"""
-    refine_tiktak(prob::OptimizationProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
-    refine_tiktak(prob::LikelihoodProblem, args...; n = 100, local_method = NLopt.LN_NELDERMEAD(), use_threads = false, kwargs...)
-
-Optimises the given problem `prob` using the `TikTak` method from `MultistartOptimization.jl`.
-
-See also [`mle`](@ref), [`refine`](@ref), and [`refine_lhc`](@ref).
-
-# Arguments 
-- `prob`: The [`LikelihoodProblem`](@ref) or `OptimizationProblem`.
-- `args...`: Extra positional arguments that get passed to `Optimization.solve`.
-
-# Keyword Arguments 
-- `n = 100`: Number of Sobol points.
-- `local_method = NLopt.LN_NELDERMEAD()`: Local method to use in the multistart method.
-- `use_threads = false`: Whether to use multithreading.
-- `kwargs...`: Extra keyword arguments that get passed to `Optimization.solve`.
-
-# Output 
-The output is a new `OptimizationSolution` or [`LikelihoodSolution`](@ref).
-"""
-function refine_tiktak end
-function refine_tiktak(prob::OptimizationProblem, args...; n=100, local_method=NLopt.LN_NELDERMEAD(), use_threads=false, kwargs...)
-    solve(prob, MultistartOptimization.TikTak(n), local_method, args...; use_threads=use_threads, kwargs...)
-end
-function refine_tiktak(prob::LikelihoodProblem, args...; n=100, local_method=NLopt.LN_NELDERMEAD(), use_threads=false, kwargs...)
-    sol = refine_tiktak(prob.prob, args...; n, local_method, use_threads, kwargs...)
-    LikelihoodSolution(sol, prob; sol.alg)
-end
-
-"""
-    refine_lhc(prob::OptimizationProblem, alg, args...; n = 25, gens = 1000, use_threads = false, kwargs...)
-    refine_lhc(prob::LikelihoodProblem, alg, args...; n = 25, gens = 1000, use_threads = false, kwargs...)
-
-Optimises the given problem `prob` by solving at many points specified by sampling from a Latin hypercube.
-
-See also [`mle`](@ref), [`refine`](@ref), and [`refine_tiktak`](@ref).
-
-# Arguments 
-- `prob`: The [`LikelihoodProblem`](@ref) or `OptimizationProblem`.
-- `alg`: Algorithm to use for optimising.
-- `args...`: Extra positional arguments that get passed to `Optimization.solve`.
-
-# Keyword Arguments 
-- `n = 25`: Number of points to sample from the hypercube.
-- `gens = 1000`: Generations to use; see [`get_lhc_params`](@ref).
-- `use_threads = false`: Whether to use multithreading.
-- `kwargs...`: Extra keyword arguments that get passed to `Optimization.solve`.
-
-# Output 
-The output is a new `OptimizationSolution` or [`LikelihoodSolution`](@ref).
-"""
-function refine_lhc end
-function refine_lhc(prob::OptimizationProblem, alg, args...; n=25, gens=1000, use_threads=false, kwargs...)
-    if n == 1
-        throw(ArgumentError("The provided number of restarts, $n, must be greater than 1."))
-    end
-    new_params = get_lhc_params(prob, n, gens; use_threads=use_threads)
-    opt_sol = solve(prob, alg, args...; kwargs...)
-    min_obj = opt_sol.minimum
-    for j in 1:n
-        # new_prob = @views remake(prob; u0 = new_params[:, j])
-        new_prob = @views update_prob(prob, new_params[:, j])
-        new_sol = solve(new_prob, alg, args...; kwargs...)
-        if new_sol.minimum < min_obj
-            opt_sol = new_sol
-            min_obj = new_sol.minimum
-        end
-    end
-    return opt_sol
-end
-function refine_lhc(prob::LikelihoodProblem, alg=NLopt.LN_NELDERMEAD, args...; n=25, gens=1000, use_threads=false, kwargs...)
-    sol = refine_lhc(prob.prob, alg, args...; n, gens, use_threads, kwargs...)
-    LikelihoodSolution(sol, prob; alg)
+    return LikelihoodSolution(opt_sol, prob; alg=alg)
 end

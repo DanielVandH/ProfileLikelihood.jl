@@ -3,15 +3,14 @@ function Base.show(io::IO, ::MIME"text/plain", prob::T) where {T<:AbstractLikeli
     println(io,
         type_color, nameof(typeof(prob)),
         no_color, ". In-place: ",
-        type_color, isinplace(prob.prob))
+        type_color, isinplace(get_problem(prob)))
     println(io,
         no_color, "θ₀: ", summary(prob.θ₀))
-    #show(io, mime, prob.θ₀)
-    sym_param_names = sym_names(prob)
-    for i in 1:num_params(prob)
-        i < num_params(prob) ? println(io,
-            no_color, "     $(sym_param_names[i]): $(prob.θ₀[i])") : print(io,
-            no_color, "     $(sym_param_names[i]): $(prob.θ₀[i])")
+    sym_param_names = get_syms(prob)
+    for i in 1:number_of_parameters(prob)
+        i < number_of_parameters(prob) ? println(io,
+            no_color, "     $(sym_param_names[i]): $(prob[i])") : print(io,
+            no_color, "     $(sym_param_names[i]): $(prob[i])")
     end
 end
 function Base.summary(io::IO, prob::T) where {T<:AbstractLikelihoodProblem}
@@ -27,21 +26,18 @@ function Base.show(io::IO, mime::MIME"text/plain", sol::T) where {T<:AbstractLik
     println(io,
         type_color, nameof(typeof(sol)),
         no_color, ". retcode: ",
-        type_color, retcode(sol))
-    println(io,
-        no_color, "Algorithm: ",
-        algorithm_name(sol))
+        type_color, get_retcode(sol))
     print(io,
         no_color, "Maximum likelihood: ")
-    show(io, mime, sol.maximum)
+    show(io, mime, get_maximum(sol))
     println(io)
     println(io,
-        no_color, "Maximum likelihood estimates: ", summary(sol.θ))
-    sym_param_names = sym_names(sol)
-    for i in 1:num_params(sol)
-        i < num_params(sol) ? println(io,
-            no_color, "     $(sym_param_names[i]): $(sol.θ[i])") : print(io,
-            no_color, "     $(sym_param_names[i]): $(sol.θ[i])")
+        no_color, "Maximum likelihood estimates: ", summary(get_mle(sol)))
+    sym_param_names = get_syms(sol)
+    for i in 1:number_of_parameters(sol)
+        i < number_of_parameters(sol) ? println(io,
+            no_color, "     $(sym_param_names[i]): $(sol[i])") : print(io,
+            no_color, "     $(sym_param_names[i]): $(sol[i])")
     end
 end
 function Base.summary(io::IO, sol::T) where {T<:AbstractLikelihoodSolution}
@@ -49,41 +45,37 @@ function Base.summary(io::IO, sol::T) where {T<:AbstractLikelihoodSolution}
     print(io,
         type_color, nameof(typeof(sol)),
         no_color, ". retcode: ",
-        type_color, retcode(sol),
+        type_color, get_retcode(sol),
         no_color)
 end
-function Base.show(io::IO, ::MIME"text/plain", sol::T) where {T<:ProfileLikelihoodSolution}
+function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:ProfileLikelihoodSolution}
     type_color, no_color = SciMLBase.get_colorizers(io)
     println(io,
-        type_color, nameof(typeof(sol)),
+        type_color, nameof(typeof(prof)),
         no_color, ". MLE retcode: ",
-        type_color, retcode(sol))
-    println(io,
-        no_color, "Algorithm: ",
-        algorithm_name(sol))
+        type_color, get_retcode(get_likelihood_solution(prof)))
     println(io,
         no_color, "Confidence intervals: ")
-    CIs = confidence_intervals(sol)
-    sym_param_names = sym_names(sol)
-    for i in 1:num_params(sol)
-        i < num_params(sol) ? println(io,
-            no_color, "     $(100level(CIs[i]))% CI for $(sym_param_names[i]): ($(lower(CIs[i])), $(upper(CIs[i])))") : print(io,
-            no_color, "     $(100level(CIs[i]))% CI for $(sym_param_names[i]): ($(lower(CIs[i])), $(upper(CIs[i])))")
+    CIs = get_confidence_intervals(prof)
+    sym_param_names = get_syms(prof)
+    for i in profiled_parameters(prof)
+        i ≠ last(profiled_parameters(prof)) ? println(io,
+            no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))") : print(io,
+            no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))")
     end
 end
-function Base.show(io::IO, ::MIME"text/plain", sol::T) where {I,PLS,V,LP,LS,Spl,CT,CF,T<:ProfileLikelihoodSolutionView{I,PLS,V,LP,LS,Spl,CT,CF}}
+function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionView{N,PLS})  where {N,PLS}
     type_color, no_color = SciMLBase.get_colorizers(io)
-    prof = sol.parent
-    param_name = sym_names(prof)[I]
-    CIs = confidence_intervals(prof)[I]
+    param_name = get_syms(prof)
+    CIs = get_confidence_intervals(prof)
     println(io,
         type_color, "Profile likelihood",
         no_color, " for parameter",
         type_color, " $param_name",
         no_color, ". MLE retcode: ",
-        type_color, retcode(prof))
+        type_color, get_retcode(get_likelihood_solution(prof)))
     println(io,
-        no_color, "MLE: $(mle(prof)[I])")
+        no_color, "MLE: $(get_likelihood_solution(prof)[N])")
     print(io,
-        no_color, "$(100level(CIs))% CI for $(param_name): ($(lower(CIs)), $(upper(CIs)))")
+        no_color, "$(100get_level(CIs))% CI for $(param_name): ($(get_lower(CIs)), $(get_upper(CIs)))")
 end

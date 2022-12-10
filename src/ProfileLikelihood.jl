@@ -1,47 +1,46 @@
-module ProfileLikelihood 
-## Load packages 
-using FiniteDiff
-using Optimization 
-using OptimizationEvolutionary
-using OptimizationPolyalgorithms 
-using OptimizationNLopt
-using OptimizationOptimJL
-using OptimizationMultistartOptimization
-using Random 
-using Distributions 
-using LaTeXStrings 
-using DifferentialEquations 
-using LinearAlgebra 
-using LoopVectorization 
-using InvertedIndices 
-using PreallocationTools
-import PreallocationTools: dualcache
-using Printf 
-using LatinHypercubeSampling
-using Requires
-using Interpolations
-using Roots
+module ProfileLikelihood
 
-## Include some code
-include("problems.jl");               export LikelihoodProblem, setup_integrator, data, num_params
-include("confidence_intervals.jl");   export ConfidenceInterval, bounds
-include("solutions.jl");              export LikelihoodSolution, ProfileLikelihoodSolution
-include("utils.jl");                  export gaussian_loglikelihood
-include("mle.jl");                    export mle, refine, refine_tiktak, refine_lhc, grid_search
-include("update_optimiser.jl");       export update_prob
-include("profile.jl");                export profile, confidence_intervals, construct_profile_ranges, profile!
+using SciMLBase
+using InvertedIndices
+using FunctionWrappers
+using PreallocationTools
+using StatsFuns
+using SimpleNonlinearSolve
+using Interpolations
+using Requires
+using Printf
+
+include("utils.jl")
+include("problem_updates.jl")
+include("abstract_type_definitions.jl")
+include("likelihood_problem.jl")
+include("likelihood_solution.jl")
+include("confidence_interval.jl")
+include("profile_likelihood_solution.jl")
+include("mle.jl")
+include("grid_search.jl")
+include("profile_likelihood.jl")
+include("display.jl")
+
+export LikelihoodProblem
+export mle
+export GridSearch
+export grid_search
+export RegularGrid
+export IrregularGrid
+export profile
+export construct_profile_ranges
+export get_confidence_intervals
+export gaussian_loglikelihood
+
 function __init__()
-    @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin 
-        include("plotting.jl")
-        export plot_profiles
+    @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin
+        @require LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f" begin
+            include("plotting.jl")
+            export plot_profiles
+        end
     end
 end
-include("display.jl");                ###
-include("transform_results.jl");      export transform_result
-include("parameter_grid.jl");         export AbstractGrid, UniformGrid, LatinGrid
-include("grid_search.jl");            export GridSearch, grid_search
+
 end
-
-#include("likelihood.jl")
-
 # new line

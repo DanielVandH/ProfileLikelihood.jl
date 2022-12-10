@@ -1,166 +1,235 @@
+######################################################
+## RegularGrid 
+######################################################
 """
-    GridSearch{F<:Function,N,B,intype,G<:AbstractGrid{N,B,intype},outtype}
+    struct RegularGrid{N,B,R,S,T} <: AbstractGrid{N,B,T}
 
-A struct for storing a `grid` and function `f` for performing a grid search to maximise `f`. See also
-[`AbstractGrid`](@ref) and its subtypes ([`UniformGrid`](@ref) and [`LatinGrid`](@ref)) for the definitions of `grid`.
+Struct for a grid in which each parameter is regularly spaced. 
 
-# Constructors 
-We provide the following constructors:
+# Fields 
+- `lower_bounds::B`: Lower bounds for each parameter. 
+- `upper_bounds::B`: Upper bounds for each parameter. 
+- `resolution::R`: Number of grid points for each parameter. If `R <: Number`, then the same number of grid points is used for each parameter. 
+- `step_sizes::S`: Grid spacing for each parameter. 
 
-    GridSearch(f, grid::AbstractGrid{N,B,intype}) where {N,B,intype}
-    GridSearch(f, bounds, resolution)
-    GridSearch(f, bounds, m, gens; use_threads=false)
-    GridSearch(prob::AbstractLikelihoodProblem, bounds, resolution)
-    GridSearch(prob::AbstractLikelihoodProblem, bounds,m,gens;use_threads=false)
+# Constructor 
+You can construct a `RegularGrid` using `RegularGrid(lower_bounds, upper_bounds, resolution)`.
 """
-Base.@kwdef struct GridSearch{F<:Function,N,B,intype,G<:AbstractGrid{N,B,intype},outtype}
-    f::F
+Base.@kwdef struct RegularGrid{N,B,R,S,T} <: AbstractGrid{N,B,T}
+    lower_bounds::B
+    upper_bounds::B
+    resolution::R
+    step_sizes::S
+end
+
+function RegularGrid(lower_bounds::B, upper_bounds::B, resolution::R) where {B,R}
+    N = length(lower_bounds)
+    T = number_type(B)
+    step_sizes = zeros(T, N)
+    for i in 1:N
+        step_sizes[i] = compute_step_size(lower_bounds, upper_bounds, resolution, i)
+    end
+    S = typeof(step_sizes)
+    return RegularGrid{N,B,R,S,T}(lower_bounds, upper_bounds, resolution, step_sizes)
+end
+
+compute_step_size(lower_bounds::Number, upper_bounds::Number, resolution::Number) = (upper_bounds - lower_bounds) / (resolution - 1)
+compute_step_size(lower_bounds, upper_bounds, resolution::Number, i) = compute_step_size(lower_bounds[i], upper_bounds[i], resolution)
+compute_step_size(lower_bounds, upper_bounds, resolution, i) = compute_step_size(lower_bounds, upper_bounds, resolution[i], i)
+
+get_step_sizes(grid::RegularGrid) = grid.step_sizes
+get_step_sizes(grid::RegularGrid, i) = get_step_sizes(grid)[i]
+
+get_step(grid::RegularGrid, i, j) = (j - 1) * get_step_sizes(grid, i)
+
+get_resolutions(grid::RegularGrid) = grid.resolution
+get_resolutions(grid::RegularGrid, i) = get_resolutions(grid::RegularGrid)[i]
+get_resolutions(grid::RegularGrid{N,B,R,S,T}, i) where {N,B,R<:Number,S,T} = get_resolutions(grid)
+
+increment_parameter(grid::RegularGrid{N,B,R,S,T}, i, j) where {N,B,R,S,T} = T(get_lower_bounds(grid, i) + get_step(grid, i, j))
+
+@inline function Base.checkbounds(grid::RegularGrid, i, j)
+    (1 ≤ i ≤ number_of_parameters(grid)) || Base.throw_boundserror(grid, i)
+    (1 ≤ j ≤ get_resolutions(grid, i)) || Base.throw_boundserror(grid, j)
+    nothing
+end
+@inline Base.@propagate_inbounds function Base.getindex(grid::RegularGrid, i::Integer, j::Integer)
+    i isa Bool && throw(ArgumentError("Invalid index: $i of type Bool."))
+    j isa Bool && throw(ArgumentError("Invalid index: $j of type Bool."))
+    @boundscheck Base.checkbounds(grid, i, j)
+    return increment_parameter(grid, i, j)
+end
+
+######################################################
+## IrregularGrid
+######################################################
+"""
+    struct IrregularGrid{N,B,R,S,T} <: AbstractGrid{N,B,T}
+
+Struct for an irregular grid of parameters.
+
+# Fields 
+- `lower_bounds::B`: Lower bounds for each parameter. 
+- `upper_bounds::B`: Upper bounds for each parameter. 
+- `grid::G`: The set of parameter values, e.g. a matrix where each column is the parameter vector.
+
+# Constructor 
+You can construct a `IrregularGrid` using `IrregularGrid(lower_bounds, upper_bounds, grid)`.
+"""
+Base.@kwdef struct IrregularGrid{N,B,G,T} <: AbstractGrid{N,B,T}
+    lower_bounds::B
+    upper_bounds::B
     grid::G
 end
-function GridSearch(f, grid::AbstractGrid{N,B,intype}) where {N,B,intype}
-    bound_mids = [(bounds(grid, i, 1) + bounds(grid, i, 2)) / 2 for i in 1:N]
-    outtype = typeof(f(bound_mids))
-    return GridSearch{typeof(f),N,B,intype,typeof(grid),outtype}(f, grid)
-end
-function GridSearch(f, bounds, resolution)
-    grid = UniformGrid(bounds, resolution)
-    return GridSearch(f, grid)
-end
-function GridSearch(f, bounds, m, gens; use_threads=false)
-    grid = LatinGrid(bounds, m, gens; use_threads)
-    return GridSearch(f, grid)
-end
-function GridSearch(prob::AbstractLikelihoodProblem, bounds, resolution)
-    grid = UniformGrid(bounds, resolution)
-    p = data(prob)
-    f = @inline θ -> prob.loglik(θ, p)
-    return GridSearch(f, grid)
-end
-function GridSearch(prob::AbstractLikelihoodProblem, bounds, m, gens; use_threads=false)
-    grid = LatinGrid(bounds, m, gens; use_threads)
-    p = data(prob)
-    f = @inline θ -> prob.loglik(θ, p)
-    return GridSearch(f, grid)
+function IrregularGrid(lower_bounds::B, upper_bounds::B, grid::G) where {B,G}
+    N = length(lower_bounds)
+    T = number_type(G)
+    return IrregularGrid{N,B,G,T}(lower_bounds, upper_bounds, grid)
 end
 
-"""
-    prepare_grid(grid::UniformGrid{N,B,R,S,T}) where {N,B,R,S,T}
-    prepare_grid(::LatinGrid{N,M,B,G,T}) where {N,M,B,G,T}
+get_grid(grid::IrregularGrid) = grid.grid
 
-Pre-allocates the grid of function values for the grid search.
+get_parameters(grid::AbstractMatrix, i) = @views grid[:, i]
+get_parameters(grid::AbstractVector, i) = grid[i]
+get_parameters(grid::IrregularGrid, i) = get_parameters(get_grid(grid), i)
+
+@inline Base.@propagate_inbounds Base.getindex(grid::IrregularGrid, i) = get_parameters(grid, i)
+
+number_of_parameter_sets(grid::AbstractMatrix) = size(grid, 2)
+number_of_parameter_sets(grid::AbstractVector) = length(grid)
+number_of_parameter_sets(grid::IrregularGrid) = number_of_parameter_sets(get_grid(grid))
+
+each_parameter(grid::AbstractMatrix) = axes(grid, 2)
+each_parameter(grid::AbstractVector) = eachindex(grid)
+each_parameter(grid::IrregularGrid) = each_parameter(get_grid(grid))
+
+######################################################
+## GridSearch
+######################################################
 """
-function prepare_grid end
-@inline function prepare_grid(grid::UniformGrid{N,B,R,S,T}) where {N,B,R,S,T}
-    zeros(T, [resolution(grid, i) for i in 1:N]...)
+    struct GridSearch{F,G}
+
+Struct for a `GridSearch`.
+
+# Fields 
+- `f::F`: The function to optimise. 
+- `grid::G`: The grid, where `G<:AbstractGrid`. See also [`grid_search`](@ref).
+"""
+Base.@kwdef struct GridSearch{F,G}
+    f::F
+    grid::G
+    function GridSearch(f, grid::G) where {G}
+        T = number_type(G)
+        wrapped_f = FunctionWrappers.FunctionWrapper{T,Tuple{Vector{T}}}(f)
+        return new{typeof(wrapped_f),G}(wrapped_f, grid)
+    end
 end
-@inline function prepare_grid(::LatinGrid{N,M,B,G,T}) where {N,M,B,G,T}
-    zeros(T, M)
+
+GridSearch(prob::LikelihoodProblem, grid) = GridSearch(θ -> get_log_likelihood_function(prob)(θ, get_data(prob)), grid)
+
+get_grid(prob::GridSearch) = prob.grid
+get_function(prob::GridSearch) = prob.f
+eval_function(f::FunctionWrappers.FunctionWrapper{T,Tuple{A}}, x) where {T,A} = f(x)
+eval_function(prob::GridSearch, x) = eval_function(get_function(prob), x)
+number_of_parameters(prob::GridSearch) = number_of_parameters(get_grid(prob))
+
+function prepare_grid(grid::RegularGrid)
+    T = number_type(grid)
+    N = number_of_parameters(grid)
+    return zeros(T, (get_resolutions(grid, i) for i in 1:N)...)
 end
+function prepare_grid(grid::IrregularGrid)
+    T = number_type(grid)
+    M = number_of_parameter_sets(grid)
+    return zeros(T, M)
+end
+prepare_grid(prob::GridSearch) = prepare_grid(get_grid(prob))
 
 """
-    grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(false)) where {F<:Function,N,B,R,S,intype,G<:UniformGrid{N,B,R,S,intype},outtype}
-    grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(false)) where {F<:Function,N,M,B,intype,Gr,G<:LatinGrid{N,M,B,Gr,intype},outtype}
-    grid_search(f, bounds, resolution; save_res = Val(false), find_max = Val(true))
-    grid_search(f, bounds, m, gens; save_res = Val(false), find_max = Val(true), use_threads = false)
-    grid_search(prob::AbstractLikelihoodProblem, bounds, resolution; save_res = Val(false))
-    grid_search(prob::AbstractLikelihoodProblem, bounds, m, gens; save_res = Val(false), use_threads = false)
+    grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
+    grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
 
-Perform a grid search, findnig the maximum of the givne function. See also [`GridSearch`](@ref), [`UniformGrid`](@ref), and 
-[`LatinGrid`](@ref).
+Performs a grid search for the given grid search problem `prob`.
+
+# Arguments 
+- `prob::GridSearch{F, G}`: The grid search problem.
+
+# Keyword Arguments 
+- `save_vals::V=Val(false)`: Whether to return a matrix with the function values. 
+- `minimise::M=Val(false)`: Whether to minimise or to maximise the function.
 """
-function grid_search end
-@generated function grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(false)) where {F<:Function,N,B,R,S,intype,G<:UniformGrid{N,B,R,S,intype},outtype} # need to do generated function for type stability
+@generated function grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
     quote
-        f_max = typemin($outtype)
-        x_argmax = zeros($intype, $N)
-        cur_x = zeros($intype, $N)
-        if save_res == Val(true)
-            f_res = prepare_grid(prob.grid)
+        f_opt = get_default_extremum($T, $M)
+        x_argopt = zeros($T, $N)
+        cur_x = zeros($T, $N)
+        if $V == Val{true}
+            f_res = prepare_grid(prob)
         end
-        Base.Cartesian.@nloops $N i (d -> 1:resolution(prob.grid, d)) (d -> cur_x[d] = prob.grid[d, i_d]) begin # [N loops] [i index] [range over LinRanges] [set coordinates]
-            f_val = prob.f(cur_x)
-            if f_val > f_max
-                x_argmax .= cur_x
-                f_max = f_val
-            end
-            if save_res == Val(true)
+        Base.Cartesian.@nloops $N i (d -> 1:get_resolutions(get_grid(prob), d)) (d -> cur_x[d] = get_grid(prob)[d, i_d]) begin # [N loops] [i index] [range over LinRanges] [set coordinates]
+            f_val = eval_function(prob, cur_x)
+            f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
+            if $V == Val{true}
                 (Base.Cartesian.@nref $N f_res i) = f_val
             end
         end
-        if save_res == Val(true)
-            return f_max, x_argmax, f_res
+        if $V == Val{true}
+            return f_opt, x_argopt, f_res
         else
-            return f_max, x_argmax
+            return f_opt, x_argopt
         end
     end
 end
-function grid_search(prob::GridSearch{F,N,B,intype,G,outtype}; save_res=Val(false)) where {F<:Function,N,M,B,intype,Gr,G<:LatinGrid{N,M,B,Gr,intype},outtype}
-    f_max = typemin(outtype)
-    x_argmax = zeros(intype, N)
-    if save_res == Val(true)
-        f_res = prepare_grid(prob.grid)
+@doc (@doc grid_search(::GridSearch)) function grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
+    f_opt = get_default_extremum(T, M)
+    x_argopt = zeros(T, N)
+    cur_x = zeros(T, N)
+    if V == Val{true}
+        f_res = prepare_grid(prob)
     end
-    for (i, θ) in enumerate(eachcol(prob.grid.grid))
-        f_val = prob.f(θ)
-        if f_val > f_max
-            x_argmax .= θ
-            f_max = f_val
-        end
-        if save_res == Val(true)
+    for i in each_parameter(get_grid(prob))
+        cur_x .= get_parameters(get_grid(prob), i)
+        f_val = eval_function(prob, cur_x)
+        f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
+        if V == Val{true}
             f_res[i] = f_val
         end
     end
-    if save_res == Val(true)
-        return f_max, x_argmax, f_res
+    if V == Val{true}
+        return f_opt, x_argopt, f_res
     else
-        return f_max, x_argmax
+        return f_opt, x_argopt
     end
 end
-@inline function grid_search(f, bounds, resolution; save_res=Val(false), find_max=Val(true))
-    if find_max == Val(false)
-        g = x -> -f(x)
-        gs = GridSearch(g, bounds, resolution)
-        res = grid_search(gs; save_res)
-        if save_res == Val(true)
-            return res[1], res[2], -res[3]
-        else
-            return res
-        end
-    end
-    gs = GridSearch(f, bounds, resolution)
-    return grid_search(gs; save_res)
-end
-@inline function grid_search(f, bounds, m, gens; save_res=Val(false), find_max=Val(true), use_threads=false)
-    if find_max == Val(false)
-        g = x -> -f(x)
-        gs = GridSearch(g, bounds, m, gens; use_threads)
-        res = grid_search(gs; save_res)
-        if save_res == Val(true)
-            return res[1], res[2], -res[3]
-        else
-            return res
-        end
-    end
-    gs = GridSearch(f, bounds, m, gens; use_threads)
-    return grid_search(gs; save_res)
-end
-@inline function grid_search(prob::AbstractLikelihoodProblem, bounds, resolution; save_res=Val(false))
-    gs = GridSearch(prob, bounds, resolution)
-    if save_res == Val(true)
-        ℓ_max, θ_argmax, f_res = grid_search(gs; save_res)
+
+"""
+    grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false))
+
+For a given `grid` and function `f`, performs a grid search. 
+
+# Arguments 
+- `f`: The function to optimise. 
+- `grid::AbstractGrid`: The grid to use for optimising. 
+
+# Keyword Arguments 
+- `save_vals::V=Val(false)`: Whether to return a matrix with the function values. 
+- `minimise::M=Val(false)`: Whether to minimise or to maximise the function.
+"""
+grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false)) = grid_search(GridSearch(f, grid); save_vals, minimise)
+
+"""
+    grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false))
+
+Given a `grid` and a likelihood problem `prob`, maximises it over the grid using a grid search. If 
+`save_vals==Val(true)`, then the likelihood function values at each gridpoint are returned.
+"""
+function grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false))
+    gs = GridSearch(prob, grid)
+    if save_vals == Val(false)
+        ℓ_max, θ_mle = grid_search(gs; minimise=Val(false), save_vals)
+        return LikelihoodSolution(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success)
     else
-        ℓ_max, θ_argmax = grid_search(gs; save_res)
+        ℓ_max, θ_mle, f_res = grid_search(gs; minimise=Val(false), save_vals)
+        return LikelihoodSolution(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success), f_res
     end
-    sol = LikelihoodSolution(θ_argmax, prob, :UniformGridSearch, ℓ_max, :Success, nothing)
-    save_res == Val(true) ? (sol, f_res) : sol
-end
-@inline function grid_search(prob::AbstractLikelihoodProblem, bounds, m, gens; save_res=Val(false), use_threads=false)
-    gs = GridSearch(prob, bounds, m, gens; use_threads)
-    if save_res == Val(true)
-        ℓ_max, θ_argmax, f_res = grid_search(gs; save_res)
-    else
-        ℓ_max, θ_argmax = grid_search(gs; save_res)
-    end
-    sol = LikelihoodSolution(θ_argmax, prob, :LatinGridSearch, ℓ_max, :Success, nothing)
-    save_res == Val(true) ? (sol, f_res) : sol
 end
