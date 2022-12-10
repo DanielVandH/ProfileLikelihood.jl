@@ -32,6 +32,7 @@ export profile
 export construct_profile_ranges
 export get_confidence_intervals
 export gaussian_loglikelihood
+export update_initial_estimate
 
 function __init__()
     @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin
