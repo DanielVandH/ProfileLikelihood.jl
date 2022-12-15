@@ -43,7 +43,7 @@ Importantly, `loglik` in this case is now a function of the form `ℓ(θ, p, int
 The MLEs for a given `LikelihoodProblem` are found using the function `mle`, e.g. `mle(prob, Optim.LBFGS())` will optimise the likelihood function using the LBFGS algorithm from Optim.jl (see also `?mle`). This function returns a `LikelihoodSolution`, defined by:
 
 ```julia
-struct LikelihoodSolution{Θ,P,M,R,A} <: AbstractLikelihoodSolution
+struct LikelihoodSolution{N,Θ,P,M,R,A} <: AbstractLikelihoodSolution{N,P}
     mle::Θ
     problem::P
     optimiser::A
@@ -173,21 +173,21 @@ resids = y .- X * sol[2:5]
 @test sol[:σ]^2 ≈ 1 / df * sum(resids .^ 2) atol = 1e-4 # symbol indexing
 ```
 
-We can now profile the results. In this case, since the problem has no bounds for some parameters we need to manually define the parameter bounds used for profiling. The function `construct_profile_ranges` is used for this.
+We can now profile the results. In this case, since the problem has no bounds for some parameters we need to manually define the parameter bounds used for profiling. The function `construct_profile_ranges` is used for this. Note that we use `parallel = true` below to allow for multithreading, allowing multiple parameters to be profiled at the same time.
 
 ```julia
 lb = [1e-12, -5.0, -5.0, -5.0, -5.0]
 ub = [15.0, 15.0, 15.0, 15.0, 15.0]
 resolutions = [600, 200, 200, 200, 200] # use many points for σ
 param_ranges = construct_profile_ranges(sol, lb, ub, resolutions)
-prof = profile(prob, sol; param_ranges)
+prof = profile(prob, sol; param_ranges, parallel=true)
 ProfileLikelihoodSolution. MLE retcode: Success
 Confidence intervals: 
      95.0% CI for σ: (0.04639652142575396, 0.05196200098682017)
-     95.0% CI for β₀: (-1.0133286782651982, -0.9950163004240635)
-     95.0% CI for β₁: (0.9906172772151969, 1.021486501403717)
-     95.0% CI for β₂: (0.4960199617761438, 0.5122490969333844)
-     95.0% CI for β₃: (2.9786181979880935, 3.0057902255444287)
+     95.0% CI for β₀: (-1.013328678265197, -0.9950163004240635)
+     95.0% CI for β₁: (0.9906172772152076, 1.0214865014037124)
+     95.0% CI for β₂: (0.4960199617761395, 0.5122490969333844)
+     95.0% CI for β₃: (2.978618197988093, 3.0057902255444136)
 ```
 
 These confidence intervals can be compared to the true confidence intervals as follows, noting that the variance-covariance matrix for the $\beta_i$ coefficients is $\boldsymbol\Sigma = \sigma^2(\boldsymbol X^{\mathsf T}\boldsymbol X)^{-1}$ so that their confidence interval is $\hat\beta_i \pm 1.96\sqrt{\boldsymbol\Sigma_{ii}}$. Additionally, a confidence interval for $\sigma$ is $\sqrt{(\boldsymbol y - \boldsymbol X\boldsymbol \beta)^{\mathsf T}(\boldsymbol y - \boldsymbol X\boldsymbol \beta)}(1/\sqrt{\chi_{0.975, n_d}}, 1/\sqrt{\chi_{0.025, n_d}})$.
@@ -312,24 +312,24 @@ Now we find the MLEs.
 using OptimizationNLopt
 sol = mle(prob, NLopt.LN_BOBYQA; abstol=1e-16, reltol=1e-16)
 LikelihoodSolution. retcode: Failure
-Maximum likelihood: 86.54963187188535
+Maximum likelihood: 86.54963187417722
 Maximum likelihood estimates: 4-element Vector{Float64}
-     λ: 0.7751485360202867
-     K: 1.0214251327023145
-     σ: 0.10183154994808913
-     u₀: 0.5354121514863078
+     λ: 0.7751434899667957
+     K: 1.0214255833438064
+     σ: 0.10183155733371282
+     u₀: 0.5354127581296835
 ```
 
-We can now profile. This time, we use a 90\% confidence interval.
+We can now profile. This time, we use a 90\% confidence interval. We don't specify `parallel = true` here, so each parameter is profiled one at a time.
 
 ```julia
 prof = profile(prob, sol; conf_level=0.9)
 ProfileLikelihoodSolution. MLE retcode: Failure
 Confidence intervals: 
-     90.0% CI for λ: (0.5447291688702172, 1.0597476103940162)
-     90.0% CI for K: (0.9958363404632838, 1.0519310547041105)
-     90.0% CI for σ: (0.09104488237974673, 0.11493628491475444)
-     90.0% CI for u₀: (0.46273795601666323, 0.6067706857612565)
+     90.0% CI for λ: (0.5447308487022697, 1.0597473902066652)
+     90.0% CI for K: (0.995832090863323, 1.0519311253147705)
+     90.0% CI for σ: (0.0910459206426741, 0.1149362046447483)
+     90.0% CI for u₀: (0.4627437955747015, 0.6067706857599078)
 ```
 
 ```julia
@@ -364,7 +364,7 @@ Random.seed!(2992999)
 y₀ = 15.0
 σ = 0.5
 T = 5.0
-n = 200
+n = 450
 Δt = T / n
 t = [j * Δt for j in 0:n]
 y = y₀ * exp.(λ * t)
@@ -375,7 +375,8 @@ yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
     du = λ * u
     return du
 end
-@inline function loglik_fnc(θ, data, integrator)
+using LoopVectorization, MuladdMacro
+@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
     local yᵒ, n, λ, σ, u0
     yᵒ, n = data
     λ, σ, u0 = θ
@@ -383,7 +384,15 @@ end
     ## Now solve the problem 
     reinit!(integrator, u0)
     solve!(integrator)
-    return gaussian_loglikelihood(yᵒ, integrator.sol.u, σ, n)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ℓ = -0.5(n + 1) * log(2π * σ^2)
+    s = zero(T)
+    @turbo @muladd for i in eachindex(yᵒ, integrator.sol.u)
+        s = s + (yᵒ[i] - integrator.sol.u[i]) * (yᵒ[i] - integrator.sol.u[i])
+    end
+    ℓ = ℓ - 0.5s / σ^2
 end
 
 ## Step 2: Define the problem
@@ -409,12 +418,12 @@ Let us now give an alternative way of exploring this likelihood function. We hav
 regular_grid = RegularGrid(lb, ub, 50) # resolution can also be given as a vector for each parameter
 ```
 
-We can now use this grid to evaluate the likelihood function at each point, and then return the maximum values (use `save_vals=Val(true)` if you want all the computed values as an array, given as a second argument; also see `?grid_search`).
+We can now use this grid to evaluate the likelihood function at each point, and then return the maximum values (use `save_vals=Val(true)` if you want all the computed values as an array, given as a second argument; also see `?grid_search`). (You can also set `parallel = Val(true)` so that the computation is done with multithreading.)
 
 ```julia
 gs = grid_search(prob, regular_grid)
 LikelihoodSolution. retcode: Success
-Maximum likelihood: -237.80342827421936
+Maximum likelihood: -547.9579886200935
 Maximum likelihood estimates: 3-element Vector{Float64}
      λ: -0.612244897959183
      σ: 0.816327448979592
@@ -428,20 +437,20 @@ using LatinHypercubeSampling
 d = 3
 gens = 1000
 plan, _ = LHCoptim(500, d, gens)
-new_lb = [-2.0, 10.0, 0.05]
-new_ub = [2.0, 20.0, 0.2]
+new_lb = [-2.0, 0.05, 10.0]
+new_ub = [2.0, 0.2, 20.0]
 bnds = [(new_lb[i], new_ub[i]) for i in 1:d]
 parameter_vals = Matrix(scaleLHC(plan, bnds)') # transpose so that a column is a parameter set 
 irregular_grid = IrregularGrid(lb, ub, parameter_vals)
-gs_ir, loglik_vals_ir = grid_search(prob, irregular_grid; save_vals=Val(true))
+gs_ir, loglik_vals_ir = grid_search(prob, irregular_grid; save_vals=Val(true), parallel = Val(true))
 ```
 ```julia
 LikelihoodSolution. retcode: Success
-Maximum likelihood: -687.9525589767204
+Maximum likelihood: -2291.3306449350644
 Maximum likelihood estimates: 3-element Vector{Float64}
-     λ: 0.6693386773547094
-     σ: 10.040080160320642
-     y₀: 0.08907815631262525
+     λ: -0.4929859719438878
+     σ: 0.16122244488977958
+     y₀: 14.629258517034067
 ```
 ```julia
 max_lik, max_idx = findmax(loglik_vals_ir)
@@ -461,14 +470,14 @@ sol = mle(prob, Optim.LBFGS())
 Now we profile.
 
 ```julia
-prof = profile(prob, sol; f_abstol=1e-6)
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel = true)
 ```
 ```julia
 ProfileLikelihoodSolution. MLE retcode: Success
 Confidence intervals: 
-     95.0% CI for λ: (-0.5138791517539231, -0.4919599635444335)
-     95.0% CI for σ: (0.44145726606891256, 0.5371526631048306)
-     95.0% CI for y₀: (14.987116289320653, 15.42457150183812)
+     95.0% CI for λ: (-0.5109136064072407, -0.4949136975614748)
+     95.0% CI for σ: (0.49607999879645415, 0.5652592019440206)
+     95.0% CI for y₀: (14.98587356344628, 15.305179840994635)
 ```
 ```julia
 @test λ ∈ get_confidence_intervals(prof, :λ)
@@ -487,3 +496,213 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
 ```
 
 ![Linear exponential profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/linear_exponential_example.png?raw=true)
+
+## Diffusion equation on a square plate 
+
+Let us now consider the problem of estimating parameters defining a diffusion equation on a square plate. In particular, consider 
+
+$$
+\begin{equation*}
+\begin{array}{rcll}
+\displaystyle
+\frac{\partial u(x, y, t)}{\partial t} &=& \dfrac{1}{k}\boldsymbol{\nabla}^2 u(x, y, t) & (x, y) \in \Omega,t>0, \\
+u(x, y, t) &= & 0 & (x, y) \in \partial \Omega,t>0, \\
+u(x, y, 0) &= & u_0\mathbb{I}(y \leq c) &(x,y)\in\Omega,
+\end{array}
+\end{equation*}
+$$
+
+where $\Omega = [0, 2]^2$. This problem extends the corresponding example given in FiniteVolumeMethod.jl, namely [this example](https://github.com/DanielVandH/FiniteVolumeMethod.jl#diffusion-equation-on-a-square-plate), and so not all the code used in defining this PDE will be explained here; refer to the FiniteVolumeMethod.jl documentation. We will take the true values $k = 9$, $c = 1$, $u_0 = 50$, and let the standard deviation of the noise in the data be $0.01$. We are interested in recovering $(k, c, u_0, \sigma)$ from some data.
+
+### Building the FVMProblem 
+
+Let us start by defining the PDE problem, and then we will discuss profiling.
+
+```julia 
+using FiniteVolumeMethod, DelaunayTriangulation, LinearSolve
+a, b, c, d = 0.0, 2.0, 0.0, 2.0
+n = 500
+x₁ = LinRange(a, b, n)
+x₂ = LinRange(b, b, n)
+x₃ = LinRange(b, a, n)
+x₄ = LinRange(a, a, n)
+y₁ = LinRange(c, c, n)
+y₂ = LinRange(c, d, n)
+y₃ = LinRange(d, d, n)
+y₄ = LinRange(d, c, n)
+x = reduce(vcat, [x₁, x₂, x₃, x₄])
+y = reduce(vcat, [y₁, y₂, y₃, y₄])
+xy = [[x[i], y[i]] for i in eachindex(x)]
+unique!(xy)
+x = getx.(xy)
+y = gety.(xy)
+r = 0.024
+GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
+T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
+type = :D
+BCs = BoundaryConditions(mesh, bc, type, BN)
+c = 1.0
+u₀ = 50.0
+f = (x, y) -> y ≤ c ? u₀ : 0.0
+D = (x, y, t, u, p) -> p[1]
+flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
+R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+initc = @views f.(points[1, :], points[2, :])
+iip_flux = true
+final_time = 0.1
+k = [9.0]
+prob = FVMProblem(mesh, BCs; iip_flux,
+    flux_function=flux, reaction_function=R,
+    initial_condition=initc, final_time,
+    flux_parameters=k)
+```
+
+Our problem has now been defined. Notice that we wrap `k` in a vector so that we can easily mutate the `flux_parameters` field of `prob`; if `k` were a scalar, we could not mutate it.
+
+Now let's generate some data. We start by solving the PDE.
+
+```julia
+alg = TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false))
+sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)
+```
+
+(We use `reuse_symbolic=false` due to https://github.com/JuliaSparse/KLU.jl/issues/12 causing issues with multithreading later.) 
+
+### Defining a summary statistic
+
+Now, one complication with a PDE compared to the scalar ODE cases that we considered previously is that we have data at $(x_i, y_j, t_k)$ for many indices $(i, j, k)$. Rather than defining our objective function in terms of these data points, we will instead use a summary statistic. The summary statistic we use in this example is the average density,
+
+$$
+\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\iint_\Omega u(x, y, t)\,\mathrm{dA}. 
+$$
+
+We need to be able to compute this integral efficiently and accurately. For this, recall that the finite volume method discretises the domain into triangles. If $\mathcal T$ is this set of triangles, then 
+
+$$ 
+\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \iint_{T_k} u(x, y, t)\,\mathrm{dA}. 
+$$ 
+
+Then, recall that $u$ is represented as a linear function $\alpha_k x + \beta_k y + \gamma_k$ inside the triangle $T_k$, thus 
+
+$$ 
+\tilde M(t) \approx \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \left[\alpha_k \iint_{T_k} x\,\mathrm{dA} + \beta_k \iint_{T_k} y\,\mathrm{dA} + \gamma_k\iint_{T_k}\,\mathrm{dA}\right] 
+$$  
+
+Now factoring out an $\mathrm{Area}(T_k) = \iint_{T_k}\,\mathrm{dA}$, 
+
+$$ 
+\tilde M(t) \approx \sum_{T_k \in \mathcal T} \frac{\mathrm{Area}(T_k)}{\mathrm{Area}(\Omega)}\left[\alpha_k \dfrac{\iint_{T_k} x\,\mathrm{dA}}{\iint_{T_k} \,\mathrm{dA}} + \beta_k \dfrac{\iint_{T_k} y\,\mathrm{dA}}{\iint_{T_k} \,\mathrm{dA}} + \gamma_k\right]. 
+$$ 
+
+Notice that the two ratios of integrals shown are simply $\hat x_k$ and $\hat y_k$, where $(\hat x_k, \hat y_k)$ is the centroid of $T_k$. Thus, the term in brackets is $\alpha_k \hat x_k + \beta_k \hat y_k + \gamma_k$, which is the approximation to $u$ at the centroid, $\tilde u(\hat x_k, \hat y_k, t)$. Thus, our approximation to the average density is 
+
+$$ 
+\tilde M(t) \approx \sum_{T_k \in \mathcal T} w_k \tilde u(\hat x_k, \hat y_k, t), \qquad w_k = \frac{\mathrm{Area}(T_k)}{\mathrm{Area}(\Omega)}. 
+$$ 
+
+The following function provides a method for computing this mass. 
+
+```julia 
+function compute_mass!(M::AbstractVector{T}, αβγ, sol, prob) where {T}
+    mesh_area = prob.mesh.mesh_information.total_area
+    fill!(M, zero(T))
+    for i in eachindex(M)
+        for V in FiniteVolumeMethod.get_elements(prob)
+            element = FiniteVolumeMethod.get_element_information(prob.mesh, V)
+            cx, cy = FiniteVolumeMethod.get_centroid(element)
+            element_area = FiniteVolumeMethod.get_area(element)
+            interpolant_val = eval_interpolant!(αβγ, prob, cx, cy, V, sol.u[i])
+            M[i] += (element_area / mesh_area) * interpolant_val
+        end
+    end
+    return nothing
+end 
+``` 
+
+Let's now compute this mass and add some noise onto it. We will normalise the mass by $M(0)$ so that $\tilde M(t)/M(0) \leq 1$ (noting that the mass is decreasing).
+
+```julia 
+using Random 
+M = zeros(length(sol.t))
+αβγ = zeros(3)
+compute_mass!(M, αβγ, sol, prob)
+true_M = M ./ first(M)
+Random.seed!(29922881)
+σ = 0.01
+true_M .+= σ * randn(length(M))
+``` 
+
+### Defining the LikelihoodProblem
+
+We now need to define the likelihood problem. We need to use the method for `LikelihoodProblem` that takes the `integrator` as an argument explicitly, so we must somehow construct an integrator from an `FVMProblem`. Here is one way that this can be done. Notice that we use `parallel=true` so that the PDE is solved with multithreading. For an isolated solution, this seems to solve the problem twice as fast on my machine (eight threads).
+
+```julia 
+function ProfileLikelihood.construct_integrator(prob::FVMProblem, alg; ode_problem_kwargs, kwargs...)
+    ode_problem = ODEProblem(prob; no_saveat=false, ode_problem_kwargs...)
+    return ProfileLikelihood.construct_integrator(ode_problem, alg; kwargs...)
+end
+jac = float.(FiniteVolumeMethod.jacobian_sparsity(prob))
+fvm_integrator = construct_integrator(prob, alg; ode_problem_kwargs=(jac_prototype=jac, saveat=0.01, parallel=true))
+``` 
+
+Now we define the likelihood function. 
+
+```julia 
+function loglik_fvm(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _c, _u₀, _σ = θ
+    ## Update and solve
+    (; prob) = param
+    prob.flux_parameters[1] = _k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ _c ? _u₀ : zero(T)
+    end
+    reinit!(integrator, prob.initial_condition)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ## Compute the mass
+    (; mass_data, mass_cache, shape_cache) = param
+    compute_mass!(mass_cache, shape_cache, integrator.sol, prob)
+    mass_cache ./= first(mass_cache)
+    ## Done 
+    ℓ = @views gaussian_loglikelihood(mass_data[2:end], mass_cache[2:end], _σ, length(mass_data) - 1) # first value is 1 for both
+    return ℓ
+end
+``` 
+
+Finally, here is the `LikelihoodProblem`.
+
+```julia 
+likprob = LikelihoodProblem(
+    loglik_fvm,
+    [8.54, 0.98, 29.83, 0.05],
+    fvm_integrator;
+    syms=[:k, :c, :u₀, :σ],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3)),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0, 25.0, 1e-6],
+        ub=[15.0, 2.0, 100.0, 0.2])
+)
+```
+
+### Parameter estimation
+
+Now that we have the problem completely setup, we are in a position for maximum likelihood estimation and profiling.
+
+```julia 
+mle_sol = mle(likprob, NLopt.LN_BOBYQA; ftol_abs=1e-6, ftol_rel=1e-6, xtol_abs=1e-6, xtol_rel=1e-6)
+LikelihoodSolution. retcode: Failure
+Maximum likelihood: 34.023268765572666
+Maximum likelihood estimates: 4-element Vector{Float64}
+     k: 8.821679131351933
+     c: 1.0017321239439627
+     u₀: 30.474038914694326
+     σ: 0.00822879150052774
+``` 
+ 
+Next, let us profile. For interest, we show the difference in runtime when we use multithreading for profiling vs. when we do not use multithreading. I am using eight threads.
