@@ -665,6 +665,16 @@ I = (27, 31, 9, 100)
 θ = PL.get_parameters(ug, I)
 @test θ == [ug[1, 27], ug[2, 31], ug[3, 9], ug[4, 100]]
 
+## Test get_range 
+lb22 = [2.7, 5.3, 10.0, 4.4]
+ub22 = [10.0, 7.7, 14.4, -57.4]
+res22 = [50, 32, 10, 100]
+ug22 = PL.RegularGrid(lb22, ub22, res22)
+@test PL.get_range(ug22, 1) == LinRange(2.7, 10.0, 50)
+@test PL.get_range(ug22, 2) == LinRange(5.3, 7.7, 32)
+@test PL.get_range(ug22, 3) == LinRange(10.0, 14.4, 10)
+@test PL.get_range(ug22, 4) == LinRange(4.4, -57.4, 100)
+
 ######################################################
 ## IrregularGrid
 ######################################################
@@ -2101,7 +2111,7 @@ k = [9.0]
 prob = FVMProblem(mesh, BCs; iip_flux,
     flux_function=flux, reaction_function=R,
     initial_condition=initc, final_time,
-    flux_parameters=k)
+    flux_parameters=deepcopy(k))
 
 ## Generate some data.
 alg = TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false))
@@ -2225,38 +2235,77 @@ using CairoMakie, LaTeXStrings
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"c", L"u_0"],
     true_vals=[k[1], c, u₀],
-    fig_kwargs=(fontsize=30, resolution=(1409.096f0, 879.812f0)),
+    fig_kwargs=(fontsize=38, resolution=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :c), get_profile_values(prof, :c), color=:black, markersize=9)
 scatter!(fig.content[3], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
+xlims!(fig.content[1], 7.0, 9.5)
 SAVE_FIGURE && save("figures/heat_pde_example.png", fig)
 
 ### Now estimate only two parameters
 using StaticArraysCore
 @inline function loglik_fvm_2(θ::AbstractVector{T}, param, integrator) where {T}
-    _k, _c, = θ
-    (; u₀) = param
-    new_θ = SVector{3,T}((_k, _c, u₀))
+    _k, _u₀, = θ
+    (; c) = param
+    new_θ = SVector{3,T}((_k, c, _u₀))
     return loglik_fvm(new_θ, param, integrator)
 
 end
 likprob_2 = LikelihoodProblem(
     loglik_fvm_2,
-    [8.54, 0.98],
+    [8.54, 29.83],
     fvm_integrator;
-    syms=[:k, :c],
-    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)),
-        shape_cache=zeros(3), sigma=σ, u₀=u₀),
+    syms=[:k, :u₀],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3), sigma=σ, c=c),
     f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
     prob_kwargs=(lb=[3.0, 0.0],
-        ub=[15.0, 2.0])
+        ub=[15.0, 250.0])
 )
 
-grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 5)
+# small test to check with the exact values, larger test later
+grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 10)
 @time gs, lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(true));
 @time _gs, _lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(false));
 exact_lik_vals = [
-    likprob_2.log_likelihood_function([k, c], likprob_2.data) for k in LinRange(3, 15, 5), c in LinRange(0, 2, 5)
+    likprob_2.log_likelihood_function([k, c], likprob_2.data) for k in LinRange(3, 15, 10), c in LinRange(0, 250, 10)
 ]
-lik_vals
+@test lik_vals ≈ exact_lik_vals
+@test _lik_vals ≈ exact_lik_vals
+
+grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 50)
+@time gs, lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(true));
+@time _gs, _lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(false));
+@test lik_vals ≈ _lik_vals
+
+@test get_mle(gs) ≈ get_mle(_gs)
+@test get_maximum(gs) ≈ get_maximum(_gs)
+@test gs[:k] ≈ 7.408163265306122
+@test gs[:u₀] ≈ 51.0204081632653
+
+fig = Figure(fontsize=38)
+k_grid = get_range(grid, 1)
+u₀_grid = get_range(grid, 2)
+ax = Axis(fig[1, 1],
+    xlabel=L"k", ylabel=L"u_0",
+    xticks=0:3:15,
+    yticks=0:50:250)
+co = heatmap!(ax, k_grid, u₀_grid, lik_vals, colormap=Reverse(:matter))
+contour!(ax, k_grid, u₀_grid, lik_vals, levels=40, color=:black, linewidth=1 / 4)
+scatter!(ax, [k[1]], [u₀], color=:white, markersize=14)
+scatter!(ax, [gs[:k]], [gs[:u₀]], color=:blue, markersize=14)
+clb = Colorbar(fig[1, 2], co, label=L"\ell(k, u_0)", vertical=true)
+SAVE_FIGURE && save("figures/heat_pde_contour_example.png", fig)
+
+likprob_2 = update_initial_estimate(likprob_2, gs)
+mle_sol = mle(likprob_2, NLopt.LN_BOBYQA; ftol_abs=1e-8, ftol_rel=1e-8, xtol_abs=1e-8, xtol_rel=1e-8)
+@time prof = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=true)
+
+fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L"k", L"u_0"],
+    true_vals=[k[1], u₀],
+    fig_kwargs=(fontsize=38, resolution=(1441.9216f0, 470.17322f0)),
+    axis_kwargs=(width=600, height=300))
+scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
+scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
+SAVE_FIGURE && save("figures/heat_pde_example_2.png", fig)

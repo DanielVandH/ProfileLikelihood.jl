@@ -59,6 +59,7 @@ end
     @boundscheck Base.checkbounds(grid, i, j)
     return increment_parameter(grid, i, j)
 end
+get_range(grid::RegularGrid, i) = LinRange(get_lower_bounds(grid, i), get_upper_bounds(grid, i), get_resolutions(grid, i))
 
 function get_parameters!(θ, grid::RegularGrid{N,B,R,S,T}, I) where {N,B,R,S,T}
     for d in 1:N
