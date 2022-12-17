@@ -10,12 +10,12 @@ Struct representing a likelihood problem.
 - `θ₀::Θ`: Initial estimates for the MLE `θ`.
 - `syms::N`: Variable names for the parameters.
 """
-Base.@kwdef struct LikelihoodProblem{P,D,L,Θ,N} <: AbstractLikelihoodProblem
+Base.@kwdef struct LikelihoodProblem{N,P,D,L,Θ,S} <: AbstractLikelihoodProblem{N,L}
     problem::P
     data::D
     log_likelihood_function::L
     θ₀::Θ
-    syms::N
+    syms::S
 end
 
 """
@@ -41,10 +41,13 @@ Returns the [`LikelihoodProblem`](@ref) problem object.
 function LikelihoodProblem(loglik::Function, θ₀;
     syms=eachindex(θ₀), data=SciMLBase.NullParameters(),
     f_kwargs=nothing, prob_kwargs=nothing)
+    Base.require_one_based_indexing(θ₀)
     negloglik = negate_loglik(loglik)
     opt_f = isnothing(f_kwargs) ? construct_optimisation_function(negloglik, syms) : construct_optimisation_function(negloglik, syms; f_kwargs...)
     opt_prob = isnothing(prob_kwargs) ? construct_optimisation_problem(opt_f, θ₀, data) : construct_optimisation_problem(opt_f, θ₀, data; prob_kwargs...)
-    return LikelihoodProblem(opt_prob, data, loglik, θ₀, syms)
+    return LikelihoodProblem{length(θ₀),typeof(opt_prob),
+        typeof(data),typeof(loglik),
+        typeof(θ₀),typeof(syms)}(opt_prob, data, loglik, θ₀, syms)
 end
 
 """
@@ -125,7 +128,11 @@ function construct_optimisation_function(negloglik, syms; f_kwargs...)
     end
 end
 function construct_optimisation_problem(opt_f, θ₀, data; prob_kwargs...)
-    return OptimizationProblem(opt_f, θ₀, data; prob_kwargs...)
+    if :kwargs ∈ keys(prob_kwargs)
+        return OptimizationProblem(opt_f, θ₀, data; prob_kwargs[Not(:kwargs)]..., prob_kwargs[:kwargs]...)
+    else
+        return OptimizationProblem(opt_f, θ₀, data; prob_kwargs...)
+    end
 end
 
 function construct_integrator(prob, ode_alg; ode_kwargs...)
@@ -134,4 +141,10 @@ end
 function construct_integrator(f, u₀, tspan, p, ode_alg; ode_kwargs...)
     prob = ODEProblem(f, u₀, tspan, p; ode_kwargs...)
     return construct_integrator(prob, ode_alg; ode_kwargs...)
+end
+
+function update_initial_estimate(prob::LikelihoodProblem{N,P,D,L,Θ,S}, θ::Θ) where {N,P,D,L,Θ,S}
+    new_prob = update_initial_estimate(get_problem(prob), θ)
+    return LikelihoodProblem{N,P,D,L,Θ,S}(new_prob, get_data(prob), get_log_likelihood_function(prob),
+        θ, get_syms(prob))
 end

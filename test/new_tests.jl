@@ -17,6 +17,13 @@ using OptimizationOptimJL
 using CairoMakie
 using LaTeXStrings
 using LatinHypercubeSampling
+using FiniteVolumeMethod
+using DelaunayTriangulation
+using LinearSolve
+using SciMLBase
+using MuladdMacro
+using Base.Threads
+using LoopVectorization
 const PL = ProfileLikelihood
 global SAVE_FIGURE = false
 
@@ -215,6 +222,25 @@ new_f = PL.construct_fixed_optimisation_function(prob, n, val, cache)
 @inferred PL.construct_fixed_optimisation_function(prob, n, val, cache)
 @test new_f.f([2.31], data) ≈ negloglik([2.31, val], data)
 @inferred new_f.f([2.31], data)
+
+loglik = (θ, p) -> θ[1] * p[1] + θ[2] + θ[3] + θ[4]
+negloglik = PL.negate_loglik(loglik)
+θ₀ = rand(4)
+data = 1.301
+prob = PL.construct_optimisation_problem(negloglik, θ₀, data)
+val = 1.0
+n = 3
+cache = DiffCache(θ₀)
+new_f = PL.construct_fixed_optimisation_function(prob, n, val, cache)
+@inferred PL.construct_fixed_optimisation_function(prob, n, val, cache)
+@test new_f.f([2.31, 4.7, 2.3], data) ≈ negloglik([2.31, 4.7, val, 2.3], data)
+@inferred new_f.f([2.31, 4.7, 2.3], data)
+cache = [1.0, 2.0, 3.0, 4.0]
+new_f = PL.construct_fixed_optimisation_function(prob, n, val, cache)
+@inferred PL.construct_fixed_optimisation_function(prob, n, val, cache)
+
+#@benchmark $new_f.f($[2.31, 4.7, 2.3], $data)
+
 
 ## Test that we can correctly exclude a parameter
 loglik = (θ, p) -> θ[1] * p[1] + θ[2]
@@ -488,6 +514,7 @@ new_θ = [2.0, 3.0]
 new_prob = PL.update_initial_estimate(prob, new_θ)
 @test new_prob.θ₀ == new_θ
 @test new_prob.problem.u0 == new_θ
+
 ######################################################
 ## MLE
 ######################################################
@@ -625,6 +652,19 @@ for i in eachindex(lb)
 end
 @test PL.number_type(ug) == Float64
 
+## Test that we can get the parameters correctly 
+lb = [2.7, 5.3, 10.0, 4.4]
+ub = [10.0, 7.7, 14.4, -57.4]
+res = [50, 32, 10, 100]
+ug = PL.RegularGrid(lb, ub, res)
+I = (2, 3, 4, 10)
+θ = PL.get_parameters(ug, I)
+@test θ == [ug[1, 2], ug[2, 3], ug[3, 4], ug[4, 10]]
+
+I = (27, 31, 9, 100)
+θ = PL.get_parameters(ug, I)
+@test θ == [ug[1, 27], ug[2, 31], ug[3, 9], ug[4, 100]]
+
 ######################################################
 ## IrregularGrid
 ######################################################
@@ -661,33 +701,35 @@ ig = PL.IrregularGrid(lb, ub, grid)
 ## GridSearch
 ######################################################
 ## Test that we are constructing the grid correctly 
-f = x -> x[1] * x[2] * x[3]
+f = (x, _) -> x[1] * x[2] * x[3]
 lb = [2.7, 5.3, 10.0]
 ub = [10.0, 7.7, 14.4]
 res = 50
 ug = PL.RegularGrid(lb, ub, res)
 gs = PL.GridSearch(f, ug)
-@test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64}}}
+@test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64},Nothing}}
 @test gs.f.obj[] == f
 @test PL.get_grid(gs) == gs.grid == ug
 @test PL.get_function(gs) == gs.f
 @test PL.eval_function(gs, [1.0, 2.0, 3.0]) ≈ 6.0
 @inferred PL.eval_function(gs, rand(3))
 @test PL.number_of_parameters(gs) == 3
+@test PL.get_parameters(gs) === nothing
 
-f = x -> x[1] * x[2] * x[3] + x[4]
+f = (x, _) -> x[1] * x[2] * x[3] + x[4]
 lb = [2.0, 5.0, 1.3, 5.0]
 ub = [5.0, 10.0, 17.3, 20.0]
 grid = [rand(2) for _ in 1:200]
 ig = PL.IrregularGrid(lb, ub, grid)
-gs = PL.GridSearch(f, ig)
-@test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64}}}
+gs = PL.GridSearch(f, ig, 2.0)
+@test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64},Float64}}
 @test gs.f.obj[] == f
 @test PL.get_grid(gs) == gs.grid == ig
 @test PL.get_function(gs) == gs.f
-@test PL.eval_function(gs, [1.0, 4.2, 4.2, -1.0]) ≈ f([1.0, 4.2, 4.2, -1.0])
+@test PL.eval_function(gs, [1.0, 4.2, 4.2, -1.0]) ≈ f([1.0, 4.2, 4.2, -1.0], 2.0)
 @inferred PL.eval_function(gs, rand(4))
 @test PL.number_of_parameters(gs) == 4
+@test PL.get_parameters(gs) == 2.0
 
 ## Test that we are preparing the grid correctly 
 lb = [2.0, 5.0, 1.3, 5.0]
@@ -749,12 +791,20 @@ gs = GridSearch(prob, ig)
 # Rastrigin function 
 n = 4
 A = 10
-rastrigin_f(x) = @inline @inbounds A * n + (x[1]^2 - A * cos(2π * x[1])) + (x[2]^2 - A * cos(2π * x[2])) + (x[3]^2 - A * cos(2π * x[3])) + (x[4]^2 - A * cos(2π * x[4]))
-@test rastrigin_f(zeros(n)) == 0.0
+rastrigin_f(x, _) = @inline @inbounds A * n + (x[1]^2 - A * cos(2π * x[1])) + (x[2]^2 - A * cos(2π * x[2])) + (x[3]^2 - A * cos(2π * x[3])) + (x[4]^2 - A * cos(2π * x[4]))
+@test rastrigin_f(zeros(n), nothing) == 0.0
 ug = PL.RegularGrid(repeat([-5.12], n), repeat([5.12], n), 25)
-gs = PL.GridSearch(x -> (@inline; -rastrigin_f(x)), ug)
+gs = PL.GridSearch((x, _) -> (@inline; -rastrigin_f(x, nothing)), ug)
 f_min, x_min = PL.grid_search(gs)
 @inferred PL.grid_search(gs)
+@inferred PL.grid_search(gs; save_vals=Val(true))
+@inferred PL.grid_search(gs; save_vals=Val(false), parallel=Val(true))
+@inferred PL.grid_search(gs; save_vals=Val(true), parallel=Val(true))
+@inferred PL.grid_search(gs; save_vals=Val(true), minimise=Val(true))
+@inferred PL.grid_search(gs; save_vals=Val(false), parallel=Val(true), minimise=Val(true))
+@inferred PL.grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(true))
+@inferred PL.grid_search(gs; minimise=Val(true))
+
 @test f_min ≈ 0.0
 @test x_min ≈ zeros(n)
 
@@ -769,7 +819,7 @@ f_min, x_min, f_res = grid_search(gs; minimise=Val(true), save_vals=Val(true))
 @test x_min ≈ zeros(n)
 
 param_ranges = [LinRange(-5.12, 5.12, 25) for i in 1:n]
-@test f_res ≈ [rastrigin_f(x) for x in Iterators.product(param_ranges...)]
+@test f_res ≈ [rastrigin_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
     lb = repeat([-5.12], n)
@@ -778,22 +828,22 @@ for _ in 1:250
     ig = PL.IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(rastrigin_f, ig; minimise=Val(true))
     @inferred grid_search(rastrigin_f, ig; minimise=Val(true))
-    @test f_min == minimum(rastrigin_f(x) for x in eachcol(gr))
-    xm = findmin(rastrigin_f, eachcol(gr))[2]
+    @test f_min == minimum(rastrigin_f(x, nothing) for x in eachcol(gr))
+    xm = findmin(x -> rastrigin_f(x, nothing), eachcol(gr))[2]
     @test x_min == gr[:, xm]
 
     gr = [rand(n) for _ in 1:2000]
     ig = PL.IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(rastrigin_f, ig; minimise=Val(false))
-    @test f_min == maximum(rastrigin_f(x) for x in gr)
-    xm = findmax(rastrigin_f, gr)[2]
+    @test f_min == maximum(rastrigin_f(x, nothing) for x in gr)
+    xm = findmax(x -> rastrigin_f(x, nothing), gr)[2]
     @test x_min == gr[xm]
 end
 
 # Ackley function 
 n = 2
-ackley_f(x) = -20exp(-0.2sqrt(x[1]^2 + x[2]^2)) - exp(0.5(cos(2π * x[1]) + cos(2π * x[2]))) + exp(1) + 20
-@test ackley_f([0, 0]) == 0
+ackley_f(x, _) = -20exp(-0.2sqrt(x[1]^2 + x[2]^2)) - exp(0.5(cos(2π * x[1]) + cos(2π * x[2]))) + exp(1) + 20
+@test ackley_f([0, 0], nothing) == 0
 lb = repeat([-15.12], n)
 ub = repeat([15.12], n)
 res = (73, 121)
@@ -802,39 +852,55 @@ f_min, x_min = grid_search(ackley_f, ug; minimise=Val(true))
 @test f_min ≈ 0.0 atol = 1e-7
 @test x_min ≈ zeros(n) atol = 1e-7
 
-f_min, x_min = grid_search(x -> -ackley_f(x), ug; minimise=Val(false))
+f_min, x_min = grid_search((x, _) -> -ackley_f(x, nothing), ug; minimise=Val(false))
 @test f_min ≈ 0.0 atol = 1e-7
 @test x_min ≈ zeros(n) atol = 1e-7
 
 f_min, x_min, f_res = grid_search(ackley_f, ug; minimise=Val(true), save_vals=Val(true))
 param_ranges = [LinRange(lb[i], ub[i], res[i]) for i in 1:n]
-@test f_res ≈ [ackley_f(x) for x in Iterators.product(param_ranges...)]
+@test f_res ≈ [ackley_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
-f_min, x_min, f_res = grid_search(x -> -ackley_f(x), ug; minimise=Val(false), save_vals=Val(true))
-@test f_res ≈ [-ackley_f(x) for x in Iterators.product(param_ranges...)]
+f_min, x_min, f_res = grid_search((x, _) -> -ackley_f(x, nothing), ug; minimise=Val(false), save_vals=Val(true))
+@test f_res ≈ [-ackley_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
     gr = rand(n, 500)
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(ackley_f, ig; minimise=Val(true))
     @inferred grid_search(ackley_f, ig; minimise=Val(true))
-    @test f_min == minimum(ackley_f(x) for x in eachcol(gr))
-    xm = findmin(ackley_f, eachcol(gr))[2]
+    @test f_min == minimum(ackley_f(x, nothing) for x in eachcol(gr))
+    xm = findmin(x -> ackley_f(x, nothing), eachcol(gr))[2]
     @test x_min == gr[:, xm]
 
     gr = [rand(n) for _ in 1:2000]
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(ackley_f, ig; minimise=Val(false))
     @inferred grid_search(ackley_f, ig; minimise=Val(true))
-    @test f_min == maximum(ackley_f(x) for x in gr)
-    xm = findmax(ackley_f, gr)[2]
+    @test f_min == maximum(ackley_f(x, nothing) for x in gr)
+    xm = findmax(x -> ackley_f(x, nothing), gr)[2]
+    @test x_min == gr[xm]
+
+    gr = rand(n, 500)
+    ig = IrregularGrid(lb, ub, gr)
+    f_min, x_min = grid_search(ackley_f, ig; minimise=Val(true), parallel=Val(true))
+    @inferred grid_search(ackley_f, ig; minimise=Val(true), parallel=Val(true))
+    @test f_min == minimum(ackley_f(x, nothing) for x in eachcol(gr))
+    xm = findmin(x -> ackley_f(x, nothing), eachcol(gr))[2]
+    @test x_min == gr[:, xm]
+
+    gr = [rand(n) for _ in 1:2000]
+    ig = IrregularGrid(lb, ub, gr)
+    f_min, x_min = grid_search(ackley_f, ig; minimise=Val(false), parallel=Val(true))
+    @inferred grid_search(ackley_f, ig; minimise=Val(true), parallel=Val(true))
+    @test f_min == maximum(ackley_f(x, nothing) for x in gr)
+    xm = findmax(x -> ackley_f(x, nothing), gr)[2]
     @test x_min == gr[xm]
 end
 
 # Sphere function 
 n = 5
-sphere_f(x) = x[1]^2 + x[2]^2 + x[3]^2 + x[4]^2 + x[5]^2
-@test sphere_f(zeros(n)) == 0
+sphere_f(x, _) = x[1]^2 + x[2]^2 + x[3]^2 + x[4]^2 + x[5]^2
+@test sphere_f(zeros(n), nothing) == 0
 lb = repeat([-15.12], n)
 ub = repeat([15.12], n)
 res = (15, 17, 15, 19, 23)
@@ -843,48 +909,54 @@ f_min, x_min = grid_search(sphere_f, ug; minimise=Val(true))
 @test f_min ≈ 0.0 atol = 1e-7
 @test x_min ≈ zeros(n) atol = 1e-7
 
-f_min, x_min = grid_search(x -> -sphere_f(x), ug; minimise=Val(false))
+f_min, x_min = grid_search((x, _) -> -sphere_f(x, nothing), ug; minimise=Val(false))
 @test f_min ≈ 0.0 atol = 1e-7
 @test x_min ≈ zeros(n) atol = 1e-7
 
 f_min, x_min, f_res = grid_search(sphere_f, ug; minimise=Val(true), save_vals=Val(true))
 param_ranges = [LinRange(lb[i], ub[i], res[i]) for i in 1:n]
-@test f_res ≈ [sphere_f(x) for x in Iterators.product(param_ranges...)]
-f_min, x_min, f_res = grid_search(x -> -sphere_f(x), ug; minimise=Val(false), save_vals=Val(true))
-@test f_res ≈ [-sphere_f(x) for x in Iterators.product(param_ranges...)]
+@test f_res ≈ [sphere_f(x, nothing) for x in Iterators.product(param_ranges...)]
+f_min, x_min, f_res = grid_search((x, _) -> -sphere_f(x, nothing), ug; minimise=Val(false), save_vals=Val(true))
+@test f_res ≈ [-sphere_f(x, nothing) for x in Iterators.product(param_ranges...)]
+
+f_min, x_min, f_res = grid_search(sphere_f, ug; minimise=Val(true), save_vals=Val(true), parallel=Val(true))
+param_ranges = [LinRange(lb[i], ub[i], res[i]) for i in 1:n]
+@test f_res ≈ [sphere_f(x, nothing) for x in Iterators.product(param_ranges...)]
+f_min, x_min, f_res = grid_search((x, _) -> -sphere_f(x, nothing), ug; minimise=Val(false), save_vals=Val(true), parallel=Val(true))
+@test f_res ≈ [-sphere_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
     gr = rand(n, 500)
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(sphere_f, ig; minimise=Val(true))
     @inferred grid_search(sphere_f, ig; minimise=Val(true))
-    @test f_min == minimum(sphere_f(x) for x in eachcol(gr))
-    xm = findmin(sphere_f, eachcol(gr))[2]
+    @test f_min == minimum(sphere_f(x, nothing) for x in eachcol(gr))
+    xm = findmin(x -> sphere_f(x, nothing), eachcol(gr))[2]
     @test x_min == gr[:, xm]
 
     gr = rand(n, 500)
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min, f_res = grid_search(sphere_f, ig; minimise=Val(true), save_vals=Val(true))
     @inferred grid_search(sphere_f, ig; minimise=Val(true), save_vals=Val(true))
-    @test f_min == minimum(sphere_f(x) for x in eachcol(gr))
-    xm = findmin(sphere_f, eachcol(gr))[2]
+    @test f_min == minimum(sphere_f(x, nothing) for x in eachcol(gr))
+    xm = findmin(x -> sphere_f(x, nothing), eachcol(gr))[2]
     @test x_min == gr[:, xm]
-    @test f_res ≈ [(sphere_f(x) for x in eachcol(gr))...]
+    @test f_res ≈ [(sphere_f(x, nothing) for x in eachcol(gr))...]
 
     gr = [rand(n) for _ in 1:2000]
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(sphere_f, ig; minimise=Val(false))
-    @test f_min == maximum(sphere_f(x) for x in gr)
-    xm = findmax(sphere_f, gr)[2]
+    @test f_min == maximum(sphere_f(x, nothing) for x in gr)
+    xm = findmax(x -> sphere_f(x, nothing), gr)[2]
     @test x_min == gr[xm]
 
     gr = [rand(n) for _ in 1:2000]
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min, f_res = grid_search(sphere_f, ig; minimise=Val(false), save_vals=Val(true))
-    @test f_min == maximum(sphere_f(x) for x in gr)
-    xm = findmax(sphere_f, gr)[2]
+    @test f_min == maximum(sphere_f(x, nothing) for x in gr)
+    xm = findmax(x -> sphere_f(x, nothing), gr)[2]
     @test x_min == gr[xm]
-    @test f_res ≈ [(sphere_f(x) for x in gr)...]
+    @test f_res ≈ [(sphere_f(x, nothing) for x in gr)...]
 end
 
 # Multiple Linear Regression
@@ -976,6 +1048,152 @@ sol, f_res = grid_search(prob, ig; save_vals=Val(true))
     0.46153846153846156
     3.2307692307692317]
 
+## Test that the parallel grid searches are working 
+# Rastrigin
+n = 4
+A = 10
+rastrigin_f(x, _) = @inline @inbounds 10 * 4 + (x[1]^2 - 10 * cos(2π * x[1])) + (x[2]^2 - 10 * cos(2π * x[2])) + (x[3]^2 - 10 * cos(2π * x[3])) + (x[4]^2 - 10 * cos(2π * x[4]))
+@test rastrigin_f(zeros(n), nothing) == 0.0
+ug = RegularGrid(repeat([-5.12], n), repeat([5.12], n), 45)
+gs = GridSearch(rastrigin_f, ug)
+f_op_par, x_ar_par, f_res_par = grid_search(gs; minimise=Val(true), save_vals=Val(true), parallel=Val(true))
+f_op_ser, x_ar_ser, f_res_ser = grid_search(gs; minimise=Val(true), save_vals=Val(true))
+@test f_res_ser == f_res_par
+@test f_op_par == f_op_ser
+@test x_ar_par == x_ar_ser
+
+# Multiple Linear Regression
+prob, loglikk, θ, dat = multiple_linear_regression()
+true_ℓ = loglikk(reduce(vcat, θ), dat)
+lb = (1e-12, -3.0, 0.0, 0.0, -6.0)
+ub = (0.2, 0.0, 3.0, 3.0, 6.0)
+res = 27
+ug = RegularGrid(lb, ub, res)
+sol, L1 = grid_search(prob, ug; save_vals=Val(true))
+sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
+@test L1 ≈ L2
+@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+
+f = prob.log_likelihood_function
+p = prob.data
+gs = GridSearch(f, ug, p)
+_opt, _sol, _L1 = grid_search(gs; save_vals=Val(true), minimise=Val(false))
+_opt2, _sol2, _L2 = grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(false))
+@test L1 == _L1
+@test _opt ≈ sol.maximum
+@test _sol ≈ sol.mle
+@test L2 ≈ _L2
+@test _opt2 ≈ sol2.maximum
+@test _sol2 ≈ sol2.mle
+@test _L1 ≈ _L2
+
+res = 27
+gr = [lb[i] .+ (ub[i] - lb[i]) * rand(20) for i in eachindex(lb)]
+gr = Matrix(reduce(hcat, gr)')
+ug = IrregularGrid(lb, ub, gr)
+sol, L1 = grid_search(prob, ug; save_vals=Val(true))
+sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
+@test L1 ≈ L2
+@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+
+f = prob.log_likelihood_function
+p = prob.data
+gs = GridSearch(f, ug, p)
+_opt, _sol, _L1 = grid_search(gs; save_vals=Val(true), minimise=Val(false))
+_opt2, _sol2, _L2 = grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(false))
+@test L1 == _L1
+@test _opt ≈ sol.maximum
+@test _sol ≈ sol.mle
+@test L2 ≈ _L2
+@test _opt2 ≈ sol2.maximum
+@test _sol2 ≈ sol2.mle
+@test _L1 ≈ _L2
+
+# Logistic 
+Random.seed!(2929911002)
+u₀, λ, K, n, T = 0.5, 1.0, 1.0, 100, 10.0
+t = LinRange(0, T, n)
+u = @. K * u₀ * exp(λ * t) / (K - u₀ + u₀ * exp(λ * t))
+σ = 0.1
+uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...] # add some noise 
+@inline function ode_fnc(u, p, t)
+    local λ, K
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+@inline function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
+    local uᵒ, n, λ, K, σ, u0
+    uᵒ, n = data
+    λ, K, σ, u0 = θ
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u0)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, n)
+end
+θ₀ = [0.7, 2.0, 0.15, 0.4]
+lb = [0.0, 1e-6, 1e-6, 0.0]
+ub = [10.0, 10.0, 10.0, 10.0]
+syms = [:λ, :K, :σ, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
+    syms=syms,
+    data=(uᵒ, n),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Tsit5()
+)
+ug = RegularGrid(get_lower_bounds(prob), get_upper_bounds(prob), [36, 36, 36, 36])
+sol, L1 = grid_search(prob, ug; save_vals=Val(true))
+sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
+@test L1 ≈ L2
+@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+
+#b1 = @benchmark grid_search($prob, $ug; save_vals=$Val(false))
+#b2 = @benchmark grid_search($prob, $ug; save_vals=$Val(false), parallel=$Val(true))
+
+@inferred grid_search(prob, ug; save_vals=Val(true))
+@inferred grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
+
+prob_copies = [deepcopy(prob) for _ in 1:Base.Threads.nthreads()]
+gs = [GridSearch(prob_copies[i].log_likelihood_function, ug, prob_copies[i].data) for i in 1:Base.Threads.nthreads()]
+_opt, _sol, _L1 = grid_search(gs[1]; save_vals=Val(true), minimise=Val(false))
+_opt2, _sol2, _L2 = grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(false))
+@test L1 == _L1
+@test _opt ≈ sol.maximum
+@test _sol ≈ sol.mle
+@test L2 ≈ _L2
+@test _opt2 ≈ sol2.maximum
+@test _sol2 ≈ sol2.mle
+@test _L1 ≈ _L2
+
+res = 27
+gr = [lb[i] .+ (ub[i] - lb[i]) * rand(20) for i in eachindex(lb)]
+gr = Matrix(reduce(hcat, gr)')
+ug = IrregularGrid(lb, ub, gr)
+sol, L1 = grid_search(prob, ug; save_vals=Val(true))
+sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
+@test L1 ≈ L2
+@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+
+prob_copies = [deepcopy(prob) for _ in 1:Base.Threads.nthreads()]
+gs = [GridSearch(prob_copies[i].log_likelihood_function, ug, prob_copies[i].data) for i in 1:Base.Threads.nthreads()]
+_opt, _sol, _L1 = grid_search(gs[1]; save_vals=Val(true), minimise=Val(false))
+_opt2, _sol2, _L2 = grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(false))
+@test L1 == _L1
+@test _opt ≈ sol.maximum
+@test _sol ≈ sol.mle
+@test L2 ≈ _L2
+@test _opt2 ≈ sol2.maximum
+@test _sol2 ≈ sol2.mle
+@test _L1 ≈ _L2
+
 ######################################################
 ## ConfidenceInterval 
 ######################################################
@@ -1048,7 +1266,6 @@ _θ, _prof, _other_mles, _splines, _confidence_intervals = PL.prepare_profile_re
 @test _θ == Dict{Int64,Vector{T}}([])
 @test _prof == Dict{Int64,Vector{T}}([])
 @test _other_mles == Dict{Int64,Vector{Vector{T}}}([])
-@test_broken _splines isa Dict{Int64,Any}
 @test _confidence_intervals == Dict{Int64,PL.ConfidenceInterval{T,F}}([])
 
 ## Test that we can correctly normalise the objective function 
@@ -1168,6 +1385,274 @@ prof_view = prof[i]
 x = prof.splines[i].itp.knots
 @test prof_view(x) == prof(x, i) == prof.splines[i](x)
 
+## Threads 
+Random.seed!(98871)
+n = 30000
+β = [-1.0, 1.0, 0.5, 3.0]
+σ = 0.4
+x₁ = rand(Uniform(-1, 1), n)
+x₂ = rand(Normal(1.0, 0.5), n)
+X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
+ε = rand(Normal(0.0, σ), n)
+y = X * β + ε
+sse = DiffCache(zeros(n))
+β_cache = DiffCache(similar(β), 10)
+dat = (y, X, sse, n, β_cache)
+@inline function loglik_fnc(θ, data)
+    σ, β₀, β₁, β₂, β₃ = θ
+    y, X, sse, n, β = data
+    _sse = get_tmp(sse, θ)
+    _β = get_tmp(β, θ)
+    _β[1] = β₀
+    _β[2] = β₁
+    _β[3] = β₂
+    _β[4] = β₃
+    ℓℓ = -0.5n * log(2π * σ^2)
+    mul!(_sse, X, _β)
+    for i in eachindex(y)
+        ℓℓ = ℓℓ - 0.5 / σ^2 * (y[i] - _sse[i])^2
+    end
+    return ℓℓ
+end
+θ₀ = ones(5)
+prob = LikelihoodProblem(loglik_fnc, θ₀;
+    data=dat,
+    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
+    prob_kwargs=(lb=[0.0, -5.0, -5.0, -5.0, -5.0],
+        ub=[15.0, 15.0, 15.0, 15.0, 15.0]),
+    syms=[:σ, :β₀, :β₁, :β₂, :β₃])
+sol = mle(prob, Optim.LBFGS())
+prof_serial = profile(prob, sol)
+prof_parallel = profile(prob, sol; parallel=true)
+@test all(i -> abs((prof_parallel.confidence_intervals[i].lower - prof_serial.confidence_intervals[i].lower) / prof_serial.confidence_intervals[i].lower) < 1e-2, 1:5)
+@test all(i -> abs((prof_parallel.confidence_intervals[i].upper - prof_serial.confidence_intervals[i].upper) / prof_serial.confidence_intervals[i].upper) < 1e-2, 1:5)
+@test all(i -> prof_parallel.parameter_values[i] ≈ prof_serial.parameter_values[i], 1:5)
+@test all(i -> prof_parallel.profile_values[i] ≈ prof_serial.profile_values[i], 1:5)
+
+## More parallel testing for a problem involving an integrator
+Random.seed!(2929911002)
+u₀, λ, K, n, T = 0.5, 1.0, 1.0, 100, 10.0
+t = LinRange(0, T, n)
+u = @. K * u₀ * exp(λ * t) / (K - u₀ + u₀ * exp(λ * t))
+σ = 0.1
+uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...] # add some noise 
+@inline function ode_fnc(u, p, t)
+    local λ, K
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+@inline function loglik_fnc2(θ, data, integrator)
+    local uᵒ, n, λ, K, σ, u0
+    uᵒ, n = data
+    λ, K, σ, u0 = θ
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u0)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, n)
+end
+θ₀ = [0.7, 2.0, 0.15, 0.4]
+lb = [0.0, 1e-6, 1e-6, 0.0]
+ub = [10.0, 10.0, 10.0, 10.0]
+syms = [:λ, :K, :σ, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
+    syms=syms,
+    data=(uᵒ, n),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Tsit5()
+)
+sol = mle(prob, NLopt.LN_NELDERMEAD)
+prof1 = profile(prob, sol)
+prof2 = profile(prob, sol; parallel=true)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[4].lower ≈ prof2.confidence_intervals[4].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test prof1.confidence_intervals[4].upper ≈ prof2.confidence_intervals[4].upper rtol = 1e-1
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-1
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-1
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-1
+@test prof1.other_mles[4] ≈ prof2.other_mles[4] rtol = 1e-0 atol = 1e-1
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-1
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test prof1.parameter_values[4] ≈ prof2.parameter_values[4] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof1.parameter_values[4])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test issorted(prof2.parameter_values[4])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.profile_values[4] ≈ prof2.profile_values[4] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+@test prof1.splines[4].itp.knots ≈ prof2.splines[4].itp.knots
+
+## More parallel testing for a problem involving a PDE 
+# Need to setup 
+a, b, c, d = 0.0, 2.0, 0.0, 2.0
+n = 500
+x₁ = LinRange(a, b, n)
+x₂ = LinRange(b, b, n)
+x₃ = LinRange(b, a, n)
+x₄ = LinRange(a, a, n)
+y₁ = LinRange(c, c, n)
+y₂ = LinRange(c, d, n)
+y₃ = LinRange(d, d, n)
+y₄ = LinRange(d, c, n)
+x = reduce(vcat, [x₁, x₂, x₃, x₄])
+y = reduce(vcat, [y₁, y₂, y₃, y₄])
+xy = [[x[i], y[i]] for i in eachindex(x)]
+unique!(xy)
+x = getx.(xy)
+y = gety.(xy)
+r = 0.07
+GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
+T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
+type = :D
+BCs = BoundaryConditions(mesh, bc, type, BN)
+c = 1.0
+u₀ = 50.0
+f = (x, y) -> y ≤ c ? u₀ : 0.0
+D = (x, y, t, u, p) -> p[1]
+flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
+R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+initc = @views f.(points[1, :], points[2, :])
+iip_flux = true
+final_time = 0.2
+k = [9.0]
+prob = FVMProblem(mesh, BCs; iip_flux,
+    flux_function=flux, reaction_function=R,
+    initial_condition=initc, final_time,
+    flux_parameters=k)
+alg = TRBDF2(linsolve=UMFPACKFactorization(; reuse_symbolic=false))
+sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)
+
+function compute_mass!(M::AbstractVector{T}, αβγ, sol, prob) where {T}
+    mesh_area = prob.mesh.mesh_information.total_area
+    fill!(M, zero(T))
+    for i in eachindex(M)
+        for V in FiniteVolumeMethod.get_elements(prob)
+            element = FiniteVolumeMethod.get_element_information(prob.mesh, V)
+            cx, cy = FiniteVolumeMethod.get_centroid(element)
+            element_area = FiniteVolumeMethod.get_area(element)
+            interpolant_val = eval_interpolant!(αβγ, prob, cx, cy, V, sol.u[i])
+            M[i] += (element_area / mesh_area) * interpolant_val
+        end
+    end
+    return nothing
+end
+M = zeros(length(sol.t))
+αβγ = zeros(3)
+compute_mass!(M, αβγ, sol, prob)
+true_M = M ./ first(M)
+Random.seed!(29922881)
+σ = 0.01
+true_M .+= σ * randn(length(M))
+function ProfileLikelihood.construct_integrator(prob::FVMProblem, alg; ode_problem_kwargs, kwargs...)
+    ode_problem = ODEProblem(prob; no_saveat=false, ode_problem_kwargs...)
+    return ProfileLikelihood.construct_integrator(ode_problem, alg; kwargs...)
+end
+jac = float.(FiniteVolumeMethod.jacobian_sparsity(prob))
+fvm_integrator = construct_integrator(prob, alg; ode_problem_kwargs=(jac_prototype=jac, saveat=0.01, parallel=true))
+function loglik_fvm(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _c, _u₀, _σ = θ
+    (; prob) = param
+    prob.flux_parameters[1] = _k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ _c ? _u₀ : zero(T)
+    end
+    reinit!(integrator, prob.initial_condition)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    (; mass_data, mass_cache, shape_cache) = param
+    compute_mass!(mass_cache, shape_cache, integrator.sol, prob)
+    mass_cache ./= first(mass_cache)
+    ℓ = @views gaussian_loglikelihood(mass_data[2:end], mass_cache[2:end], _σ, length(mass_data) - 1) # first value is 1 for both
+    if isinf(ℓ)
+        ℓ = -ℓ # make -typemin(T)
+    end
+    return ℓ
+end
+likprob = LikelihoodProblem(
+    loglik_fvm,
+    [8.54, 0.98, 29.83, 0.05],
+    fvm_integrator;
+    syms=[:k, :c, :u₀, :σ],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3)),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0, 25.0, 1e-6],
+        ub=[15.0, 2.0, 100.0, 0.2])
+)
+mle_sol = mle(likprob, NLopt.LN_BOBYQA)
+
+prof1 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=50)
+prof2 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=50, parallel=true)
+
+using BenchmarkTools
+#=b1 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4,
+    xtol_rel=$1e-4,
+    resolution=$80)
+b2 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4,
+    xtol_rel=$1e-4,
+    resolution=$80, parallel=$true)=#
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[4].lower ≈ prof2.confidence_intervals[4].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test prof1.confidence_intervals[4].upper ≈ prof2.confidence_intervals[4].upper rtol = 1e-1
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-1
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-1
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-1
+@test prof1.other_mles[4] ≈ prof2.other_mles[4] rtol = 1e-0 atol = 1e-1
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-1
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test prof1.parameter_values[4] ≈ prof2.parameter_values[4] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof1.parameter_values[4])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test issorted(prof2.parameter_values[4])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.profile_values[4] ≈ prof2.profile_values[4] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+@test prof1.splines[4].itp.knots ≈ prof2.splines[4].itp.knots
+
 ######################################################
 ## Example I: Multiple Linear Regression 
 ######################################################
@@ -1225,7 +1710,43 @@ lb = [1e-12, -5.0, -5.0, -5.0, -5.0]
 ub = [15.0, 15.0, 15.0, 15.0, 15.0]
 resolutions = [600, 200, 200, 200, 200] # use many points for σ
 param_ranges = construct_profile_ranges(sol, lb, ub, resolutions)
-prof = profile(prob, sol; param_ranges)
+prof1 = profile(prob, sol; param_ranges, parallel=true)
+prof2 = profile(prob, sol; param_ranges, parallel=false)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-3
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-3
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-3
+@test prof1.confidence_intervals[4].lower ≈ prof2.confidence_intervals[4].lower rtol = 1e-3
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-2
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-3
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-3
+@test prof1.confidence_intervals[4].upper ≈ prof2.confidence_intervals[4].upper rtol = 1e-3
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-2
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-2
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-2
+@test prof1.other_mles[4] ≈ prof2.other_mles[4] rtol = 1e-0 atol = 1e-2
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-3
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test prof1.parameter_values[4] ≈ prof2.parameter_values[4] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof1.parameter_values[4])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test issorted(prof2.parameter_values[4])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.profile_values[4] ≈ prof2.profile_values[4] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+@test prof1.splines[4].itp.knots ≈ prof2.splines[4].itp.knots
+
+prof = prof1
 
 # Compare the confidence intervals
 vcov_mat = sol[:σ]^2 * inv(X' * X)
@@ -1263,7 +1784,7 @@ fig = plot_profiles(prof;
 xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
 xlims!(fig.content[2], -1.025, -0.975)
 xlims!(fig.content[4], 0.475, 0.525)
-SAVE_FIGURE && save("figures/regression_profiles.png")
+SAVE_FIGURE && save("figures/regression_profiles.png", fig)
 
 # You can also plot specific parameters 
 plot_profiles(prof, [1, 3]) # plot σ and β₁
@@ -1287,7 +1808,7 @@ uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...] # add some noise
     du = λ * u * (1 - u / K)
     return du
 end
-@inline function loglik_fnc(θ, data, integrator)
+@inline function loglik_fnc2(θ, data, integrator)
     local uᵒ, n, λ, K, σ, u0
     uᵒ, n = data
     λ, K, σ, u0 = θ
@@ -1304,7 +1825,7 @@ lb = [0.0, 1e-6, 1e-6, 0.0]
 ub = [10.0, 10.0, 10.0, 10.0]
 syms = [:λ, :K, :σ, :u₀]
 prob = LikelihoodProblem(
-    loglik_fnc, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
+    loglik_fnc2, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
     syms=syms,
     data=(uᵒ, n),
     ode_parameters=[1.0, 1.0], # temp values for [λ, K],
@@ -1317,15 +1838,15 @@ prob = LikelihoodProblem(
 ## Step 3: Compute the MLE 
 sol = mle(prob, NLopt.LN_BOBYQA; abstol=1e-16, reltol=1e-16)
 @test PL.get_maximum(sol) ≈ 86.54963187188535
-@test PL.get_mle(sol, 1) ≈ 0.7751485360202867
-@test sol[2] ≈ 1.0214251327023145
-@test sol[3] ≈ 0.10183154994808913
-@test sol[4] ≈ 0.5354121514863078
+@test PL.get_mle(sol, 1) ≈ 0.7751485360202867 rtol = 1e-4
+@test sol[2] ≈ 1.0214251327023145 rtol = 1e-4
+@test sol[3] ≈ 0.10183154994808913 rtol = 1e-4
+@test sol[4] ≈ 0.5354121514863078 rtol = 1e-4
 
 ## Step 4: Profile 
 _prob = deepcopy(prob)
 _sol = deepcopy(sol)
-prof = profile(prob, sol; conf_level=0.9)
+prof = profile(prob, sol; conf_level=0.9, parallel=false)
 @test sol.mle == _sol.mle
 @test sol.maximum == _sol.maximum # checking aliasing 
 @test _prob.θ₀ == prob.θ₀
@@ -1333,6 +1854,47 @@ prof = profile(prob, sol; conf_level=0.9)
 @test K ∈ prof.confidence_intervals[2]
 @test σ ∈ get_confidence_intervals(prof[:σ])
 @test u₀ ∈ get_confidence_intervals(prof, 4)
+
+prof1 = profile(prob, sol; conf_level=0.9, parallel=false)
+prof2 = profile(prob, sol; conf_level=0.9, parallel=true)
+
+#b1 = @benchmark profile($prob, $sol; conf_level=$0.9, parallel=$true)
+#b2 = @benchmark profile($prob, $sol; conf_level=$0.9, parallel=$false)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-3
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-3
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-3
+@test prof1.confidence_intervals[4].lower ≈ prof2.confidence_intervals[4].lower rtol = 1e-3
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-2
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-3
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-3
+@test prof1.confidence_intervals[4].upper ≈ prof2.confidence_intervals[4].upper rtol = 1e-3
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-2
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-2
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-2
+@test prof1.other_mles[4] ≈ prof2.other_mles[4] rtol = 1e-0 atol = 1e-2
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-3
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test prof1.parameter_values[4] ≈ prof2.parameter_values[4] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof1.parameter_values[4])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test issorted(prof2.parameter_values[4])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.profile_values[4] ≈ prof2.profile_values[4] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+@test prof1.splines[4].itp.knots ≈ prof2.splines[4].itp.knots
+
+prof = prof1
 
 ## Step 5: Visualise 
 using CairoMakie, LaTeXStrings
@@ -1354,7 +1916,7 @@ Random.seed!(2992999)
 y₀ = 15.0
 σ = 0.5
 T = 5.0
-n = 200
+n = 450
 Δt = T / n
 t = [j * Δt for j in 0:n]
 y = y₀ * exp.(λ * t)
@@ -1365,7 +1927,7 @@ yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
     du = λ * u
     return du
 end
-@inline function loglik_fnc(θ, data, integrator)
+@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
     local yᵒ, n, λ, σ, u0
     yᵒ, n = data
     λ, σ, u0 = θ
@@ -1373,7 +1935,15 @@ end
     ## Now solve the problem 
     reinit!(integrator, u0)
     solve!(integrator)
-    return gaussian_loglikelihood(yᵒ, integrator.sol.u, σ, n)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ℓ = -0.5(n + 1) * log(2π * σ^2)
+    s = zero(T)
+    @turbo @muladd for i in eachindex(yᵒ, integrator.sol.u)
+        s = s + (yᵒ[i] - integrator.sol.u[i]) * (yᵒ[i] - integrator.sol.u[i])
+    end
+    ℓ = ℓ - 0.5s / σ^2
 end
 
 ## Step 2: Define the problem
@@ -1382,7 +1952,7 @@ lb = [-10.0, 1e-6, 0.5]
 ub = [10.0, 10.0, 25.0]
 syms = [:λ, :σ, :y₀]
 prob = LikelihoodProblem(
-    loglik_fnc, θ₀, ode_fnc, y₀, (0.0, T);
+    _loglik_fnc, θ₀, ode_fnc, y₀, (0.0, T);
     syms=syms,
     data=(yᵒ, n),
     ode_parameters=1.0, # temp value for λ
@@ -1394,10 +1964,19 @@ prob = LikelihoodProblem(
 
 ## Step 3: Prepare the parameter grid  
 regular_grid = RegularGrid(lb, ub, 50) # resolution can also be given as a vector for each parameter
-gs = grid_search(prob, regular_grid)
+@time gs = grid_search(prob, regular_grid)
 @test gs[:λ] ≈ -0.612244897959183
 @test gs[:σ] ≈ 0.816327448979592
 @test gs[:y₀] ≈ 16.5
+
+@time _gs = grid_search(prob, regular_grid; parallel=Val(true))
+@test _gs[:λ] ≈ -0.612244897959183
+@test _gs[:σ] ≈ 0.816327448979592
+@test _gs[:y₀] ≈ 16.5
+
+gs1, L1 = grid_search(prob, regular_grid; parallel=Val(true), save_vals=Val(true))
+gs2, L2 = grid_search(prob, regular_grid; parallel=Val(false), save_vals=Val(true))
+@test L1 ≈ L2
 
 # Can also use LatinHypercubeSampling to avoid the dimensionality issue, although 
 # you may have to be more particular with choosing the bounds to get good coverage of 
@@ -1405,8 +1984,8 @@ gs = grid_search(prob, regular_grid)
 d = 3
 gens = 1000
 plan, _ = LHCoptim(500, d, gens)
-new_lb = [-2.0, 10.0, 0.05]
-new_ub = [2.0, 20.0, 0.2]
+new_lb = [-2.0, 0.05, 10.0]
+new_ub = [2.0, 0.2, 20.0]
 bnds = [(new_lb[i], new_ub[i]) for i in 1:d]
 parameter_vals = Matrix(scaleLHC(plan, bnds)') # transpose so that a column is a parameter set 
 irregular_grid = IrregularGrid(lb, ub, parameter_vals)
@@ -1415,21 +1994,63 @@ max_lik, max_idx = findmax(loglik_vals_ir)
 @test max_lik == PL.get_maximum(gs_ir)
 @test parameter_vals[:, max_idx] ≈ PL.get_mle(gs_ir)
 
+_gs_ir, _loglik_vals_ir = grid_search(prob, irregular_grid; parallel=Val(true), save_vals=Val(true))
+_max_lik, _max_idx = findmax(_loglik_vals_ir)
+@test _max_lik == PL.get_maximum(gs_ir)
+@test parameter_vals[:, _max_idx] ≈ PL.get_mle(_gs_ir)
+@test loglik_vals_ir ≈ _loglik_vals_ir
+@test _max_idx == max_idx
+
+bpar = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(true), save_vals=$Val(true))
+bser = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(false), save_vals=$Val(true))
+
 # Also see MultistartOptimization.jl
 
 ## Step 4: Compute the MLE, starting at the grid search solution 
 prob = PL.update_initial_estimate(prob, gs)
 sol = mle(prob, Optim.LBFGS())
-@test PL.get_maximum(sol) ≈ -139.23265096270185
-@test PL.get_mle(sol, 1) ≈ -0.5028349459309962
-@test sol[2] ≈ 0.4854032450713993
-@test sol[:y₀] ≈ 15.20511349488222
+@test PL.get_mle(sol, 1) ≈ -0.4994204745412974 rtol = 1e-2
+@test sol[2] ≈ 0.5287809 rtol = 1e-2
+@test sol[:y₀] ≈ 15.145175459094732 rtol = 1e-2
 
 ## Step 5: Profile 
-prof = profile(prob, sol; f_abstol=1e-6)
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
 @test λ ∈ get_confidence_intervals(prof, :λ)
 @test σ ∈ get_confidence_intervals(prof[:σ])
 @test y₀ ∈ get_confidence_intervals(prof, 3)
+
+prof1 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
+prof2 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-3
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-3
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-3
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-2
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-3
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-3
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-2
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-2
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-2
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-3
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+
+#bpar = @benchmark profile($prob, $sol; alg=$NLopt.LN_NELDERMEAD, parallel=$true)
+#bser = @benchmark profile($prob, $sol; alg=$NLopt.LN_NELDERMEAD, parallel=$false)
+
+prof = prof1
 
 ## Step 5: Visualise 
 using CairoMakie, LaTeXStrings
@@ -1439,3 +2060,203 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
     fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
 SAVE_FIGURE && save("figures/linear_exponential_example.png", fig)
+
+######################################################
+## Example IV: Heat equation on a square plate
+######################################################
+## Define the problem. See FiniteVolumeMethod.jl
+a, b, c, d = 0.0, 2.0, 0.0, 2.0
+n = 500
+x₁ = LinRange(a, b, n)
+x₂ = LinRange(b, b, n)
+x₃ = LinRange(b, a, n)
+x₄ = LinRange(a, a, n)
+y₁ = LinRange(c, c, n)
+y₂ = LinRange(c, d, n)
+y₃ = LinRange(d, d, n)
+y₄ = LinRange(d, c, n)
+x = reduce(vcat, [x₁, x₂, x₃, x₄])
+y = reduce(vcat, [y₁, y₂, y₃, y₄])
+xy = [[x[i], y[i]] for i in eachindex(x)]
+unique!(xy)
+x = getx.(xy)
+y = gety.(xy)
+r = 0.022
+GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
+T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
+type = :D
+BCs = BoundaryConditions(mesh, bc, type, BN)
+c = 1.0
+u₀ = 50.0
+f = (x, y) -> y ≤ c ? u₀ : 0.0
+D = (x, y, t, u, p) -> p[1]
+flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
+R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+initc = @views f.(points[1, :], points[2, :])
+iip_flux = true
+final_time = 0.1
+k = [9.0]
+prob = FVMProblem(mesh, BCs; iip_flux,
+    flux_function=flux, reaction_function=R,
+    initial_condition=initc, final_time,
+    flux_parameters=k)
+
+## Generate some data.
+alg = TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false))
+sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)
+
+## Let us compute the mass at each time and then add some noise to it
+function compute_mass!(M::AbstractVector{T}, αβγ, sol, prob) where {T}
+    mesh_area = prob.mesh.mesh_information.total_area
+    fill!(M, zero(T))
+    for i in eachindex(M)
+        for V in FiniteVolumeMethod.get_elements(prob)
+            element = FiniteVolumeMethod.get_element_information(prob.mesh, V)
+            cx, cy = FiniteVolumeMethod.get_centroid(element)
+            element_area = FiniteVolumeMethod.get_area(element)
+            interpolant_val = eval_interpolant!(αβγ, prob, cx, cy, V, sol.u[i])
+            M[i] += (element_area / mesh_area) * interpolant_val
+        end
+    end
+    return nothing
+end
+M = zeros(length(sol.t))
+αβγ = zeros(3)
+compute_mass!(M, αβγ, sol, prob)
+true_M = deepcopy(M)
+
+Random.seed!(29922881)
+σ = 0.1
+true_M .+= σ * randn(length(M))
+
+## We need to now construct the integrator. Here's a method for converting an FVMProblem into an integrator. 
+function ProfileLikelihood.construct_integrator(prob::FVMProblem, alg; ode_problem_kwargs, kwargs...)
+    ode_problem = ODEProblem(prob; no_saveat=false, ode_problem_kwargs...)
+    return ProfileLikelihood.construct_integrator(ode_problem, alg; kwargs...)
+end
+jac = float.(FiniteVolumeMethod.jacobian_sparsity(prob))
+fvm_integrator = construct_integrator(prob, alg; ode_problem_kwargs=(jac_prototype=jac, saveat=0.01, parallel=true))
+
+## Now define the likelihood problem 
+@inline function loglik_fvm(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _c, _u₀ = θ
+    ## Update and solve
+    (; prob) = param
+    prob.flux_parameters[1] = _k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ _c ? _u₀ : zero(T)
+    end
+    reinit!(integrator, prob.initial_condition)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ## Compute the mass
+    (; mass_data, mass_cache, shape_cache, sigma) = param
+    compute_mass!(mass_cache, shape_cache, integrator.sol, prob)
+    if any(isnan, mass_cache)
+        return typemin(T)
+    end
+    ## Done 
+    ℓ = @views gaussian_loglikelihood(mass_data, mass_cache, sigma, length(mass_data))
+    @show ℓ
+    return ℓ
+end
+
+## Now define the problem
+likprob = LikelihoodProblem(
+    loglik_fvm,
+    [8.54, 0.98, 29.83],
+    fvm_integrator;
+    syms=[:k, :c, :u₀],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3), sigma=σ),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0, 0.0],
+        ub=[15.0, 2.0, 250.0])
+)
+
+## Find the MLEs 
+t0 = time()
+mle_sol = mle(likprob, (NLopt.GN_DIRECT_L_RAND(), NLopt.LN_BOBYQA); ftol_abs=1e-8, ftol_rel=1e-8, xtol_abs=1e-8, xtol_rel=1e-8) # global, and then refine with a local algorithm
+t1 = time()
+@show t1 - t0
+
+### Now profile
+@time prof = profile(likprob, mle_sol; alg=NLopt.LN_BOBYQA,
+    ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=60)
+@time _prof = profile(likprob, mle_sol; alg=NLopt.LN_BOBYQA,
+    ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=60, parallel=true)
+
+prof1 = prof
+prof2 = _prof
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-3
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-3
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-3
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-2
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-3
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-3
+@test prof1.other_mles[1] ≈ prof2.other_mles[1] rtol = 1e-0 atol = 1e-2
+@test prof1.other_mles[2] ≈ prof2.other_mles[2] rtol = 1e-1 atol = 1e-2
+@test prof1.other_mles[3] ≈ prof2.other_mles[3] rtol = 1e-3 atol = 1e-2
+@test prof1.parameter_values[1] ≈ prof2.parameter_values[1] rtol = 1e-3
+@test prof1.parameter_values[2] ≈ prof2.parameter_values[2] rtol = 1e-3
+@test prof1.parameter_values[3] ≈ prof2.parameter_values[3] rtol = 1e-3
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test prof1.profile_values[1] ≈ prof2.profile_values[1] rtol = 1e-1
+@test prof1.profile_values[2] ≈ prof2.profile_values[2] rtol = 1e-1
+@test prof1.profile_values[3] ≈ prof2.profile_values[3] rtol = 1e-1
+@test prof1.splines[1].itp.knots ≈ prof2.splines[1].itp.knots
+@test prof1.splines[2].itp.knots ≈ prof2.splines[2].itp.knots
+@test prof1.splines[3].itp.knots ≈ prof2.splines[3].itp.knots
+
+using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L"k", L"c", L"u_0"],
+    true_vals=[k[1], c, u₀],
+    fig_kwargs=(fontsize=30, resolution=(1409.096f0, 879.812f0)),
+    axis_kwargs=(width=600, height=300))
+scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
+scatter!(fig.content[2], get_parameter_values(prof, :c), get_profile_values(prof, :c), color=:black, markersize=9)
+scatter!(fig.content[3], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
+SAVE_FIGURE && save("figures/heat_pde_example.png", fig)
+
+### Now estimate only two parameters
+using StaticArraysCore
+@inline function loglik_fvm_2(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _c, = θ
+    (; u₀) = param
+    new_θ = SVector{3,T}((_k, _c, u₀))
+    return loglik_fvm(new_θ, param, integrator)
+
+end
+likprob_2 = LikelihoodProblem(
+    loglik_fvm_2,
+    [8.54, 0.98],
+    fvm_integrator;
+    syms=[:k, :c],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)),
+        shape_cache=zeros(3), sigma=σ, u₀=u₀),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0],
+        ub=[15.0, 2.0])
+)
+
+grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 5)
+@time gs, lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(true));
+@time _gs, _lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(false));
+exact_lik_vals = [
+    likprob_2.log_likelihood_function([k, c], likprob_2.data) for k in LinRange(3, 15, 5), c in LinRange(0, 2, 5)
+]
+lik_vals

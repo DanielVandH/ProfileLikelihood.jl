@@ -29,7 +29,7 @@ end
 @inline function gaussian_loglikelihood(x::AbstractArray{T}, μ::AbstractArray{T}, σ, n) where {T}
     ℓ = -0.5n * log(2π * σ^2)
     s = zero(T)
-    for i ∈ eachindex(x, μ)
+    @simd for i ∈ eachindex(x, μ)
         s += (x[i] - μ[i])^2
     end
     ℓ = ℓ - 0.5 / σ^2 * s

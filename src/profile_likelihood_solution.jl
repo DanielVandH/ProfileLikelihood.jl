@@ -1,5 +1,5 @@
 """
-    ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl,CT,CF,OM} <: AbstractLikelihoodSolution
+    ProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM} 
 
 Struct for the normalised profile log-likelihood. See [`profile`](@ref) for a constructor.
 
@@ -19,7 +19,7 @@ This struct is callable. We define the method
 
 that evaluates the spline through the `i`th profile at the point `θ`.
 """
-Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP<:AbstractLikelihoodProblem,LS<:AbstractLikelihoodSolution,Spl,CT,CF,OM} <: AbstractLikelihoodSolution
+Base.@kwdef struct ProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM} 
     parameter_values::Dict{I,V}
     profile_values::Dict{I,V}
     likelihood_problem::LP
@@ -51,7 +51,7 @@ get_syms(prof::ProfileLikelihoodSolution, i) = get_syms(prof)[i]
 profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)
 number_of_profiled_parameters(prof::ProfileLikelihoodSolution) = length(profiled_parameters(prof))
 
-struct ProfileLikelihoodSolutionView{N,PLS} <: AbstractLikelihoodSolution
+struct ProfileLikelihoodSolutionView{N,PLS} 
     parent::PLS
 end
 

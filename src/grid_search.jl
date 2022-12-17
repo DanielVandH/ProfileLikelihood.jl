@@ -60,6 +60,18 @@ end
     return increment_parameter(grid, i, j)
 end
 
+function get_parameters!(θ, grid::RegularGrid{N,B,R,S,T}, I) where {N,B,R,S,T}
+    for d in 1:N
+        θ[d] = grid[d, I[d]]
+    end
+    return nothing
+end
+function get_parameters(grid::RegularGrid{N,B,R,S,T}, I) where {N,B,R,S,T}
+    θ = zeros(T, N)
+    get_parameters!(θ, grid, I)
+    return θ
+end
+
 ######################################################
 ## IrregularGrid
 ######################################################
@@ -103,6 +115,11 @@ each_parameter(grid::AbstractMatrix) = axes(grid, 2)
 each_parameter(grid::AbstractVector) = eachindex(grid)
 each_parameter(grid::IrregularGrid) = each_parameter(get_grid(grid))
 
+function get_parameters!(θ, grid::IrregularGrid{N,B,G,T}, i) where {N,B,G,T}
+    θ .= get_parameters(grid, i)
+    return nothing
+end
+
 ######################################################
 ## GridSearch
 ######################################################
@@ -112,25 +129,28 @@ each_parameter(grid::IrregularGrid) = each_parameter(get_grid(grid))
 Struct for a `GridSearch`.
 
 # Fields 
-- `f::F`: The function to optimise. 
+- `f::F`: The function to optimise, of the form `f(x, p)`.
+- `p::P`: The arguments `p` in the function `f`.
 - `grid::G`: The grid, where `G<:AbstractGrid`. See also [`grid_search`](@ref).
 """
-Base.@kwdef struct GridSearch{F,G}
+Base.@kwdef struct GridSearch{F,G,P}
     f::F
+    p::P
     grid::G
-    function GridSearch(f, grid::G) where {G}
+    function GridSearch(f, grid::G, p::P=nothing) where {G,P}
         T = number_type(G)
-        wrapped_f = FunctionWrappers.FunctionWrapper{T,Tuple{Vector{T}}}(f)
-        return new{typeof(wrapped_f),G}(wrapped_f, grid)
+        wrapped_f = FunctionWrappers.FunctionWrapper{T,Tuple{Vector{T},P}}(f)
+        return new{typeof(wrapped_f),G,P}(wrapped_f, p, grid)
     end
 end
 
-GridSearch(prob::LikelihoodProblem, grid) = GridSearch(θ -> get_log_likelihood_function(prob)(θ, get_data(prob)), grid)
+GridSearch(prob::LikelihoodProblem, grid) = GridSearch(get_log_likelihood_function(prob), grid, get_data(prob))
 
 get_grid(prob::GridSearch) = prob.grid
 get_function(prob::GridSearch) = prob.f
-eval_function(f::FunctionWrappers.FunctionWrapper{T,Tuple{A}}, x) where {T,A} = f(x)
-eval_function(prob::GridSearch, x) = eval_function(get_function(prob), x)
+get_parameters(prob::GridSearch) = prob.p
+eval_function(f::FunctionWrappers.FunctionWrapper{T,Tuple{A,P}}, x, p) where {T,A,P} = f(x, p)
+eval_function(prob::GridSearch, x) = eval_function(get_function(prob), x, get_parameters(prob))
 number_of_parameters(prob::GridSearch) = number_of_parameters(get_grid(prob))
 
 function prepare_grid(grid::RegularGrid)
@@ -145,9 +165,105 @@ function prepare_grid(grid::IrregularGrid)
 end
 prepare_grid(prob::GridSearch) = prepare_grid(get_grid(prob))
 
+@inline function setup_grid_search_serial(prob::GridSearch{F,G,P}; save_vals::V=Val(false), minimise::M=Val(false)) where {P,F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
+    f_opt = get_default_extremum(T, M)
+    x_argopt = zeros(T, N)
+    cur_x = zeros(T, N)
+    if V == Val{true}
+        f_res = prepare_grid(prob)
+    end
+    resolution_generator = (1:get_resolutions(get_grid(prob), d) for d in 1:N)
+    grid_iterator = CartesianIndices((tuple(resolution_generator...)))
+    if V == Val{true}
+        return f_opt, x_argopt, cur_x, grid_iterator, f_res
+    else
+        return f_opt, x_argopt, cur_x, grid_iterator, T(NaN)
+    end
+end
+@inline function setup_grid_search_serial(prob::GridSearch{F,G,P}; save_vals::V=Val(false), minimise::M=Val(false)) where {P,F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
+    f_opt = get_default_extremum(T, M)
+    x_argopt = zeros(T, N)
+    cur_x = zeros(T, N)
+    if V == Val{true}
+        f_res = prepare_grid(prob)
+    end
+    grid_iterator = each_parameter(get_grid(prob))
+    if V == Val{true}
+        return f_opt, x_argopt, cur_x, grid_iterator, f_res
+    else
+        return f_opt, x_argopt, cur_x, grid_iterator, T(NaN)
+    end
+end
+@inline function setup_grid_search_parallel(prob::Union{Vector{GridSearch{F,G,P}},GridSearch{F,G,P}}; save_vals::V=Val(false), minimise::M=Val(false)) where {P,F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
+    nt = Base.Threads.nthreads()
+    f_opt = [get_default_extremum(T, M) for _ in 1:nt]
+    x_argopt = [zeros(T, N) for _ in 1:nt]
+    cur_x = [zeros(T, N) for _ in 1:nt]
+    if V == Val{true}
+        f_res = prepare_grid(prob isa Vector ? prob[1] : prob)
+    end
+    prob_copies = prob isa Vector ? prob : [deepcopy(prob) for _ in 1:nt]
+    resolution_generator = (1:get_resolutions(get_grid(prob isa Vector ? prob[1] : prob), d) for d in 1:N)
+    grid_iterator = CartesianIndices((tuple(resolution_generator...)))
+    grid_iterator_collect = collect(grid_iterator)
+    chunked_grid = chunks(grid_iterator_collect, nt)
+    if V == Val{true}
+        return prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res
+    else
+        return prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, T(NaN)
+    end
+end
+@inline function setup_grid_search_parallel(prob::Union{Vector{GridSearch{F,G,P}},GridSearch{F,G,P}}; save_vals::V=Val(false), minimise::M=Val(false)) where {P,F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
+    nt = Base.Threads.nthreads()
+    f_opt = [get_default_extremum(T, M) for _ in 1:nt]
+    x_argopt = [zeros(T, N) for _ in 1:nt]
+    cur_x = [zeros(T, N) for _ in 1:nt]
+    if V == Val{true}
+        f_res = prepare_grid(prob isa Vector ? prob[1] : prob)
+    end
+    prob_copies = prob isa Vector ? prob : [deepcopy(prob) for _ in 1:nt]
+    grid_iterator = each_parameter(get_grid(prob isa Vector ? prob[1] : prob))
+    grid_iterator_collect = collect(grid_iterator)
+    chunked_grid = chunks(grid_iterator_collect, nt)
+    if V == Val{true}
+        return prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res
+    else
+        return prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, T(NaN)
+    end
+end
+
+@inline function step_grid_search!(prob::G, I, cur_x, x_argopt, f_opt, f_res; save_vals::V=Val(false), minimise::M=Val(false)) where {G,V,M}
+    get_parameters!(cur_x, get_grid(prob), I)
+    f_val = eval_function(prob, cur_x)
+    f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
+    if V == Val{true}
+        @inbounds f_res[I] = f_val
+    end
+    return f_opt
+end
+
+@inline function multithreaded_find_extrema_for_grid_search!(nt, f_opt, x_argopt, minimise)
+    for i in 2:nt
+        if minimise == Val(false)
+            if @inbounds f_opt[i] ≥ f_opt[1]
+                @inbounds f_opt[1] = f_opt[i]
+                @inbounds x_argopt[1] .= x_argopt[i]
+            end
+        else
+            if @inbounds f_opt[i] ≤ f_opt[1]
+                @inbounds f_opt[1] = f_opt[i]
+                @inbounds x_argopt[1] .= x_argopt[i]
+            end
+        end
+    end
+    return nothing
+end
+
+@inline grid_search_return_values(f_opt, x_argopt, f_res, V::Val{false}) = f_opt, x_argopt
+@inline grid_search_return_values(f_opt, x_argopt, f_res, V::Val{true}) = f_opt, x_argopt, f_res
+
 """
-    grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
-    grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
+    grid_search(prob; save_vals=Val(false), minimise:=Val(false), parallel=Val(false))
 
 Performs a grid search for the given grid search problem `prob`.
 
@@ -155,55 +271,45 @@ Performs a grid search for the given grid search problem `prob`.
 - `prob::GridSearch{F, G}`: The grid search problem.
 
 # Keyword Arguments 
-- `save_vals::V=Val(false)`: Whether to return a matrix with the function values. 
-- `minimise::M=Val(false)`: Whether to minimise or to maximise the function.
+- `save_vals:=Val(false)`: Whether to return a matrix with the function values. 
+- `minimise:=Val(false)`: Whether to minimise or to maximise the function.
+- `parallel:=Val(false)`: Whether to run the grid search with multithreading.
+
+# Outputs 
+- `f_opt`: The optimal objective value. 
+- `x_argopt`: The parameter that gave `f_opt`.
+- `f_res`: If `save_vals==Val(true)`, then this is the matrix of function values.
 """
-@generated function grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,R,S,T,V,M,G<:RegularGrid{N,B,R,S,T}}
-    quote
-        f_opt = get_default_extremum($T, $M)
-        x_argopt = zeros($T, $N)
-        cur_x = zeros($T, $N)
-        if $V == Val{true}
-            f_res = prepare_grid(prob)
-        end
-        Base.Cartesian.@nloops $N i (d -> 1:get_resolutions(get_grid(prob), d)) (d -> cur_x[d] = get_grid(prob)[d, i_d]) begin # [N loops] [i index] [range over LinRanges] [set coordinates]
-            f_val = eval_function(prob, cur_x)
-            f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
-            if $V == Val{true}
-                (Base.Cartesian.@nref $N f_res i) = f_val
-            end
-        end
-        if $V == Val{true}
-            return f_opt, x_argopt, f_res
-        else
-            return f_opt, x_argopt
-        end
-    end
-end
-@doc (@doc grid_search(::GridSearch)) function grid_search(prob::GridSearch{F,G}; save_vals::V=Val(false), minimise::M=Val(false)) where {F,N,B,T,V,M,H,G<:IrregularGrid{N,B,H,T}}
-    f_opt = get_default_extremum(T, M)
-    x_argopt = zeros(T, N)
-    cur_x = zeros(T, N)
-    if V == Val{true}
-        f_res = prepare_grid(prob)
-    end
-    for i in each_parameter(get_grid(prob))
-        cur_x .= get_parameters(get_grid(prob), i)
-        f_val = eval_function(prob, cur_x)
-        f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
-        if V == Val{true}
-            f_res[i] = f_val
-        end
-    end
-    if V == Val{true}
-        return f_opt, x_argopt, f_res
+@inline function grid_search(prob::P; save_vals::V=Val(false), minimise::M=Val(false), parallel::T=Val(false)) where {P,V,M,T}
+    if parallel == Val(false)
+        return grid_search_serial(prob, save_vals, minimise)
     else
-        return f_opt, x_argopt
+        return grid_search_parallel(prob, save_vals, minimise)
     end
 end
 
+function grid_search_serial(prob, save_vals, minimise)
+    f_opt, x_argopt, cur_x, grid_iterator, f_res = setup_grid_search_serial(prob; save_vals, minimise)
+    for I in grid_iterator
+        f_opt = step_grid_search!(prob, I, cur_x, x_argopt, f_opt, f_res; save_vals, minimise)
+    end
+    return grid_search_return_values(f_opt, x_argopt, f_res, save_vals)
+end
+function grid_search_parallel(prob, save_vals, minimise)
+    nt = Base.Threads.nthreads()
+    prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res = setup_grid_search_parallel(prob; save_vals, minimise)
+    Base.Threads.@threads for (cart_idx_range, id) in chunked_grid    #=@inbounds Base.Threads.@threads=#
+        for linear_idx in cart_idx_range
+            I = @inbounds grid_iterator_collect[linear_idx]
+            @inbounds @views f_opt[id] = step_grid_search!(prob_copies[id], I, cur_x[id], x_argopt[id], f_opt[id], f_res; save_vals, minimise)
+        end
+    end
+    multithreaded_find_extrema_for_grid_search!(nt, f_opt, x_argopt, minimise)
+    return @inbounds grid_search_return_values(f_opt[1], x_argopt[1], f_res, save_vals)
+end
+
 """
-    grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false))
+    grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false), parallel=Val(false))
 
 For a given `grid` and function `f`, performs a grid search. 
 
@@ -212,24 +318,35 @@ For a given `grid` and function `f`, performs a grid search.
 - `grid::AbstractGrid`: The grid to use for optimising. 
 
 # Keyword Arguments 
-- `save_vals::V=Val(false)`: Whether to return a matrix with the function values. 
-- `minimise::M=Val(false)`: Whether to minimise or to maximise the function.
+- `save_vals=Val(false)`: Whether to return a matrix with the function values. 
+- `minimise=Val(false)`: Whether to minimise or to maximise the function.
+- `parallel=Val(false)`: Whether to run the grid search with multithreading.
 """
-grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false)) = grid_search(GridSearch(f, grid); save_vals, minimise)
+grid_search(f, grid::AbstractGrid, p=nothing; save_vals=Val(false), minimise=Val(false), parallel=Val(false)) = grid_search(GridSearch(f, grid, p); save_vals, minimise, parallel)
 
 """
-    grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false))
+    grid_search(prob::LikelihoodProblem, grid::AbstractGrid, parallel=Val(false); save_vals=Val(false))
 
 Given a `grid` and a likelihood problem `prob`, maximises it over the grid using a grid search. If 
-`save_vals==Val(true)`, then the likelihood function values at each gridpoint are returned.
+`save_vals==Val(true)`, then the likelihood function values at each gridpoint are returned. Set 
+`parallel=Val(true)` if you want multithreading.
 """
-function grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false))
-    gs = GridSearch(prob, grid)
+function grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false), parallel=Val(false))
+    if parallel == Val(false)
+        gs = GridSearch(prob, grid)
+    else # Don't put the full form below, with (f, g, p), since if f is a closure containing parameters that are aliased with p, we run into issues
+        gs = [GridSearch(deepcopy(prob), deepcopy(grid)) for _ in 1:Base.Threads.nthreads()]
+    end
     if save_vals == Val(false)
-        ℓ_max, θ_mle = grid_search(gs; minimise=Val(false), save_vals)
-        return LikelihoodSolution(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success)
+        ℓ_max, θ_mle = grid_search(gs; minimise=Val(false), save_vals, parallel)
+        return LikelihoodSolution{number_of_parameters(prob),
+            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
+            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success)
     else
-        ℓ_max, θ_mle, f_res = grid_search(gs; minimise=Val(false), save_vals)
-        return LikelihoodSolution(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success), f_res
+        ℓ_max, θ_mle, f_res = grid_search(gs; minimise=Val(false), save_vals, parallel)
+        return LikelihoodSolution{number_of_parameters(prob),
+            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
+            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success), f_res
     end
 end
+

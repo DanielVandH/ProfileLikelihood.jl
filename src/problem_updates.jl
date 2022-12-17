@@ -18,8 +18,15 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n, θ�
     original_f = prob.f
     new_f = @inline (θ, p) -> begin
         cache2 = get_tmp(cache, θ)
-        @views cache2[Not(n)] .= θ
-        cache2[n] = θₙ
+        for i in eachindex(cache2)
+            if i < n
+                cache2[i] = θ[i]
+            elseif i > n
+                cache2[i] = θ[i-1]
+            else
+                cache2[n] = θₙ
+            end
+        end
         return original_f(cache2, p)
     end
     return replace_objective_function(prob, new_f)

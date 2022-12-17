@@ -1,4 +1,4 @@
-abstract type AbstractLikelihoodProblem end
+abstract type AbstractLikelihoodProblem{N, L} end
 
 get_problem(prob::AbstractLikelihoodProblem) = prob.problem
 get_data(prob::AbstractLikelihoodProblem) = prob.data
@@ -23,7 +23,7 @@ finite_upper_bounds(prob) = has_upper_bounds(prob) && all(isfinite, get_upper_bo
 finite_bounds(prob) = finite_lower_bounds(prob) && finite_upper_bounds(prob)
 
 number_of_parameters(prob::OptimizationProblem) = length(prob.u0)
-number_of_parameters(prob::AbstractLikelihoodProblem) = number_of_parameters(get_problem(prob))
+number_of_parameters(::AbstractLikelihoodProblem{N, L}) where {N, L} = N
 
 Base.getindex(prob::AbstractLikelihoodProblem, i::Integer) = get_θ₀(prob, i)
 SciMLBase.sym_to_index(sym, prob::AbstractLikelihoodProblem) = SciMLBase.sym_to_index(sym, get_syms(prob))
@@ -44,12 +44,10 @@ function Base.getindex(prob::AbstractLikelihoodProblem, sym::AbstractVector{Symb
     return get_θ₀(prob, idx)
 end
 
-update_initial_estimate(prob::AbstractLikelihoodProblem, θ) = remake(prob; θ₀ = θ, problem = update_initial_estimate(get_problem(prob), θ))
-
 ######################################################
 ## AbstractLikelihoodSolution
 ######################################################
-abstract type AbstractLikelihoodSolution end
+abstract type AbstractLikelihoodSolution{N, P} end
 
 get_mle(sol::AbstractLikelihoodSolution) = sol.mle
 get_mle(sol::AbstractLikelihoodSolution, i) = sol.mle[i]
@@ -59,7 +57,7 @@ get_maximum(sol::AbstractLikelihoodSolution) = sol.maximum
 get_retcode(sol::AbstractLikelihoodSolution) = sol.retcode
 get_syms(sol::AbstractLikelihoodSolution) = get_syms(get_problem(sol))
 
-number_of_parameters(sol::AbstractLikelihoodSolution) = number_of_parameters(get_problem(sol))
+number_of_parameters(::AbstractLikelihoodSolution{N,P}) where {N,P}=N
 
 Base.getindex(sol::AbstractLikelihoodSolution, i::Integer) = get_mle(sol, i)
 SciMLBase.sym_to_index(sym, sol::AbstractLikelihoodSolution) = SciMLBase.sym_to_index(sym, get_syms(sol))
