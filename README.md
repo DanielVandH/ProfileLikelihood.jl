@@ -15,6 +15,8 @@
     - [Defining the LikelihoodProblem](#defining-the-likelihoodproblem)
     - [Parameter estimation](#parameter-estimation)
     - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
+  - [Propagating uncertainty into a function: exploiting transformation invariance](#propagating-uncertainty-into-a-function-exploiting-transformation-invariance)
+    - [The method in general](#the-method-in-general)
 
 This module defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
 
@@ -887,3 +889,10 @@ scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(p
 
 See that we've recovered the parameters in the confidence intervals, and the profiles are smooth -- the identifiability issues are gone. So, it seems like $c$ was the problematic parameter, since our summary statistic does not really give us any information about it. Our idea of using the summary statistic $\mathcal S(t)$ from above would likely ameliorate this issue, since it will give information directly relating to $c$.
 
+## Propagating uncertainty into a function: exploiting transformation invariance
+
+Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing confidence intervals for $\tilde M(t)$ at each $t$, using e.g. the methods outlined by [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367) or [Murphy et al. (2022)](https://doi.org/10.1098/rsif.2022.0560). Let us briefly outline the idea in general, and then applying it to our problem,
+
+### The method in general 
+
+Suppose we have a parameter $\boldsymbol\theta$
