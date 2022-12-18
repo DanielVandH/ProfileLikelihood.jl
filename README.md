@@ -1051,7 +1051,7 @@ Our method for computing prediction intervals follows [Simpson and Maclaren (202
 
 The idea is to take a set of profile likelihoods and the confidence intervals obtained from each, and then pushing those into a prediction function that we then use to obtain prediction intervals, making heavy use of the transformation invariance property of MLEs.
 
-So, let us start with some prediction function $q(\psi, \boldsymbol \omega)$, and recall that the profile likelihood function for $\psi$ induces a function $\boldsymbol\omega^*(\psi)$. The profile-wise likelihood for $q$, given the set of values $(\psi, \boldsymbol\omega^*(\psi))$, is defined by 
+So, let us start with some prediction function $q(\psi, \boldsymbol \omega)$, and recall that the profile likelihood function for $\psi$ induces a function $\boldsymbol\omega^{\star}(\psi)$. The profile-wise likelihood for $q$, given the set of values $(\psi, \boldsymbol\omega^{\star}(\psi))$, is defined by 
 
 $$ 
 \hat\ell_p\left(q\left(\psi, \boldsymbol\omega^{\star}(\psi)\right) = q\right) = \sup_{\psi \mid  q\left(\psi, \boldsymbol\omega^{\star}(\psi)\right) = q} \hat\ell_p(\psi). 
