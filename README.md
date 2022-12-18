@@ -426,7 +426,7 @@ For example, `parameter_wise[1]` comes from varying $\lambda$, with the paramete
 
 - `union_intervals`: These are prediction intervals at each point $t$ coming from taking the union of the intervals from the corresponding elements of `parameter_wise`.
 
-- `all_curves`: The intervals come from taking extrema over many curves. This is a `Dict` mapping parameter indices to the curves that were used, with `all_curves[i][j]` being the set of curves for the `i`th parameter (e.g. `i=1` is for $\lambda$) and the $j$th parameter.
+- `all_curves`: The intervals come from taking extrema over many curves. This is a `Dict` mapping parameter indices to the curves that were used, with `all_curves[i][j]` being the set of curves for the `i`th parameter (e.g. `i=1` is for $\lambda$) and the `j`th parameter.
 
 - `param_range`: The curves come from evaluating the prediction function between the bounds of the confidence intervals for each parameter, and this output gives the parameters used, so that e.g. `all_curves[i][j]` uses `param_range[i][j]` for the value of the `i`th parameter.
 
