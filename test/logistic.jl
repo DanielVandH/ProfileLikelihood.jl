@@ -120,7 +120,10 @@ function prediction_function(θ, data)
     return sol.u
 end
 t_many_pts = LinRange(extrema(t)..., 1000)
-parameter_wise, union_intervals, all_curves, param_range = get_prediction_intervals(prediction_function, prof, t_many_pts; q_type=Vector{Float64})
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(prediction_function, prof,
+        t_many_pts; q_type=Vector{Float64})
+# t_many_pts is the `data` argument, it doesn't have to be time for other problems
 
 # Get the exact solution and MLE solutions first for comparison 
 exact_soln = prediction_function([λ, K, u₀], t_many_pts)
