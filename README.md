@@ -5,6 +5,7 @@
   - [Defining the problem: LikelihoodProblem](#defining-the-problem-likelihoodproblem)
   - [Solving the problem: mle and LikelihoodSolution](#solving-the-problem-mle-and-likelihoodsolution)
   - [Profiling the parameters: profile and ProfileLikelihoodSolution](#profiling-the-parameters-profile-and-profilelikelihoodsolution)
+  - [Propagating uncertainty: Prediction intervals](#propagating-uncertainty-prediction-intervals)
 - [Examples](#examples)
   - [Multiple linear regression](#multiple-linear-regression)
   - [Logistic ordinary differential equation](#logistic-ordinary-differential-equation)
@@ -16,9 +17,10 @@
     - [Defining the LikelihoodProblem](#defining-the-likelihoodproblem)
     - [Parameter estimation](#parameter-estimation)
     - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
-  - [Propagating uncertainty into a function: exploiting transformation invariance](#propagating-uncertainty-into-a-function-exploiting-transformation-invariance)
-    - [The method in general](#the-method-in-general)
-    - [Applying the method](#applying-the-method)
+  - [Prediction intervals for the mass](#prediction-intervals-for-the-mass)
+- [Mathematical and Implementation Details](#mathematical-and-implementation-details)
+  - [Computing the profile likelihood function](#computing-the-profile-likelihood-function)
+  - [Computing prediction intervals](#computing-prediction-intervals)
 
 This module defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
 
@@ -29,6 +31,8 @@ This module defines the routines required for computing maximum likelihood estim
 From Wilk's theorem, we know that $2\hat{\ell}\_p(\boldsymbol\theta \mid \boldsymbol x) \geq -\chi_{p, 1-\alpha}^2$ is an approximate $100(1-\alpha)\%$ confidence region for $\boldsymbol \theta$, and this enables us to obtain confidence intervals for parameters by considering only their profile likelihood, where $\chi_{p,1-\alpha}^2$ is the $1-\alpha$ quantile of the $\chi_p^2$ distribution and $p$ is the length of $\boldsymbol\theta$. For the case of a scalar parameter of interest, $-\chi_{1, 0.95}^2 \approx -1.92$.
 
 We compute the profile log-likelihood in this package by starting at the MLE, and stepping left/right until we reach a given threshold. The code is iterative to not waste time in so much of the parameter space.
+
+More detail about the methods we use in this package is given at the very end in the Mathematical and Implementation Details section.
 
 # Interface
 
@@ -93,6 +97,10 @@ end
 Here, the parameter values used for each parameter are given in `parameter_values`, with parameter indices (or symbols) mapped to these values. Similarly, the values of the profile log-likelihood are stored in `profile_values`. We use a spline (see Interpolations.jl) to make the profile log-likelihood a continuous function, and these splines are given by `splines`. Next, the computed confidence intervals are given in `confidence_intervals`, with a confidence interval represented by a `ConfidenceInterval` struct. Lastly, since computing the profile log-likelihood function requires an optimisation problem with one variable fixed and the others free, we obtain for each profile log-likelihood value a set of optimised parameters -- these parameters are given in `other_mles`.
 
 If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `prof(0.5, 1)` to evaluate the profile log-likelihood function of the first parameter at the point `0.5`. Alternatively, `prof(0.7, :α)` does the same but for the parameter `:α` at the point `0.7`. You can also index `prof` at a specific index (or symbol) to see the results only for that parameter, e.g. `prof[1]` or `prof[:α]`; this returns a `ProfileLikelihoodSolutionView`.
+
+## Propagating uncertainty: Prediction intervals 
+
+The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example below (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
 
 # Examples 
 
@@ -998,29 +1006,63 @@ scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(p
 
 See that we've recovered the parameters in the confidence intervals, and the profiles are smooth -- the identifiability issues are gone. So, it seems like $c$ was the problematic parameter, since our summary statistic does not really give us any information about it. Our idea of using the summary statistic $\mathcal S(t)$ from above would likely ameliorate this issue, since it will give information directly relating to $c$.
 
-## Propagating uncertainty into a function: exploiting transformation invariance
+## Prediction intervals for the mass
 
-Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing confidence intervals for $\tilde M(t)$ at each $t$, using e.g. the methods outlined by [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367) or [Murphy et al. (2022)](https://doi.org/10.1098/rsif.2022.0560). Let us briefly outline the idea in general, following Section 2.2.3 of Simpson and Maclaren (2022) above, and then applying it to our problem,
+Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing prediction intervals for $\tilde M(t)$ at each $t$. This is done using the `get_prediction_intervals` function introduced in the second example. First, we must define our prediction function.
 
-### The method in general 
 
-Suppose we have a parameter $\boldsymbol\theta$ that we partition as $(\boldsymbol\psi, \boldsymbol\omega)$. When we compute the profile log-likelihood, 
+
+
+
+
+
+
+# Mathematical and Implementation Details
+
+We now give some of the mathematical and implementation details used in this package, namely for computing the profile likelihood function and for computing prediction intervals.
+
+## Computing the profile likelihood function 
+
+Let us start by giving a mathematical description of the method that we use for computing the profile log-likelihood function. Suppose that we have a parameter vector $\boldsymbol\theta$ that we partition as $\boldsymbol \theta = (\psi, \boldsymbol \omega)$ ($\psi$ is a scalar in this description, since we only support univariate profiles currently). We suppose that we have a likelihood function $\mathcal L(\boldsymbol \theta) \equiv \mathcal L(\psi, \boldsymbol \omega)$ so that the normalised profile log-likelihood function for $\psi$ is defined as 
 
 $$ 
-\hat\ell_p(\boldsymbol\psi) = \sup_{\boldsymbol\omega \mid \boldsymbol \psi} \hat\ell(\boldsymbol\psi, \boldsymbol\omega),
-$$
-
-each fixed value of the interest parameter $\boldsymbol\psi$ induces a set of values $\boldsymbol \omega^*(\boldsymbol\psi)$ that give the supremum above. In particular, the profile log-likelihood defines a surface $(\boldsymbol \psi, \boldsymbol\omega^*(\boldsymbol\psi))$ in our parameter space $\Psi \cup \Omega$. 
-
-We suppose we have some prediction function $\phi(\boldsymbol\theta) \equiv \phi(\boldsymbol\psi, \boldsymbol \omega)$ that we want to propagate the uncertainty from our individual parameters into. We then take the set of parameters $(\boldsymbol \psi, \boldsymbol\omega^*(\boldsymbol \psi))$ and evaluate $q(\boldsymbol\psi, \boldsymbol\omega^*(\boldsymbol\psi))$ at each point in the set. We then define the approximate *profile-wise likelihood* by maximising the profile likelihood over all $\boldsymbol \psi$ values consistent with $\phi$: 
-
-$$ 
-\hat\ell_p\left(\phi\left(\boldsymbol \psi, \boldsymbol \omega^*(\boldsymbol \psi)\right)\right) = \sup_{\boldsymbol \psi \mid \phi\left(\boldsymbol \psi, \boldsymbol \omega^*(\boldsymbol \psi)\right) = \phi} \hat\ell_p(\boldsymbol \psi). 
+\hat\ell_p(\psi) = \sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^*\right],
 $$ 
 
-This is similar to how the profile likelihood is constructed from the likelihood, except now the profile-wise likelihood is built from the profile likelihood. Since we are just considering univariate profiles, and assuming that $\phi$ is an injective function in $\boldsymbol \psi$, this profile-wise likelihood is simply the profile likelihood at $\boldsymbol \psi$. We can use this function to find confidence intervals for $\phi$. Note that this is just for a single parameter, but we would apply for this for multiple parameter's profiles, and then take the union of the resulting intervals.
+where $\Omega$ is the parameter space for $\boldsymbol \omega$, $\ell(\psi,\boldsymbol\omega) = \mathcal L(\psi, \boldsymbol \omega)$, and $\ell^* = \ell(\hat{\boldsymbol \theta})$, where $\boldsymbol \theta$ are the MLEs for $\boldsymbol \theta$. This definition of $\hat\ell_p(\psi)$ induces a function $\boldsymbol\omega^*(\psi)$ depending on $\psi$ that gives the values of $\boldsymbol \omega$ leading to the supremum above, i.e. 
 
-### Applying the method 
+$$ 
+\sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^*\right] = \ell(\psi, \boldsymbol\omega^*(\psi)). 
+$$ 
 
-Let us now apply the method.
+To compute $\hat\ell_p(\psi)$, then, requires a way to efficiently compute the $\omega^*(\psi)$, and requires knowing where to stop computing. Where we stop computing the profile likelihood is simply when $\hat\ell_p(\psi) < -\chi_{1,1-\alpha}^2/2$, where $\alpha$ is the significance level (e.g. $\alpha=0.05$, in which case $\chi_{1,1-0.05}^2/2 \approx 1.92$). This motivates a iterative algorithm, where we start at the MLE and then step left and right.
 
+We describe how we evaluate the function to the right of the MLE -- the case of going to the left is identical. First, we define $\psi_1 = \hat\psi$, where $\hat\psi$ is the MLE for $\psi$. This defines $\boldsymbol\omega_1 = \boldsymbol\omega^*(\psi_1)$, which in this case just gives the MLE $\hat{\boldsymbol\theta} = (\hat\psi, \boldsymbol\omega_1)$ by definition. The value of the normalised profile log-likelihood here is simply $\hat\ell_1 = \hat\ell(\psi_1) = 0$. Then, defining some step size $\Delta\psi$, we define $\psi_2 = \psi_1 + \Delta \psi$, and in general $\psi_{j+1} = \psi_j + \Delta \psi$, we need to estimate $\boldsymbol\omega_2 = \boldsymbol \omega^*(\psi)$. We do this by starting an optimiser at the initial estimate $\boldsymbol\omega_2 = \boldsymbol\omega_1$ and then using this initial estimate to produce a refined value of $\boldsymbol\omega_2$ that we take as its true value. In particular, each $\boldsymbol\omega_j$ comes from starting the optimiser at the previous $\boldsymbol\omega_{j-1}$, and the value for $\hat\ell_j = \hat\ell(\psi_j)$ comes from the value of the likelihood at $(\psi_j, \boldsymbol\omega_j)$. The same holds when going to the left except with $\hat\ell_{j+1} = \psi_j - \Delta\psi$, and then rearranging the indices $j$ when combining the results to the left and to the right.  At each step, we check if $\hat\ell_j < -\chi_{1,1-\alpha}^2/2$ and, if so, we terminate. 
+
+Once we have terminated the algorithm, we need to obtain the confidence intervals. To do this, we fit a spline to the data $(\psi_j, \hat\ell_j)$, and use a bisection algorithm over the two intervals $(\min_j \psi_j, \hat\psi)$ and $(\hat\psi, \max_j\psi_j)$, to find where $\hat\ell_j = -\chi_{1-\alpha}^2/2$. This leads to two solutions $(L, U)$ that we take together to give the confidence interval for $\psi$. 
+
+This is all done for each parameter.
+
+Note that a better method for initialising the optimisation for $\boldsymbol\omega_j$ may be to use e.g. linear interpolation for the previous two values, $\boldsymbol\omega_{j-1}$ and $\boldsymbol\omega_{j-2}$ (with special care for the bounds of the parameters), but this is not done in this package (yet?).
+
+## Computing prediction intervals
+
+Our method for computing prediction intervals follows [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), as does our description that follows. This method is nice as it provides a means for sensitivity analysis, enabling the attribution of components of uncertainty in some prediction function $q(\psi, \boldsymbol \omega)$ (with $\psi$ the interest parameter and $\boldsymbol\omega$ the nuisance parameters as above) to individual parameters. The resulting intervals are called *profile-wise intervals*, with the predictions themselves called *parameter-based, profile-wise predictions* or *profile-wise predictions*.
+
+The idea is to take a set of profile likelihoods and the confidence intervals obtained from each, and then pushing those into a prediction function that we then use to obtain prediction intervals, making heavy use of the transformation invariance property of MLEs.
+
+So, let us start with some prediction function $q(\psi, \boldsymbol \omega)$, and recall that the profile likelihood function for $\psi$ induces a function $\boldsymbol\omega^*(\psi)$. The profile-wise likelihood for $q$, given the set of values $(\psi, \boldsymbol\omega^*(\psi))$, is defined by 
+
+$$ 
+\hat\ell_p\left(q\left(\psi, \boldsymbol\omega^*(\psi)\right) = q\right) = \sup_{\psi \mid  q\left(\psi, \boldsymbol\omega^*(\psi)\right) = q} \hat\ell_p(\psi). 
+$$ 
+
+Note that if $q(\psi, \boldsymbol\omega^*(\psi))$ is injective, there is only one such $\psi$ such that $q\left(\psi, \boldsymbol\omega^*(\psi)\right) = q'$ for any given $q'$ in which case the profile-wise likelihood for $q$ (based on $\psi$) is simply $\hat\ell_p(\psi)$. This definition is intuitive, recalling that the profile likelihood comes from a definition like the above except with the likelihood function on the right, so profile-wise likelihoods come from profile likelihoods.  Using this definition, and using the transformation invariance property of the MLE, confidence sets for $\psi$ directly translate into confidence sets for $q$, in particular to find a $100(1-\alpha)%$ prediction intervals for $q$ we need only evaluate $q$ for $\psi$ inside its confidence interval.
+
+Let us now describe the extra details involved in obtaining these prediction intervals, in particular what we are doing in the `get_prediction_intervals` function. For this, we imagine that $q$ is scalar valued, but the description below can be easily extended to the vector case (just apply the idea to each component -- see the logistic ODE example). We also only explain this for a single parameter $\psi$, but we describe how we use the results for each parameter to obtain a more conservative interval.
+
+The first step is to evaluate the family of curves. If we suppose that the confidence interval for $\psi$ is $(\psi_L, \psi_U)$, we define $\psi_j = \psi_L + (j-1)(\psi_U - \psi_L)(n_\psi - 1)$, $j=1,\ldots,n_\psi$ -- this is a set of $n_\psi$ equally spaced points between the interval limits. For each $\psi_j$ we need to then compute $\boldsymbol\omega^*(\psi_j)$. Rather than re-optimise, we use the data from our profile likelihoods, where we have stored values for $(\psi, \boldsymbol\omega^*(\psi))$ to define a continuous function $\boldsymbol\omega^*(\psi)$ via linear interpolation. Using this linear interpolant we can thus compute $\boldsymbol\omega^*(\psi_j)$ for each gridpoint $\psi_j$. We can therefore compute $\boldsymbol\theta_j = (\psi_j, \boldsymbol\omega^*(\psi_j))$ so that we can evaluate the prediction function at each $\psi_j$, $q_j = q(\boldsymbol\theta_j)$. 
+
+We now have a sample $\{q_1, \ldots, q_{n_\psi}\}$. If we let $q_L = \min_{j=1}^{n_\psi} q_j$ and $q_U = \max_{j=1}^{n_\psi} q_j$, then our prediction interval is $(q_L, q_U)$. To be more specific, this is the profile-wise interval for $q$ given the basis $(\psi, \boldsymbol\omega^*(\psi))$.
+
+We have now described how prediction intervals are obtained gased on a single parameter. Suppose we do this for a collection of parameters $\{\psi^1, \ldots, \psi^d\}$ (e.g. if $\boldsymbol\theta = (D, \lambda, K)$, then we might have computed profiles for $\psi^1=D$, $\psi^2=\lambda$, and $\psi^3=K$), giving $d$ different intervals for each $\psi^i$, say $\{(q_L^i, q_U^i)\}_{i=1}^d$. We can take the union of these intervals to get a more conservative interval for the prediction, giving the new interval $(\min_{i=1}^d q_L^i, \max_{i=1}^d q_U^i)$.
