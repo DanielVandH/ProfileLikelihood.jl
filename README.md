@@ -17,7 +17,7 @@
     - [Defining the LikelihoodProblem](#defining-the-likelihoodproblem)
     - [Parameter estimation](#parameter-estimation)
     - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
-  - [Prediction intervals for the mass](#prediction-intervals-for-the-mass)
+    - [Prediction intervals for the mass](#prediction-intervals-for-the-mass)
 - [Mathematical and Implementation Details](#mathematical-and-implementation-details)
   - [Computing the profile likelihood function](#computing-the-profile-likelihood-function)
   - [Computing prediction intervals](#computing-prediction-intervals)
@@ -101,6 +101,8 @@ If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `p
 ## Propagating uncertainty: Prediction intervals 
 
 The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example below (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
+
+The interface we use in `get_prediction_intervals` is not too refined currently, and is most subject to change. It works for now, but I will probably make it be more generally about predictions of vector quantities, assuming a function that returns a tuple of quantities, rather than having to deal with the case of scalar vs vector vs whatever else quantities. Ideally the interface should more easily support multithreading, and the code is not the cleanest to read either. Suggestions for this interface are especially welcome.
 
 # Examples 
 
@@ -492,7 +494,7 @@ lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)
 
 ![Logistic prediction intervals](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example_prediction.png?raw=true)
 
-The first plot shows that the profile-wise prediction interval for $\lambda$ is quite large when $t$ is small, and then small for large time. This makes sense since the large time solution is independent of $\lambda$ (the large time solution is $u_s(t)=K$). For $K$, we see that the profile-wise interval only becomes large for large time, which again makes sense. For $u_0$ we see similar behaviour as for $\lambda$. Finally, taking the union over all the nitervals, as is done in (d), shows that we fully enclose the solution coming from the MLE, as well as the true curve. The magenta curve shows the results from the full likelihood function, and is reasonably close to the approximate interval obtained from the union.
+The first plot shows that the profile-wise prediction interval for $\lambda$ is quite large when $t$ is small, and then small for large time. This makes sense since the large time solution is independent of $\lambda$ (the large time solution is $u_s(t)=K$). For $K$, we see that the profile-wise interval only becomes large for large time, which again makes sense. For $u_0$ we see similar behaviour as for $\lambda$. Finally, taking the union over all the intervals, as is done in (d), shows that we fully enclose the solution coming from the MLE, as well as the true curve. The magenta curve shows the results from the full likelihood function, and is reasonably close to the approximate interval obtained from the union.
 
 ## Linear exponential ODE and grid searching
 
@@ -1006,16 +1008,87 @@ scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(p
 
 See that we've recovered the parameters in the confidence intervals, and the profiles are smooth -- the identifiability issues are gone. So, it seems like $c$ was the problematic parameter, since our summary statistic does not really give us any information about it. Our idea of using the summary statistic $\mathcal S(t)$ from above would likely ameliorate this issue, since it will give information directly relating to $c$.
 
-## Prediction intervals for the mass
+### Prediction intervals for the mass
 
 Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing prediction intervals for $\tilde M(t)$ at each $t$. This is done using the `get_prediction_intervals` function introduced in the second example. First, we must define our prediction function.
 
+```julia
+@inline function compute_mass_function(θ::AbstractVector{T}, data) where {T}
+    k, u₀ = θ
+    (; c, prob, t, alg, jac) = data
+    prob.flux_parameters[1] = k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ c ? u₀ : zero(T)
+    end
+    sol = solve(prob, alg; saveat=t, parallel=true, jac_prototype=jac)
+    shape_cache = zeros(T, 3)
+    mass_cache = zeros(T, length(sol.u))
+    compute_mass!(mass_cache, shape_cache, sol, prob)
+    return mass_cache
+end
+```
 
+Now let's get the intervals.
+```julia
+t_many_pts = LinRange(prob.initial_time, prob.final_time, 250)
+jac = FiniteVolumeMethod.jacobian_sparsity(prob)
+prediction_data = (c=c, prob=prob, t=t_many_pts, alg=alg, jac=jac)
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(compute_mass_function, prof, prediction_data; q_type=Vector{Float64})
+```
 
+Now we can visualise the curves. We will also show the mass curve from the exact parameter values, as well as from the MLE. 
 
+```julia
+exact_soln = compute_mass_function([k[1], u₀], prediction_data)
+mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
+fig = Figure(fontsize=38, resolution=(1360.512f0, 848.64404f0))
+alp = join('a':'z')
+latex_names = [L"k", L"u_0"]
+for i in 1:2
+    ax = Axis(fig[1, i], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black)
+end
+ax = Axis(fig[2, 1:2], title=L"(c):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+```
 
+Let us also add onto these plots the intervals coming from the full likelihood. (The reason to just not do this everytime in applications is because the code below takes a *very* long time to compute - a lifetime compared to the profile-wise intervals above.)
 
+```julia
+lb = [8.0, 45.0]
+ub = [11.0, 50.0]
+N = 1e4
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:2]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(likprob_2, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(mle_sol) # normalised 
+feasible_idx = findall(lik_vals .> ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [compute_mass_function(θ, prediction_data) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |> vec
+q_upr = maximum(q_mat; dims=2) |> vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta)
+lines!(ax, t_many_pts, q_upr, color=:magenta)
+```
 
+![Prediction intervals for the mass](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_example_mass.png?raw=true)
+
+The exact curve has been recovered by our profile likelihood results, and the uncertainty is extremely small. Moreover, the intervals are indeed close to the interval obtained the full profile likelihood as we would hope.
 
 # Mathematical and Implementation Details
 

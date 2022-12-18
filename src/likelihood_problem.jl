@@ -1,5 +1,5 @@
 """
-    struct LikelihoodProblem{P,D,L,Θ,N} <: AbstractLikelihoodProblem
+    struct LikelihoodProblem{N,P,D,L,Θ,S} <: AbstractLikelihoodProblem
 
 Struct representing a likelihood problem. 
 
@@ -8,7 +8,9 @@ Struct representing a likelihood problem.
 - `data::D`: The argument `p` used in the log-likelihood function. 
 - `log_likelihood_function::L`: The log-likelihood function, taking the form `ℓ(θ, p)`.
 - `θ₀::Θ`: Initial estimates for the MLE `θ`.
-- `syms::N`: Variable names for the parameters.
+- `syms::S`: Variable names for the parameters.
+
+The extra parameter `N` is the number of parameters.
 """
 Base.@kwdef struct LikelihoodProblem{N,P,D,L,Θ,S} <: AbstractLikelihoodProblem{N,L}
     problem::P

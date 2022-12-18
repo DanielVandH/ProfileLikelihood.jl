@@ -65,6 +65,38 @@ end
 
 SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 
+"""
+    plot_profiles(prof::ProfileLikelihoodSolution, vars = profiled_parameters(prof); 
+        ncol=nothing, 
+        nrow=nothing,
+        true_vals=Dict(vars .=> nothing), 
+        spline=true, 
+        show_mles=true, 
+        shade_ci=true, 
+        fig_kwargs=nothing, 
+        axis_kwargs=nothing,
+        latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
+     
+Plot results from a profile likelihood solution `prof`.
+
+# Arguments 
+- `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`prof`](@ref).
+- `vars = profiled_parameters(prof)`: The parameters to plot.
+
+# Keyword Arguments 
+- `ncol=nothing`: The number of columns to use. If `nothing`, chosen automatically via [`choose_grid_layout`](@ref).
+- `nrow=nothing`: The number of rows to use. If `nothing`, chosen automatically via [`choose_grid_layout`](@ref).
+- `true_vals=Dict(vars .=> nothing)`: A dictionary mapping parameter indices to their true values, if they exist. If `nothing`, nothing is plotted, otherwise a black line is plotted at the true value for the profile. 
+- `spline=true`: Whether the curve plotted should come from a spline through the results, or if the data itself should be plotted. 
+- `show_mles=true`: Whether to put a red line at the MLEs. 
+- `shade_ci=true`: Whether to shade the area under the profile between the confidence interval.
+- `fig_kwargs=nothing`: Extra keyword arguments for `Figure` (see the Makie docs).
+- `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
+- `latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
+
+# Output 
+The `Figure()` is returned.
+"""
 function plot_profiles(prof::ProfileLikelihoodSolution, vars = profiled_parameters(prof); 
     ncol=nothing, 
     nrow=nothing,

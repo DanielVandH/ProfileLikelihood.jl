@@ -154,6 +154,105 @@ eval_function(f::FunctionWrappers.FunctionWrapper{T,Tuple{A,P}}, x, p) where {T,
 eval_function(prob::GridSearch, x) = eval_function(get_function(prob), x, get_parameters(prob))
 number_of_parameters(prob::GridSearch) = number_of_parameters(get_grid(prob))
 
+
+"""
+    grid_search(prob; save_vals=Val(false), minimise:=Val(false), parallel=Val(false))
+
+Performs a grid search for the given grid search problem `prob`.
+
+# Arguments 
+- `prob::GridSearch{F, G}`: The grid search problem.
+
+# Keyword Arguments 
+- `save_vals:=Val(false)`: Whether to return a array with the function values. 
+- `minimise:=Val(false)`: Whether to minimise or to maximise the function.
+- `parallel:=Val(false)`: Whether to run the grid search with multithreading.
+
+# Outputs 
+- `f_opt`: The optimal objective value. 
+- `x_argopt`: The parameter that gave `f_opt`.
+- `f_res`: If `save_vals==Val(true)`, then this is the array of function values.
+"""
+@inline function grid_search(prob::P; save_vals::V=Val(false), minimise::M=Val(false), parallel::T=Val(false)) where {P,V,M,T}
+    if parallel == Val(false)
+        return grid_search_serial(prob, save_vals, minimise)
+    else
+        return grid_search_parallel(prob, save_vals, minimise)
+    end
+end
+
+function grid_search_serial(prob, save_vals, minimise)
+    f_opt, x_argopt, cur_x, grid_iterator, f_res = setup_grid_search_serial(prob; save_vals, minimise)
+    for I in grid_iterator
+        f_opt = step_grid_search!(prob, I, cur_x, x_argopt, f_opt, f_res; save_vals, minimise)
+    end
+    return grid_search_return_values(f_opt, x_argopt, f_res, save_vals)
+end
+function grid_search_parallel(prob, save_vals, minimise)
+    nt = Base.Threads.nthreads()
+    prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res = setup_grid_search_parallel(prob; save_vals, minimise)
+    Base.Threads.@threads for (cart_idx_range, id) in chunked_grid   
+        for linear_idx in cart_idx_range
+            I = @inbounds grid_iterator_collect[linear_idx]
+            @inbounds @views f_opt[id] = step_grid_search!(prob_copies[id], I, cur_x[id], x_argopt[id], f_opt[id], f_res; save_vals, minimise)
+        end
+    end
+    multithreaded_find_extrema_for_grid_search!(nt, f_opt, x_argopt, minimise)
+    return @inbounds grid_search_return_values(f_opt[1], x_argopt[1], f_res, save_vals)
+end
+
+"""
+    grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false), parallel=Val(false))
+
+For a given `grid` and function `f`, performs a grid search. 
+
+# Arguments 
+- `f`: The function to optimise. 
+- `grid::AbstractGrid`: The grid to use for optimising. 
+
+# Keyword Arguments 
+- `save_vals=Val(false)`: Whether to return a array with the function values. 
+- `minimise=Val(false)`: Whether to minimise or to maximise the function.
+- `parallel=Val(false)`: Whether to run the grid search with multithreading.
+"""
+grid_search(f, grid::AbstractGrid, p=nothing; save_vals=Val(false), minimise=Val(false), parallel=Val(false)) = grid_search(GridSearch(f, grid, p); save_vals, minimise, parallel)
+
+"""
+    grid_search(prob::LikelihoodProblem, grid::AbstractGrid, parallel=Val(false); save_vals=Val(false))
+
+Given a `grid` and a likelihood problem `prob`, maximises it over the grid using a grid search. If 
+`save_vals==Val(true)`, then the likelihood function values at each gridpoint are returned. Set 
+`parallel=Val(true)` if you want multithreading.
+"""
+function grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false), parallel=Val(false))
+    if parallel == Val(false)
+        gs = GridSearch(prob, grid)
+    else # Don't put the full form below, with (f, g, p), since if f is a closure containing parameters that are aliased with p, we run into issues
+        gs = [GridSearch(deepcopy(prob), deepcopy(grid)) for _ in 1:Base.Threads.nthreads()]
+    end
+    if save_vals == Val(false)
+        ℓ_max, θ_mle = grid_search(gs; minimise=Val(false), save_vals, parallel)
+        return LikelihoodSolution{number_of_parameters(prob),
+            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
+            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success)
+    else
+        ℓ_max, θ_mle, f_res = grid_search(gs; minimise=Val(false), save_vals, parallel)
+        return LikelihoodSolution{number_of_parameters(prob),
+            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
+            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success), f_res
+    end
+end
+
+@inline function step_grid_search!(prob::G, I, cur_x, x_argopt, f_opt, f_res; save_vals::V=Val(false), minimise::M=Val(false)) where {G,V,M}
+    get_parameters!(cur_x, get_grid(prob), I)
+    f_val = eval_function(prob, cur_x)
+    f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
+    if V == Val{true}
+        @inbounds f_res[I] = f_val
+    end
+    return f_opt
+end
+
 function prepare_grid(grid::RegularGrid)
     T = number_type(grid)
     N = number_of_parameters(grid)
@@ -233,16 +332,6 @@ end
     end
 end
 
-@inline function step_grid_search!(prob::G, I, cur_x, x_argopt, f_opt, f_res; save_vals::V=Val(false), minimise::M=Val(false)) where {G,V,M}
-    get_parameters!(cur_x, get_grid(prob), I)
-    f_val = eval_function(prob, cur_x)
-    f_opt = update_extremum!(x_argopt, f_val, cur_x, f_opt; minimise)
-    if V == Val{true}
-        @inbounds f_res[I] = f_val
-    end
-    return f_opt
-end
-
 @inline function multithreaded_find_extrema_for_grid_search!(nt, f_opt, x_argopt, minimise)
     for i in 2:nt
         if minimise == Val(false)
@@ -262,92 +351,3 @@ end
 
 @inline grid_search_return_values(f_opt, x_argopt, f_res, V::Val{false}) = f_opt, x_argopt
 @inline grid_search_return_values(f_opt, x_argopt, f_res, V::Val{true}) = f_opt, x_argopt, f_res
-
-"""
-    grid_search(prob; save_vals=Val(false), minimise:=Val(false), parallel=Val(false))
-
-Performs a grid search for the given grid search problem `prob`.
-
-# Arguments 
-- `prob::GridSearch{F, G}`: The grid search problem.
-
-# Keyword Arguments 
-- `save_vals:=Val(false)`: Whether to return a matrix with the function values. 
-- `minimise:=Val(false)`: Whether to minimise or to maximise the function.
-- `parallel:=Val(false)`: Whether to run the grid search with multithreading.
-
-# Outputs 
-- `f_opt`: The optimal objective value. 
-- `x_argopt`: The parameter that gave `f_opt`.
-- `f_res`: If `save_vals==Val(true)`, then this is the matrix of function values.
-"""
-@inline function grid_search(prob::P; save_vals::V=Val(false), minimise::M=Val(false), parallel::T=Val(false)) where {P,V,M,T}
-    if parallel == Val(false)
-        return grid_search_serial(prob, save_vals, minimise)
-    else
-        return grid_search_parallel(prob, save_vals, minimise)
-    end
-end
-
-function grid_search_serial(prob, save_vals, minimise)
-    f_opt, x_argopt, cur_x, grid_iterator, f_res = setup_grid_search_serial(prob; save_vals, minimise)
-    for I in grid_iterator
-        f_opt = step_grid_search!(prob, I, cur_x, x_argopt, f_opt, f_res; save_vals, minimise)
-    end
-    return grid_search_return_values(f_opt, x_argopt, f_res, save_vals)
-end
-function grid_search_parallel(prob, save_vals, minimise)
-    nt = Base.Threads.nthreads()
-    prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res = setup_grid_search_parallel(prob; save_vals, minimise)
-    Base.Threads.@threads for (cart_idx_range, id) in chunked_grid    #=@inbounds Base.Threads.@threads=#
-        for linear_idx in cart_idx_range
-            I = @inbounds grid_iterator_collect[linear_idx]
-            @inbounds @views f_opt[id] = step_grid_search!(prob_copies[id], I, cur_x[id], x_argopt[id], f_opt[id], f_res; save_vals, minimise)
-        end
-    end
-    multithreaded_find_extrema_for_grid_search!(nt, f_opt, x_argopt, minimise)
-    return @inbounds grid_search_return_values(f_opt[1], x_argopt[1], f_res, save_vals)
-end
-
-"""
-    grid_search(f, grid::AbstractGrid; save_vals=Val(false), minimise=Val(false), parallel=Val(false))
-
-For a given `grid` and function `f`, performs a grid search. 
-
-# Arguments 
-- `f`: The function to optimise. 
-- `grid::AbstractGrid`: The grid to use for optimising. 
-
-# Keyword Arguments 
-- `save_vals=Val(false)`: Whether to return a matrix with the function values. 
-- `minimise=Val(false)`: Whether to minimise or to maximise the function.
-- `parallel=Val(false)`: Whether to run the grid search with multithreading.
-"""
-grid_search(f, grid::AbstractGrid, p=nothing; save_vals=Val(false), minimise=Val(false), parallel=Val(false)) = grid_search(GridSearch(f, grid, p); save_vals, minimise, parallel)
-
-"""
-    grid_search(prob::LikelihoodProblem, grid::AbstractGrid, parallel=Val(false); save_vals=Val(false))
-
-Given a `grid` and a likelihood problem `prob`, maximises it over the grid using a grid search. If 
-`save_vals==Val(true)`, then the likelihood function values at each gridpoint are returned. Set 
-`parallel=Val(true)` if you want multithreading.
-"""
-function grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false), parallel=Val(false))
-    if parallel == Val(false)
-        gs = GridSearch(prob, grid)
-    else # Don't put the full form below, with (f, g, p), since if f is a closure containing parameters that are aliased with p, we run into issues
-        gs = [GridSearch(deepcopy(prob), deepcopy(grid)) for _ in 1:Base.Threads.nthreads()]
-    end
-    if save_vals == Val(false)
-        ℓ_max, θ_mle = grid_search(gs; minimise=Val(false), save_vals, parallel)
-        return LikelihoodSolution{number_of_parameters(prob),
-            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
-            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success)
-    else
-        ℓ_max, θ_mle, f_res = grid_search(gs; minimise=Val(false), save_vals, parallel)
-        return LikelihoodSolution{number_of_parameters(prob),
-            typeof(θ_mle),typeof(prob),typeof(ℓ_max),
-            typeof(SciMLBase.ReturnCode.Success),Symbol}(θ_mle, prob, :GridSearch, ℓ_max, SciMLBase.ReturnCode.Success), f_res
-    end
-end
-

@@ -1,3 +1,9 @@
+"""
+    abstract type AbstractLikelihoodProblem{N, L}
+
+Abstract type of a likelihood problem, where `N` is the number of parameters and 
+`L` is the type of the likelihood function.
+"""
 abstract type AbstractLikelihoodProblem{N, L} end
 
 get_problem(prob::AbstractLikelihoodProblem) = prob.problem
@@ -47,6 +53,12 @@ end
 ######################################################
 ## AbstractLikelihoodSolution
 ######################################################
+"""
+    abstract type AbstractLikelihoodSolution{N, P}
+
+Type representing the solution to a likelihood problem, where `N` is the 
+number of parameters and `P` is the type of the problem.
+"""
 abstract type AbstractLikelihoodSolution{N, P} end
 
 get_mle(sol::AbstractLikelihoodSolution) = sol.mle
@@ -83,6 +95,12 @@ update_initial_estimate(prob::AbstractLikelihoodProblem, sol::AbstractLikelihood
 ######################################################
 ## AbstractGrid
 ######################################################
+"""
+    abstract type AbstractGrid{N,B,T}
+
+Type representing a grid, where `N` is the number of parameters, `B` is the type for the 
+bounds, and `T` is the number type.
+"""
 abstract type AbstractGrid{N,B,T} end
 
 @inline get_lower_bounds(grid::AbstractGrid) = grid.lower_bounds

@@ -237,3 +237,66 @@ scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
 SAVE_FIGURE && save("figures/heat_pde_example_2.png", fig)
 
+## Prediction interval for mass 
+@inline function compute_mass_function(θ::AbstractVector{T}, data) where {T}
+    k, u₀ = θ
+    (; c, prob, t, alg, jac) = data
+    prob.flux_parameters[1] = k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ c ? u₀ : zero(T)
+    end
+    sol = solve(prob, alg; saveat=t, parallel=true, jac_prototype=jac)
+    shape_cache = zeros(T, 3)
+    mass_cache = zeros(T, length(sol.u))
+    compute_mass!(mass_cache, shape_cache, sol, prob)
+    return mass_cache
+end
+t_many_pts = LinRange(prob.initial_time, prob.final_time, 250)
+jac = FiniteVolumeMethod.jacobian_sparsity(prob)
+prediction_data = (c=c, prob=prob, t=t_many_pts, alg=alg, jac=jac)
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(compute_mass_function, prof, prediction_data; q_type=Vector{Float64})
+
+exact_soln = compute_mass_function([k[1], u₀], prediction_data)
+mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
+
+fig = Figure(fontsize=38, resolution=(1360.512f0, 848.64404f0))
+alp = join('a':'z')
+latex_names = [L"k", L"u_0"]
+for i in 1:2
+    ax = Axis(fig[1, i], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black)
+end
+ax = Axis(fig[2, 1:2], title=L"(c):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+
+lb = [8.0, 45.0]
+ub = [11.0, 50.0]
+N = 1e4
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:2]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(likprob_2, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(mle_sol) # normalised 
+feasible_idx = findall(lik_vals .> ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [compute_mass_function(θ, prediction_data) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |> vec
+q_upr = maximum(q_mat; dims=2) |> vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta)
+lines!(ax, t_many_pts, q_upr, color=:magenta)
+
+SAVE_FIGURE && save("figures/heat_pde_example_mass.png", fig)

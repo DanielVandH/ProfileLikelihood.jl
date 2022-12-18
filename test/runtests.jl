@@ -26,6 +26,7 @@ using Base.Threads
 using LoopVectorization
 const PL = ProfileLikelihood
 global SAVE_FIGURE = false
+const RUN_EXAMPLE_4 = false
 
 include("templates.jl")
 @testset "Utilities" begin
@@ -67,6 +68,8 @@ end
 @testset "Example III: Linear Exponential" begin
     include("linear_exponential_example.jl")
 end
-@testset "Example IV: Heat Equation" begin
-    include("heat_equation_example.jl")
+if RUN_EXAMPLE_4
+    @testset "Example IV: Heat Equation" begin
+        include("heat_equation_example.jl")
+    end
 end
