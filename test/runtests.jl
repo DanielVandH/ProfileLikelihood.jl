@@ -1,37 +1,69 @@
-using Test
-using CairoMakie
-using LinearAlgebra
-using Random
-import PreallocationTools: dualcache
 using ProfileLikelihood
+using Test
+using FiniteDiff
+using Optimization
+using OrdinaryDiffEq
+using OptimizationNLopt
+using OptimizationBBO
+using Optimization: OptimizationProblem
+using FunctionWrappers
+using LinearAlgebra
+using PreallocationTools
+using Interpolations
+using InvertedIndices
+using Random
+using Distributions
+using OptimizationOptimJL
+using CairoMakie
+using LaTeXStrings
+using LatinHypercubeSampling
+using FiniteVolumeMethod
+using DelaunayTriangulation
+using LinearSolve
+using SciMLBase
+using MuladdMacro
+using Base.Threads
+using LoopVectorization
+const PL = ProfileLikelihood
+global SAVE_FIGURE = false
 
-const bounds = ProfileLikelihood.bounds
-
-include("template_functions.jl")
-@testset "Regression" begin
-    include("regression.jl")
+include("templates.jl")
+@testset "Utilities" begin
+    include("utils.jl")
 end
-@testset "Linear exponential ODE" begin
-    include("linear_exponential_ode.jl")
+@testset "Problem updates" begin
+    include("problem_updates.jl")
 end
-@testset "Logistic ODE" begin
-    include("logistic_ode.jl")
+@testset "LikelihoodProblem" begin
+    include("likelihood_problem.jl")
 end
-@testset "Transforming results" begin
-    include("transforms.jl")
+@testset "MLE" begin
+    include("mle.jl")
 end
-@testset "General tests" begin
-    include("general.jl")
+@testset "RegularGrid" begin
+    include("regular_grid.jl")
 end
-@testset "Refinement" begin
-    include("refinement.jl")
+@testset "IrregularGrid" begin
+    include("irregular_grid.jl")
 end
-@testset "Parameter scaling" begin 
-    include("parameter_scaling.jl")
-end
-@testset "Objective scaling" begin 
-    include("objective_scaling.jl")
-end
-@testset "Grid search" begin 
+@testset "GridSearch" begin
     include("grid_search.jl")
+end
+@testset "ConfidenceInterval" begin 
+    include("confidence_interval.jl")
+end
+@testset "ProfileLikelihood" begin 
+    include("profile_likelihood.jl")
+end
+@testset "Example I: Regression" begin 
+    include("regression_example.jl")
+end
+@testset "Example II: Logistic ODE" begin 
+    include("logistic.jl")
+end
+@testset "Example III: Linear Exponential" begin 
+    include("linear_exponential_example.jl")
+end
+@testset "Example IV: Heat Equation" begin 
+    include("heat_equation_example.jl")
 end
