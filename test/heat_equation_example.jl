@@ -236,3 +236,4 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
 SAVE_FIGURE && save("figures/heat_pde_example_2.png", fig)
+

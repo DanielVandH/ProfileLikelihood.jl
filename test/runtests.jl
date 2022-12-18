@@ -49,21 +49,24 @@ end
 @testset "GridSearch" begin
     include("grid_search.jl")
 end
-@testset "ConfidenceInterval" begin 
+@testset "ConfidenceInterval" begin
     include("confidence_interval.jl")
 end
-@testset "ProfileLikelihood" begin 
+@testset "ProfileLikelihood" begin
     include("profile_likelihood.jl")
 end
-@testset "Example I: Regression" begin 
+@testset "Prediction Intervals" begin
+    include("prediction_intervals.jl")
+end
+@testset "Example I: Regression" begin
     include("regression_example.jl")
 end
-@testset "Example II: Logistic ODE" begin 
+@testset "Example II: Logistic ODE" begin
     include("logistic.jl")
 end
-@testset "Example III: Linear Exponential" begin 
+@testset "Example III: Linear Exponential" begin
     include("linear_exponential_example.jl")
 end
-@testset "Example IV: Heat Equation" begin 
+@testset "Example IV: Heat Equation" begin
     include("heat_equation_example.jl")
 end

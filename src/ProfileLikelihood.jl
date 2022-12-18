@@ -22,6 +22,7 @@ include("mle.jl")
 include("grid_search.jl")
 include("profile_likelihood.jl")
 include("display.jl")
+include("prediction_intervals.jl")
 
 export LikelihoodProblem
 export mle
@@ -32,6 +33,7 @@ export IrregularGrid
 export profile
 export construct_profile_ranges
 export get_confidence_intervals
+export get_prediction_intervals
 export gaussian_loglikelihood
 export update_initial_estimate
 export construct_integrator
@@ -42,6 +44,7 @@ export get_upper_bounds
 export get_parameter_values
 export get_profile_values
 export get_range 
+export eval_prediction_function
 
 function __init__()
     @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin

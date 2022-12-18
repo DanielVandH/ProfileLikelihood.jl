@@ -8,6 +8,7 @@
 - [Examples](#examples)
   - [Multiple linear regression](#multiple-linear-regression)
   - [Logistic ordinary differential equation](#logistic-ordinary-differential-equation)
+    - [Prediction intervals](#prediction-intervals)
   - [Linear exponential ODE and grid searching](#linear-exponential-ode-and-grid-searching)
   - [Diffusion equation on a square plate](#diffusion-equation-on-a-square-plate)
     - [Building the FVMProblem](#building-the-fvmproblem)
@@ -17,6 +18,7 @@
     - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
   - [Propagating uncertainty into a function: exploiting transformation invariance](#propagating-uncertainty-into-a-function-exploiting-transformation-invariance)
     - [The method in general](#the-method-in-general)
+    - [Applying the method](#applying-the-method)
 
 This module defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
 
@@ -276,57 +278,64 @@ plot_profiles(prof, :β₂) # symbols work
 
 ## Logistic ordinary differential equation
 
+The following example comes from the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
+
 Now let us consider the logistic ordinary differential equation (ODE). For ODEs, our treatment is as follows: Let us have some ODE $\mathrm dy/\mathrm dt = f(y, t; \boldsymbol \theta)$ for some parameters $\boldsymbol\theta$ of interest. We will suppose that we have some data $y_i^o$ at time $t_i$, $i=1,\ldots,n$, with initial condition $y_0^o$ at time $t_0=0$, which we model according to a normal distribution $y_i^o \mid \boldsymbol \theta \sim \mathcal N(y_i(\boldsymbol \theta), \sigma^2)$, $i=0,1,\ldots,n$, where $y_i$ is a solution of the ODE at time $t_i$. This defines a likelihood that we can use for estimating the parameters.
 
-Let us now proceed with our example. We are considering $\mathrm du/\mathrm dt = \lambda u(1-u/K)$, $u(0)=u_0$, and our interest is in estimating $(\lambda, K, u_0)$, and also the variance of the noise $\sigma$. The exact solution to this problem is $u(t) = Ku_0/[(K-u_0)\mathrm{e}^{-\lambda t} + u_0]$ which we use for generating noisy data.
+Let us now proceed with our example. We are considering $\mathrm du/\mathrm dt = \lambda u(1-u/K)$, $u(0)=u_0$, and our interest is in estimating $(\lambda, K, u_0)$, we will fix the standard deviation of the noise, $\sigma$, at $\sigma=10$. Note that the exact solution to this ODE is $u(t) = Ku_0/[(K-u_0)\mathrm{e}^{-\lambda t} + u_0]$.
 
-```julia
-Random.seed!(2929911002)
-u₀, λ, K, n, T = 0.5, 1.0, 1.0, 100, 10.0
-t = LinRange(0, T, n)
-u = @. K * u₀ * exp(λ * t) / (K - u₀ + u₀ * exp(λ * t))
-σ = 0.1
-uᵒ = u .+ [0.0, σ * randn(length(u) - 1)...] # add some noise 
-```
-
-Now having our data, we define the ODE and the likelihood function.
-
+The first step is to generate the data.
 ```julia 
+using OrdinaryDiffEq, Random
+λ = 0.01
+K = 100.0
+u₀ = 10.0
+t = 0:100:1000
+σ = 10.0
 @inline function ode_fnc(u, p, t)
-    local λ, K
     λ, K = p
     du = λ * u * (1 - u / K)
     return du
 end
-@inline function loglik_fnc(θ, data, integrator)
-    local uᵒ, n, λ, K, σ, u0
-    uᵒ, n = data
-    λ, K, σ, u0 = θ
+# Initial data is obtained by solving the ODE 
+tspan = extrema(t)
+p = (λ, K)
+prob = ODEProblem(ode_fnc, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2828)
+uᵒ = sol.u + σ * randn(length(t))
+```
+
+Now having our data, we define the likelihood function.
+
+```julia 
+@inline function loglik_fnc2(θ, data, integrator)
+    λ, K, u₀ = θ
+    uᵒ, σ = data
     integrator.p[1] = λ
     integrator.p[2] = K
-    reinit!(integrator, u0)
+    reinit!(integrator, u₀)
     solve!(integrator)
-    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, n)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, length(uᵒ))
 end
 ```
 
-Now we can define our problem. We constrain the problem so that $0 \leq \lambda \leq 10$, $10^{-6} \leq K \leq 10$, $10^{-6} \leq \sigma \leq 10$, and $0 \leq u_0 \leq 10$.
+Now we can define our problem. We constrain the problem so that $0 \leq \lambda \leq 0.05$, $50 \leq K \leq 150$, and $0 \leq u_0 \leq 50$.
 
 ```julia
-using FiniteDiff, OrdinaryDiffEq
-θ₀ = [0.7, 2.0, 0.15, 0.4]
-lb = [0.0, 1e-6, 1e-6, 0.0]
-ub = [10.0, 10.0, 10.0, 10.0]
-syms = [:λ, :K, :σ, :u₀]
+lb = [0.0, 50.0, 0.0] # λ, K, u₀
+ub = [0.05, 150.0, 50.0]
+θ₀ = [λ, K, u₀]
+syms = [:λ, :K, :u₀]
 prob = LikelihoodProblem(
-    loglik_fnc, θ₀, ode_fnc, u₀, (0.0, T); # u₀ is just a placeholder IC in this case
+    loglik_fnc2, θ₀, ode_fnc, u₀, maximum(t); # Note that u₀ is just a placeholder IC in this case since we are estimating it
     syms=syms,
-    data=(uᵒ, n),
-    ode_parameters=[1.0, 1.0], # temp values for [λ, K],
+    data=(uᵒ, σ),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K]
     ode_kwargs=(verbose=false, saveat=t),
     f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
     prob_kwargs=(lb=lb, ub=ub),
-    ode_alg=Tsit5()
+    ode_alg=Rosenbrock23()
 )
 ```
 
@@ -334,48 +343,145 @@ Now we find the MLEs.
 
 ```julia
 using OptimizationNLopt
-sol = mle(prob, NLopt.LN_BOBYQA; abstol=1e-16, reltol=1e-16)
+sol = mle(prob, NLopt.LD_LBFGS)
 LikelihoodSolution. retcode: Failure
-Maximum likelihood: 86.54963187417722
-Maximum likelihood estimates: 4-element Vector{Float64}
-     λ: 0.7751434899667957
-     K: 1.0214255833438064
-     σ: 0.10183155733371282
-     u₀: 0.5354127581296835
+Maximum likelihood: -38.99053694428977
+Maximum likelihood estimates: 3-element Vector{Float64}
+     λ: 0.010438031266786045
+     K: 99.59921873132551
+     u₀: 8.098422110755225
 ```
 
-We can now profile. This time, we use a 90\% confidence interval. We don't specify `parallel = true` here, so each parameter is profiled one at a time.
+We can now profile. 
 
 ```julia
-prof = profile(prob, sol; conf_level=0.9)
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
 ProfileLikelihoodSolution. MLE retcode: Failure
 Confidence intervals: 
-     90.0% CI for λ: (0.5447291601368942, 1.0597476081584924)
-     90.0% CI for K: (0.9958363152602616, 1.051931053628236)
-     90.0% CI for σ: (0.09104488240885002, 0.11493628494452797)
-     90.0% CI for u₀: (0.46273795625099606, 0.6067706857193146)
+     95.0% CI for λ: (0.006400992274213644, 0.01786032876226762)
+     95.0% CI for K: (90.81154862835605, 109.54214763511888)
+     95.0% CI for u₀: (1.5919805025139593, 19.070831536649305)
 ```
 
 ```julia
 @test λ ∈ get_confidence_intervals(prof, :λ)
 @test K ∈ prof.confidence_intervals[2]
-@test σ ∈ get_confidence_intervals(prof[:σ])
-@test u₀ ∈ get_confidence_intervals(prof, 4)
+@test u₀ ∈ get_confidence_intervals(prof, 3)
 ```
 
 We can visualise as we did before:
 
 ```julia
+using CairoMakie, LaTeXStrings
 fig = plot_profiles(prof;
-    latex_names=[L"\lambda", L"K", L"\sigma", L"u_0"],
+    latex_names=[L"\lambda", L"K", L"u_0"],
     show_mles=true,
     shade_ci=true,
-    true_vals=[λ, K, σ, u₀],
-    fig_kwargs=(fontsize=30, resolution=(1410.0f0, 880.0f0)),
+    nrow=1,
+    ncol=3,
+    true_vals=[λ, K, u₀],
+    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
 ```
 
 ![Logistic profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example.png?raw=true)
+
+### Prediction intervals 
+
+Let us now use these results to compute prediction intervals for $u(t)$. Following [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), the idea is to use the profile likelihood to construct another profile likelihood, called the *profile-wise profile likelihood*, that allows us to obtain prediction intervals for some prediction function $q(\boldsymbol \boldsymbol \theta)$. More detail is given in the mathematical details section.
+
+The first step is to define a function $q(\boldsymbol\theta)$ that comptues our prediction given some parameters $\boldsymbol\theta$. The function in this case is simply:
+
+```julia
+function prediction_function(θ, data)
+    λ, K, u₀ = θ
+    t = data
+    prob = ODEProblem(ode_fnc, u₀, extrema(t), (λ, K))
+    sol = solve(prob, Rosenbrock23(), saveat=t)
+    return sol.u
+end
+```
+
+Note that the second argument `data` allows for extra parameters to be passed. To now obtain prediction intervals for `sol.u`, for each `t`, we define a large grid for `t` and use `get_prediction_intervals`:
+
+```julia
+t_many_pts = LinRange(extrema(t)..., 1000)
+parameter_wise, union_intervals, all_curves, param_range = get_prediction_intervals(prediction_function, prof, t_many_pts; q_type=Vector{Float64}) # t_many_pts is the `data` argument, it doesn't have to be time for other problems
+```
+
+This function `get_prediction_intervals` has four outputs:
+
+- `parameter_wise`: These are prediction intervals for the prediction at each point $t$, coming from the profile likelihood of each respective parameter:
+
+```julia 
+julia> parameter_wise
+Dict{Int64, Vector{ConfidenceInterval{Float64, Float64}}} with 3 entries:
+  2 => [ConfidenceInterval{Float64, Float64}(6.45444, 12.0694, 0.95), ConfidenceInterval{Float64, Float64}(6.52931, 12.1545, 0.95), ConfidenceInterval{Float64, Float64}(6.60498, 12.24, 0.95), ConfidenceInterva…  3 => [ConfidenceInterval{Float64, Float64}(1.59389, 19.0709, 0.95), ConfidenceInterval{Float64, Float64}(1.621, 19.1773, 0.95), ConfidenceInterval{Float64, Float64}(1.64856, 19.2842, 0.95), ConfidenceInterva…  1 => [ConfidenceInterval{Float64, Float64}(1.86302, 17.5828, 0.95), ConfidenceInterval{Float64, Float64}(1.89596, 17.6768, 0.95), ConfidenceInterval{Float64, Float64}(1.92948, 17.7712, 0.95), ConfidenceInter…
+``` 
+
+For example, `parameter_wise[1]` comes from varying $\lambda$, with the parameters $K$ and $u_0$ coming from optimising the likelihood function with $\lambda$ fixed.
+
+- `union_intervals`: These are prediction intervals at each point $t$ coming from taking the union of the intervals from the corresponding elements of `parameter_wise`.
+
+- `all_curves`: The intervals come from taking extrema over many curves. This is a `Dict` mapping parameter indices to the curves that were used, with `all_curves[i][j]` being the set of curves for the `i`th parameter (e.g. `i=1` is for $\lambda$) and the $j$th parameter.
+
+- `param_range`: The curves come from evaluating the prediction function between the bounds of the confidence intervals for each parameter, and this output gives the parameters used, so that e.g. `all_curves[i][j]` uses `param_range[i][j]` for the value of the `i`th parameter.
+
+Let us now use these outputs to visualise the prediction intervals. First, let us extract the solution with the true parameter values and with the MLEs.
+
+```julia 
+exact_soln = prediction_function([λ, K, u₀], t_many_pts)
+mle_soln = prediction_function(get_mle(sol), t_many_pts)
+```
+
+Now let us plot the prediction intervals coming from each parameter, and from the union of all intervals (not shown yet, see below).
+
+```julia
+fig = Figure(fontsize=38, resolution=(1402.7681f0, 848.64404f0))
+alp = join('a':'z')
+latex_names = [L"\lambda", L"K", L"u_0"]
+for i in 1:3
+    ax = Axis(fig[i < 3 ? 1 : 2, i < 3 ? i : 1], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black, linewidth=3)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black, linewidth=3)
+end
+ax = Axis(fig[2, 2], title=L"(d):$ $ Union of all intervals",
+    titlealign=:left, width=600, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black, linewidth=3)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black, linewidth=3)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+```
+
+To now assess the coverage of these intervals, we want to compare them to the interval coming from the full likelihood. We find this interval by taking a large number of parameters, and finding all of them for which the normalised log-likelihood exceeds the threshold $-1.92$. We then take the parameters that give a value exceeding this threshold, compute the prediction function at these values, and then take the extrema. The code below uses the function `grid_search` that evaluates the function at many points, and we describe this function in more detail in the next example.
+
+```julia
+lb = get_lower_bounds(prob)
+ub = get_upper_bounds(prob)
+N = 1e5
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:3]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(prob, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(sol) # normalised 
+feasible_idx = findall(lik_vals .> ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [prediction_function(θ, t_many_pts) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |> vec
+q_upr = maximum(q_mat; dims=2) |> vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
+lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)
+```
+
+![Logistic prediction intervals](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example_prediction.png?raw=true)
+
+The first plot shows that the profile-wise prediction interval for $\lambda$ is quite large when $t$ is small, and then small for large time. This makes sense since the large time solution is independent of $\lambda$ (the large time solution is $u_s(t)=K$). For $K$, we see that the profile-wise interval only becomes large for large time, which again makes sense. For $u_0$ we see similar behaviour as for $\lambda$. Finally, taking the union over all the nitervals, as is done in (d), shows that we fully enclose the solution coming from the MLE, as well as the true curve. The magenta curve shows the results from the full likelihood function, and is reasonably close to the approximate interval obtained from the union.
 
 ## Linear exponential ODE and grid searching
 
@@ -891,8 +997,27 @@ See that we've recovered the parameters in the confidence intervals, and the pro
 
 ## Propagating uncertainty into a function: exploiting transformation invariance
 
-Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing confidence intervals for $\tilde M(t)$ at each $t$, using e.g. the methods outlined by [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367) or [Murphy et al. (2022)](https://doi.org/10.1098/rsif.2022.0560). Let us briefly outline the idea in general, and then applying it to our problem,
+Let us now consider propagating the uncertainty in $k$ and $u_0$ into computing confidence intervals for $\tilde M(t)$ at each $t$, using e.g. the methods outlined by [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367) or [Murphy et al. (2022)](https://doi.org/10.1098/rsif.2022.0560). Let us briefly outline the idea in general, following Section 2.2.3 of Simpson and Maclaren (2022) above, and then applying it to our problem,
 
 ### The method in general 
 
-Suppose we have a parameter $\boldsymbol\theta$
+Suppose we have a parameter $\boldsymbol\theta$ that we partition as $(\boldsymbol\psi, \boldsymbol\omega)$. When we compute the profile log-likelihood, 
+
+$$ 
+\hat\ell_p(\boldsymbol\psi) = \sup_{\boldsymbol\omega \mid \boldsymbol \psi} \hat\ell(\boldsymbol\psi, \boldsymbol\omega),
+$$
+
+each fixed value of the interest parameter $\boldsymbol\psi$ induces a set of values $\boldsymbol \omega^*(\boldsymbol\psi)$ that give the supremum above. In particular, the profile log-likelihood defines a surface $(\boldsymbol \psi, \boldsymbol\omega^*(\boldsymbol\psi))$ in our parameter space $\Psi \cup \Omega$. 
+
+We suppose we have some prediction function $\phi(\boldsymbol\theta) \equiv \phi(\boldsymbol\psi, \boldsymbol \omega)$ that we want to propagate the uncertainty from our individual parameters into. We then take the set of parameters $(\boldsymbol \psi, \boldsymbol\omega^*(\boldsymbol \psi))$ and evaluate $q(\boldsymbol\psi, \boldsymbol\omega^*(\boldsymbol\psi))$ at each point in the set. We then define the approximate *profile-wise likelihood* by maximising the profile likelihood over all $\boldsymbol \psi$ values consistent with $\phi$: 
+
+$$ 
+\hat\ell_p\left(\phi\left(\boldsymbol \psi, \boldsymbol \omega^*(\boldsymbol \psi)\right)\right) = \sup_{\boldsymbol \psi \mid \phi\left(\boldsymbol \psi, \boldsymbol \omega^*(\boldsymbol \psi)\right) = \phi} \hat\ell_p(\boldsymbol \psi). 
+$$ 
+
+This is similar to how the profile likelihood is constructed from the likelihood, except now the profile-wise likelihood is built from the profile likelihood. Since we are just considering univariate profiles, and assuming that $\phi$ is an injective function in $\boldsymbol \psi$, this profile-wise likelihood is simply the profile likelihood at $\boldsymbol \psi$. We can use this function to find confidence intervals for $\phi$. Note that this is just for a single parameter, but we would apply for this for multiple parameter's profiles, and then take the union of the resulting intervals.
+
+### Applying the method 
+
+Let us now apply the method.
+

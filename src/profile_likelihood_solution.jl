@@ -48,7 +48,7 @@ get_other_mles(prof::ProfileLikelihoodSolution, i) = get_other_mles(prof)[i]
 get_other_mles(prof::ProfileLikelihoodSolution, sym::Symbol) = get_other_mles(prof, SciMLBase.sym_to_index(sym, prof))
 get_syms(prof::ProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
 get_syms(prof::ProfileLikelihoodSolution, i) = get_syms(prof)[i]
-profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)
+profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)::Vector{Int64}
 number_of_profiled_parameters(prof::ProfileLikelihoodSolution) = length(profiled_parameters(prof))
 
 struct ProfileLikelihoodSolutionView{N,PLS} 
