@@ -86,7 +86,7 @@ struct ProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM}
 end
 ```
 
-Here, the parameter values used for each parameter are given in `parameter_values`, with parameter indices (or symbols) are mapped to these values. Similarly, the values of the profile log-likelihood are stored in `profile_values`. We use a spline (see Interpolations.jl) to make the profile log-likelihood a continuous function, and these splines are given by `splines`. Next, the computed confidence intervals are given in `confidence_intervals`, with a confidence interval represented by a `ConfidenceInterval` struct. Lastly, since computing the profile log-likelihood function requires an optimisation problem with one variable fixed and the others free, we obtain for each profile log-likelihood value a set of optimised parameters -- these parameters are given in `other_mles`.
+Here, the parameter values used for each parameter are given in `parameter_values`, with parameter indices (or symbols) mapped to these values. Similarly, the values of the profile log-likelihood are stored in `profile_values`. We use a spline (see Interpolations.jl) to make the profile log-likelihood a continuous function, and these splines are given by `splines`. Next, the computed confidence intervals are given in `confidence_intervals`, with a confidence interval represented by a `ConfidenceInterval` struct. Lastly, since computing the profile log-likelihood function requires an optimisation problem with one variable fixed and the others free, we obtain for each profile log-likelihood value a set of optimised parameters -- these parameters are given in `other_mles`.
 
 If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `prof(0.5, 1)` to evaluate the profile log-likelihood function of the first parameter at the point `0.5`. Alternatively, `prof(0.7, :α)` does the same but for the parameter `:α` at the point `0.7`. You can also index `prof` at a specific index (or symbol) to see the results only for that parameter, e.g. `prof[1]` or `prof[:α]`; this returns a `ProfileLikelihoodSolutionView`.
 
@@ -599,25 +599,25 @@ sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)
 Now, one complication with a PDE compared to the scalar ODE cases that we considered previously is that we have data at $(x_i, y_j, t_k)$ for many indices $(i, j, k)$. Rather than defining our objective function in terms of these data points, we will instead use a summary statistic. The summary statistic we use in this example is the average density,
 
 $$
-\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\iint_\Omega u(x, y, t)\,\mathrm{dA}. 
+\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\iint_\Omega u(x, y, t)\mathrm{dA}. 
 $$
 
 We need to be able to compute this integral efficiently and accurately. For this, recall that the finite volume method discretises the domain into triangles. If $\mathcal T$ is this set of triangles, then 
 
 $$ 
-\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \iint_{T_k} u(x, y, t)\,\mathrm{dA}. 
+\tilde M(t) = \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \iint_{T_k} u(x, y, t)\mathrm{dA}. 
 $$ 
 
 Then, recall that $u$ is represented as a linear function $\alpha_k x + \beta_k y + \gamma_k$ inside the triangle $T_k$, thus 
 
 $$ 
-\tilde M(t) \approx \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \left[\alpha_k \iint_{T_k} x\,\mathrm{dA} + \beta_k \iint_{T_k} y\,\mathrm{dA} + \gamma_k\iint_{T_k}\,\mathrm{dA}\right] 
+\tilde M(t) \approx \frac{1}{\mathrm{Area}(\Omega)}\sum_{T_k \in \mathcal T} \left[\alpha_k \iint_{T_k} x\mathrm{dA} + \beta_k \iint_{T_k} y\mathrm{dA} + \gamma_k\iint_{T_k}\mathrm{dA}\right] 
 $$  
 
-Now factoring out an $\mathrm{Area}(T_k) = \iint_{T_k}\,\mathrm{dA}$, 
+Now factoring out an $\mathrm{Area}(T_k) = \iint_{T_k}\mathrm{dA}$, 
 
 $$ 
-\tilde M(t) \approx \sum_{T_k \in \mathcal T} \frac{\mathrm{Area}(T_k)}{\mathrm{Area}(\Omega)}\left[\alpha_k \dfrac{\iint_{T_k} x\,\mathrm{dA}}{\iint_{T_k} \,\mathrm{dA}} + \beta_k \dfrac{\iint_{T_k} y\,\mathrm{dA}}{\iint_{T_k} \,\mathrm{dA}} + \gamma_k\right]. 
+\tilde M(t) \approx \sum_{T_k \in \mathcal T} \frac{\mathrm{Area}(T_k)}{\mathrm{Area}(\Omega)}\left[\alpha_k \dfrac{\iint_{T_k} x\mathrm{dA}}{\iint_{T_k} \mathrm{dA}} + \beta_k \dfrac{\iint_{T_k} y\mathrm{dA}}{\iint_{T_k} \mathrm{dA}} + \gamma_k\right]. 
 $$ 
 
 Notice that the two ratios of integrals shown are simply $\hat x_k$ and $\hat y_k$, where $(\hat x_k, \hat y_k)$ is the centroid of $T_k$. Thus, the term in brackets is $\alpha_k \hat x_k + \beta_k \hat y_k + \gamma_k$, which is the approximation to $u$ at the centroid, $\tilde u(\hat x_k, \hat y_k, t)$. Thus, our approximation to the average density is 
@@ -773,7 +773,7 @@ xlims!(fig.content[1], 7.0, 9.5)
 
 ![PDE profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_example.png?raw=true)
 
-See that the profile curves for $c$ and $u_0$ are very flat, and we have not recovered $k$. This means that the parameters $c$ and $U_0$ are not *identifiable*, essentially meaning the data is not enough to recover these parameters. This is most likely because the mass $\tilde M(t)$ alone is not enough to uniquely define the solution. We could consider a summary statistic like 
+See that the profile curves for $c$ and $u_0$ are very flat, and we have not recovered $k$. This means that the parameters $c$ and $u_0$ are not *identifiable*, essentially meaning the data is not enough to recover these parameters. This is most likely because the mass $\tilde M(t)$ alone is not enough to uniquely define the solution. We could consider a summary statistic like 
 
 $$ 
 \mathcal S(t) = w\tilde M(t) + (1-w)\tilde A(t),
