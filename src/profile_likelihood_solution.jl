@@ -11,6 +11,7 @@ Struct for the normalised profile log-likelihood. See [`profile`](@ref) for a co
 - `spline::Dict{I, Spl}`: This is a dictionary such that `spline[i]` is a spline through the data `(θ[i], profile[i])`. This spline can be evaluated at a point `ψ` for the `i`th variable by calling an instance of the struct with arguments `(ψ, i)`. See also [`spline_profile`](@ref).
 - `confidence_intervals::Dict{I, Tuple{T, T}}`: This is a dictonary such that `confidence_intervals[i]` is a confidence interval for the `i`th parameter.
 - `other_mles::OM`: This is a dictionary such that `other_mles[i]` gives the vector for the MLEs of the other parameters not being profiled, for each datum.
+
 # Spline evaluation 
 
 This struct is callable. We define the method 

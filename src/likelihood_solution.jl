@@ -19,5 +19,5 @@ Base.@kwdef struct LikelihoodSolution{N,Θ,P,M,R,A} <: AbstractLikelihoodSolutio
 end
 function LikelihoodSolution(sol::SciMLBase.OptimizationSolution, prob::AbstractLikelihoodProblem; alg=sol.alg)
     return LikelihoodSolution{number_of_parameters(prob),typeof(sol.u),typeof(prob),
-        typeof(-sol.minimum),typeof(sol.retcode),typeof(alg)}(sol.u, prob, alg, -sol.minimum, sol.retcode)
+        typeof(-sol.objective),typeof(sol.retcode),typeof(alg)}(sol.u, prob, alg, -sol.objective, sol.retcode)
 end

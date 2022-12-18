@@ -57,7 +57,7 @@ end
     abstract type AbstractLikelihoodSolution{N, P}
 
 Type representing the solution to a likelihood problem, where `N` is the 
-number of parameters and `P` is the type of the problem.
+number of parameters and `P` is the type of the likelihood problem.
 """
 abstract type AbstractLikelihoodSolution{N, P} end
 

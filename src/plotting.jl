@@ -75,7 +75,7 @@ SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
         shade_ci=true, 
         fig_kwargs=nothing, 
         axis_kwargs=nothing,
-        latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
+        latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
      
 Plot results from a profile likelihood solution `prof`.
 
@@ -92,7 +92,7 @@ Plot results from a profile likelihood solution `prof`.
 - `shade_ci=true`: Whether to shade the area under the profile between the confidence interval.
 - `fig_kwargs=nothing`: Extra keyword arguments for `Figure` (see the Makie docs).
 - `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
-- `latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
+- `latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
 
 # Output 
 The `Figure()` is returned.

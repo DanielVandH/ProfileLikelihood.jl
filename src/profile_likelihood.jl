@@ -1,5 +1,41 @@
 const dict_lock = ReentrantLock()
 
+"""
+    profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of_parameters(prob);
+        alg=get_optimiser(sol),
+        conf_level::F=0.95,
+        confidence_interval_method=:spline,
+        threshold=get_chisq_threshold(conf_level),
+        resolution=200,
+        param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution),
+        min_steps=10,
+        normalise::Bool=true,
+        spline_alg=FritschCarlsonMonotonicInterpolation,
+        extrap=Line,
+        parallel=false,
+        kwargs...)
+
+Computes profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
+
+# Arguments 
+- `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
+- `sol::LikelihoodSolution`: The [`LikelihoodSolution`](@ref). See also [`mle`](@ref).
+- `n=1:number_of_parameters(prob)`: The parameter indices to compute the profile likelihoods for.
+
+# Keyword Arguments 
+- `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
+- `conf_level::F=0.95`: The level to use for the [`ConfidenceInterval`](@ref)s.
+- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also [`get_confidence_intervals!`](@ref). The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
+- `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
+- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
+- `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
+- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
+- `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
+- `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
+- `parallel=false`: Whether to use multithreading. If `true`, will use multithreading so that multiple parameters are profiled at once, and the steps to the left and right are done at the same time. 
+- `kwargs...`: Extra keyword arguments to pass into `solve` for solving the `OptimizationProblem`. See also the docs from Optimization.jl.
+"""
 function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of_parameters(prob);
     alg=get_optimiser(sol),
     conf_level::F=0.95,
@@ -191,7 +227,7 @@ function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
         ## Solve the fixed problem 
         soln = solve(fixed_prob, alg; kwargs...)
         sub_cache .= soln.u
-        push!(profile_vals, -soln.minimum - ℓmax * !normalise)
+        push!(profile_vals, -soln.objective - ℓmax * !normalise)
         push!(other_mles, soln.u)
         ## Increment 
         steps += 1

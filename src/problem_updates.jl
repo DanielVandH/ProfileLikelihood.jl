@@ -1,6 +1,7 @@
 update_initial_estimate(prob::OptimizationProblem, θ) = remake(prob; u0=θ)
 update_initial_estimate(prob::OptimizationProblem, sol::SciMLBase.OptimizationSolution) = update_initial_estimate(prob, sol.u)
 
+# replace obj with a new obj
 function replace_objective_function(prob::OptimizationProblem{iip,FF,uType,P,B,LC,UC,Sns,K}, obj::F) where {F,iip,AD,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS,FF2,FF<:OptimizationFunction{iip,AD,FF2,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS},uType,P,B,LC,UC,Sns,K}
     f = OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS
     }(obj,
@@ -14,6 +15,7 @@ function replace_objective_function(prob::OptimizationProblem{iip,FF,uType,P,B,L
     return remake(prob; f=f)
 end
 
+# fix the objective function's nth parameter at θₙ
 function construct_fixed_optimisation_function(prob::OptimizationProblem, n, θₙ, cache)
     original_f = prob.f
     new_f = @inline (θ, p) -> begin
@@ -32,6 +34,7 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n, θ�
     return replace_objective_function(prob, new_f)
 end
 
+# remove lower bounds, upper bounds, and also remove the nth value from the initial estimate
 function exclude_parameter(prob::OptimizationProblem, n::Integer)
     !has_bounds(prob) && return update_initial_estimate(prob, prob.u0[Not(n)])
     lb₋ₙ = get_lower_bounds(prob, Not(n))
@@ -40,6 +43,7 @@ function exclude_parameter(prob::OptimizationProblem, n::Integer)
     return new_prob
 end
 
+# replace obj by obj - shift
 function shift_objective_function(prob::OptimizationProblem, shift)
     original_f = prob.f
     new_f = @inline (θ, p) -> original_f(θ, p) - shift
