@@ -17,6 +17,7 @@ SimpleNonlinearSolve = "727e6d20-b764-4bd8-a329-72de5adea6c7"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 
 [compat]
+ChunkSplitters = "0.1"
 FunctionWrappers = "1.1"
 Interpolations = "0.14"
 InvertedIndices = "1.2"
