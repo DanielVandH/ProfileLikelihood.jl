@@ -1032,7 +1032,7 @@ $$
 where $\Omega$ is the parameter space for $\boldsymbol \omega$, $\ell(\psi,\boldsymbol\omega) = \mathcal L(\psi, \boldsymbol \omega)$, and $\ell^* = \ell(\hat{\boldsymbol \theta})$, where $\boldsymbol \theta$ are the MLEs for $\boldsymbol \theta$. This definition of $\hat\ell_p(\psi)$ induces a function $\boldsymbol\omega^*(\psi)$ depending on $\psi$ that gives the values of $\boldsymbol \omega$ leading to the supremum above, i.e. 
 
 $$ 
-\ell(\psi, \boldsymbol\omega^{*}(\psi)) = \sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^{*}\right]. 
+\ell(\psi, \boldsymbol\omega^{\star}(\psi)) = \sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^{\star}\right]. 
 $$ 
 
 To compute $\hat\ell_p(\psi)$, then, requires a way to efficiently compute the $\omega^*(\psi)$, and requires knowing where to stop computing. Where we stop computing the profile likelihood is simply when $\hat\ell_p(\psi) < -\chi_{1,1-\alpha}^2/2$, where $\alpha$ is the significance level (e.g. $\alpha=0.05$, in which case $\chi_{1,1-0.05}^2/2 \approx 1.92$). This motivates a iterative algorithm, where we start at the MLE and then step left and right.
