@@ -92,8 +92,8 @@ _max_lik, _max_idx = findmax(_loglik_vals_ir)
 @test loglik_vals_ir ≈ _loglik_vals_ir
 @test _max_idx == max_idx
 
-bpar = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(true), save_vals=$Val(true))
-bser = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(false), save_vals=$Val(true))
+#bpar = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(true), save_vals=$Val(true))
+#bser = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(false), save_vals=$Val(true))
 
 # Also see MultistartOptimization.jl
 
