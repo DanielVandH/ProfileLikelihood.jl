@@ -1,3 +1,17 @@
+using ..ProfileLikelihood 
+using LinearAlgebra
+using PreallocationTools
+using Random 
+using Distributions
+using LinearSolve 
+using OrdinaryDiffEq
+using Optimization
+using OptimizationOptimJL
+using OptimizationNLopt 
+using FiniteVolumeMethod 
+using DelaunayTriangulation
+include("templates.jl")
+
 ######################################################
 ## ProfileLikelihood 
 ######################################################
@@ -6,7 +20,7 @@ lb = -2.0
 ub = 2.0
 mpt = 0.0
 res = 50
-lr, ur = PL.construct_profile_ranges(lb, ub, mpt, res)
+lr, ur = ProfileLikelihood.construct_profile_ranges(lb, ub, mpt, res)
 @test lr == LinRange(0.0, -2.0, 50)
 @test ur == LinRange(0.0, 2.0, 50)
 
@@ -20,11 +34,11 @@ ug = RegularGrid(lb, ub, res)
 sol = grid_search(prob, ug; save_vals=Val(false))
 
 res2 = 50
-ranges = PL.construct_profile_ranges(sol, lb, ub, res2)
+ranges = ProfileLikelihood.construct_profile_ranges(sol, lb, ub, res2)
 @test all(i -> ranges[i] == (LinRange(sol.mle[i], lb[i], res2), LinRange(sol.mle[i], ub[i], res2)), eachindex(lb))
 
 res2 = (50, 102, 50, 671, 123)
-ranges = PL.construct_profile_ranges(sol, lb, ub, res2)
+ranges = ProfileLikelihood.construct_profile_ranges(sol, lb, ub, res2)
 @test all(i -> ranges[i] == (LinRange(sol.mle[i], lb[i], res2[i]), LinRange(sol.mle[i], ub[i], res2[i])), eachindex(lb))
 
 ## Test that we can extract a problem and solution 
@@ -35,7 +49,7 @@ ub = (0.2, 0.0, 3.0, 3.0, 6.0)
 res = 27
 ug = RegularGrid(lb, ub, res)
 sol = grid_search(prob, ug; save_vals=Val(false))
-_opt_prob, _mles, _ℓmax = PL.extract_problem_and_solution(prob, sol)
+_opt_prob, _mles, _ℓmax = ProfileLikelihood.extract_problem_and_solution(prob, sol)
 @test _opt_prob === sol.problem.problem
 @test _mles == sol.mle
 @test !(_mles === sol.mle)
@@ -45,16 +59,16 @@ _opt_prob, _mles, _ℓmax = PL.extract_problem_and_solution(prob, sol)
 N = 5
 T = Float64
 F = Float64
-_θ, _prof, _other_mles, _splines, _confidence_intervals = PL.prepare_profile_results(N, T, F)
+_θ, _prof, _other_mles, _splines, _confidence_intervals = ProfileLikelihood.prepare_profile_results(N, T, F)
 @test _θ == Dict{Int64,Vector{T}}([])
 @test _prof == Dict{Int64,Vector{T}}([])
 @test _other_mles == Dict{Int64,Vector{Vector{T}}}([])
-@test _confidence_intervals == Dict{Int64,PL.ConfidenceInterval{T,F}}([])
+@test _confidence_intervals == Dict{Int64,ProfileLikelihood.ConfidenceInterval{T,F}}([])
 
 ## Test that we can correctly normalise the objective function 
-shifted_opt_prob = PL.normalise_objective_function(_opt_prob, _ℓmax, false)
+shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, false)
 @test shifted_opt_prob === _opt_prob
-shifted_opt_prob = PL.normalise_objective_function(_opt_prob, _ℓmax, true)
+shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, true)
 @test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -(loglikk(reduce(vcat, θ), dat) - _ℓmax)
 @inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
 
@@ -64,7 +78,7 @@ _left_profile_vals, _right_profile_vals,
 _left_param_vals, _right_param_vals,
 _left_other_mles, _right_other_mles,
 _combined_profiles, _combined_param_vals, _combined_other_mles,
-_cache, _sub_cache = PL.prepare_cache_vectors(n, N, ranges[n], _mles)
+_cache, _sub_cache = ProfileLikelihood.prepare_cache_vectors(n, N, ranges[n], _mles)
 @test _left_profile_vals == Vector{T}([])
 @test _right_profile_vals == Vector{T}([])
 @test _left_param_vals == Vector{T}([])
@@ -116,52 +130,52 @@ prob = LikelihoodProblem(loglik_fnc, θ₀;
     syms=[:σ, :β₀, :β₁, :β₂, :β₃])
 sol = mle(prob, Optim.LBFGS())
 prof = profile(prob, sol, [1, 3])
-@test PL.get_parameter_values(prof) == prof.parameter_values
-@test PL.get_parameter_values(prof, 1) == prof.parameter_values[1]
-@test PL.get_parameter_values(prof, :σ) == prof.parameter_values[1]
-@test PL.get_parameter_values(prof, 3) == prof.parameter_values[3]
-@test PL.get_parameter_values(prof, :β₁) == prof.parameter_values[3]
-@test PL.get_profile_values(prof) == prof.profile_values
-@test PL.get_profile_values(prof, 3) == prof.profile_values[3]
-@test PL.get_profile_values(prof, :σ) == prof.profile_values[1]
-@test PL.get_likelihood_problem(prof) == prof.likelihood_problem == prob
-@test PL.get_likelihood_solution(prof) == prof.likelihood_solution == sol
-@test PL.get_splines(prof) == prof.splines
-@test PL.get_splines(prof, 3) == prof.splines[3]
-@test PL.get_splines(prof, :σ) == prof.splines[1]
-@test PL.get_confidence_intervals(prof) == prof.confidence_intervals
-@test PL.get_confidence_intervals(prof, 1) == prof.confidence_intervals[1]
-@test PL.get_confidence_intervals(prof, :β₁) == prof.confidence_intervals[3]
-@test PL.get_other_mles(prof) == prof.other_mles
-@test PL.get_other_mles(prof, 3) == prof.other_mles[3]
-@test PL.get_syms(prof) == prob.syms == [:σ, :β₀, :β₁, :β₂, :β₃]
-@test PL.get_syms(prof, 4) == :β₂
+@test ProfileLikelihood.get_parameter_values(prof) == prof.parameter_values
+@test ProfileLikelihood.get_parameter_values(prof, 1) == prof.parameter_values[1]
+@test ProfileLikelihood.get_parameter_values(prof, :σ) == prof.parameter_values[1]
+@test ProfileLikelihood.get_parameter_values(prof, 3) == prof.parameter_values[3]
+@test ProfileLikelihood.get_parameter_values(prof, :β₁) == prof.parameter_values[3]
+@test ProfileLikelihood.get_profile_values(prof) == prof.profile_values
+@test ProfileLikelihood.get_profile_values(prof, 3) == prof.profile_values[3]
+@test ProfileLikelihood.get_profile_values(prof, :σ) == prof.profile_values[1]
+@test ProfileLikelihood.get_likelihood_problem(prof) == prof.likelihood_problem == prob
+@test ProfileLikelihood.get_likelihood_solution(prof) == prof.likelihood_solution == sol
+@test ProfileLikelihood.get_splines(prof) == prof.splines
+@test ProfileLikelihood.get_splines(prof, 3) == prof.splines[3]
+@test ProfileLikelihood.get_splines(prof, :σ) == prof.splines[1]
+@test ProfileLikelihood.get_confidence_intervals(prof) == prof.confidence_intervals
+@test ProfileLikelihood.get_confidence_intervals(prof, 1) == prof.confidence_intervals[1]
+@test ProfileLikelihood.get_confidence_intervals(prof, :β₁) == prof.confidence_intervals[3]
+@test ProfileLikelihood.get_other_mles(prof) == prof.other_mles
+@test ProfileLikelihood.get_other_mles(prof, 3) == prof.other_mles[3]
+@test ProfileLikelihood.get_syms(prof) == prob.syms == [:σ, :β₀, :β₁, :β₂, :β₃]
+@test ProfileLikelihood.get_syms(prof, 4) == :β₂
 @test SciMLBase.sym_to_index(:σ, prof) == 1
 @test SciMLBase.sym_to_index(:β₀, prof) == 2
 @test SciMLBase.sym_to_index(:β₁, prof) == 3
 @test SciMLBase.sym_to_index(:β₂, prof) == 4
 @test SciMLBase.sym_to_index(:β₃, prof) == 5
-@test PL.profiled_parameters(prof) == [1, 3]
-@test PL.number_of_profiled_parameters(prof) == 2
+@test ProfileLikelihood.profiled_parameters(prof) == [1, 3]
+@test ProfileLikelihood.number_of_profiled_parameters(prof) == 2
 
 ## Test that views are working correctly on the ProfileLikelihoodSolution
 i = 1
 prof_view = prof[i]
-@test PL.get_parent(prof_view) == prof
-@test PL.get_index(prof_view) == i
-@test PL.get_parameter_values(prof_view) == prof.parameter_values[i]
-@test PL.get_parameter_values(prof_view, 1) == prof.parameter_values[i][1]
-@test PL.get_parameter_values(prof_view, 3) == prof.parameter_values[i][3]
-@test PL.get_profile_values(prof_view) == prof.profile_values[i]
-@test PL.get_profile_values(prof_view, 3) == prof.profile_values[i][3]
-@test PL.get_likelihood_problem(prof_view) == prof.likelihood_problem == prob
-@test PL.get_likelihood_solution(prof_view) == prof.likelihood_solution == sol
-@test PL.get_splines(prof_view) == prof.splines[i]
-@test PL.get_confidence_intervals(prof_view) == prof.confidence_intervals[i]
-@test PL.get_confidence_intervals(prof_view, 1) == prof.confidence_intervals[i][1]
-@test PL.get_other_mles(prof_view) == prof.other_mles[i]
-@test PL.get_other_mles(prof_view, 3) == prof.other_mles[i][3]
-@test PL.get_syms(prof_view) == :σ
+@test ProfileLikelihood.get_parent(prof_view) == prof
+@test ProfileLikelihood.get_index(prof_view) == i
+@test ProfileLikelihood.get_parameter_values(prof_view) == prof.parameter_values[i]
+@test ProfileLikelihood.get_parameter_values(prof_view, 1) == prof.parameter_values[i][1]
+@test ProfileLikelihood.get_parameter_values(prof_view, 3) == prof.parameter_values[i][3]
+@test ProfileLikelihood.get_profile_values(prof_view) == prof.profile_values[i]
+@test ProfileLikelihood.get_profile_values(prof_view, 3) == prof.profile_values[i][3]
+@test ProfileLikelihood.get_likelihood_problem(prof_view) == prof.likelihood_problem == prob
+@test ProfileLikelihood.get_likelihood_solution(prof_view) == prof.likelihood_solution == sol
+@test ProfileLikelihood.get_splines(prof_view) == prof.splines[i]
+@test ProfileLikelihood.get_confidence_intervals(prof_view) == prof.confidence_intervals[i]
+@test ProfileLikelihood.get_confidence_intervals(prof_view, 1) == prof.confidence_intervals[i][1]
+@test ProfileLikelihood.get_other_mles(prof_view) == prof.other_mles[i]
+@test ProfileLikelihood.get_other_mles(prof_view, 3) == prof.other_mles[i][3]
+@test ProfileLikelihood.get_syms(prof_view) == :σ
 @test prof[:β₁] == prof[3]
 
 ## Test that we can correctly call the profiles 

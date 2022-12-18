@@ -1,3 +1,14 @@
+using ..ProfileLikelihood 
+using Random 
+using PreallocationTools 
+using Distributions 
+using CairoMakie 
+using LaTeXStrings 
+using LinearAlgebra
+using Optimization 
+using OptimizationOptimJL
+const SAVE_FIGURE = false
+
 ######################################################
 ## Example I: Multiple Linear Regression 
 ######################################################

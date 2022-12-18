@@ -1,3 +1,12 @@
+using ..ProfileLikelihood
+using FunctionWrappers
+using Optimization
+using Random
+using Distributions
+using PreallocationTools
+using LinearAlgebra
+using OrdinaryDiffEq
+include("templates.jl")
 ######################################################
 ## GridSearch
 ######################################################
@@ -6,60 +15,60 @@ f = (x, _) -> x[1] * x[2] * x[3]
 lb = [2.7, 5.3, 10.0]
 ub = [10.0, 7.7, 14.4]
 res = 50
-ug = PL.RegularGrid(lb, ub, res)
-gs = PL.GridSearch(f, ug)
+ug = ProfileLikelihood.RegularGrid(lb, ub, res)
+gs = ProfileLikelihood.GridSearch(f, ug)
 @test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64},Nothing}}
 @test gs.f.obj[] == f
-@test PL.get_grid(gs) == gs.grid == ug
-@test PL.get_function(gs) == gs.f
-@test PL.eval_function(gs, [1.0, 2.0, 3.0]) ≈ 6.0
-@inferred PL.eval_function(gs, rand(3))
-@test PL.number_of_parameters(gs) == 3
-@test PL.get_parameters(gs) === nothing
+@test ProfileLikelihood.get_grid(gs) == gs.grid == ug
+@test ProfileLikelihood.get_function(gs) == gs.f
+@test ProfileLikelihood.eval_function(gs, [1.0, 2.0, 3.0]) ≈ 6.0
+@inferred ProfileLikelihood.eval_function(gs, rand(3))
+@test ProfileLikelihood.number_of_parameters(gs) == 3
+@test ProfileLikelihood.get_parameters(gs) === nothing
 
 f = (x, _) -> x[1] * x[2] * x[3] + x[4]
 lb = [2.0, 5.0, 1.3, 5.0]
 ub = [5.0, 10.0, 17.3, 20.0]
 grid = [rand(2) for _ in 1:200]
-ig = PL.IrregularGrid(lb, ub, grid)
-gs = PL.GridSearch(f, ig, 2.0)
+ig = ProfileLikelihood.IrregularGrid(lb, ub, grid)
+gs = ProfileLikelihood.GridSearch(f, ig, 2.0)
 @test gs.f isa FunctionWrappers.FunctionWrapper{Float64,Tuple{Vector{Float64},Float64}}
 @test gs.f.obj[] == f
-@test PL.get_grid(gs) == gs.grid == ig
-@test PL.get_function(gs) == gs.f
-@test PL.eval_function(gs, [1.0, 4.2, 4.2, -1.0]) ≈ f([1.0, 4.2, 4.2, -1.0], 2.0)
-@inferred PL.eval_function(gs, rand(4))
-@test PL.number_of_parameters(gs) == 4
-@test PL.get_parameters(gs) == 2.0
+@test ProfileLikelihood.get_grid(gs) == gs.grid == ig
+@test ProfileLikelihood.get_function(gs) == gs.f
+@test ProfileLikelihood.eval_function(gs, [1.0, 4.2, 4.2, -1.0]) ≈ f([1.0, 4.2, 4.2, -1.0], 2.0)
+@inferred ProfileLikelihood.eval_function(gs, rand(4))
+@test ProfileLikelihood.number_of_parameters(gs) == 4
+@test ProfileLikelihood.get_parameters(gs) == 2.0
 
 ## Test that we are preparing the grid correctly 
 lb = [2.0, 5.0, 1.3, 5.0]
 ub = [5.0, 10.0, 17.3, 20.0]
 grid = [rand(2) for _ in 1:200]
-ig = PL.IrregularGrid(lb, ub, grid)
-A_ig = PL.prepare_grid(ig)
+ig = ProfileLikelihood.IrregularGrid(lb, ub, grid)
+A_ig = ProfileLikelihood.prepare_grid(ig)
 @test A_ig == zeros(200)
 
 lb = [2.7, 5.3, 10.0]
 ub = [10.0, 7.7, 14.4]
 res = 50
-ug = PL.RegularGrid(lb, ub, res)
-A_ug = PL.prepare_grid(ug)
+ug = ProfileLikelihood.RegularGrid(lb, ub, res)
+A_ug = ProfileLikelihood.prepare_grid(ug)
 @test A_ug == zeros(50, 50, 50)
 
 lb = [2.7, 5.3, 10.0]
 ub = [10.0, 7.7, 14.4]
 res = [20, 50, 70]
-ug_2 = PL.RegularGrid(lb, ub, res)
-A_ug_2 = PL.prepare_grid(ug_2)
+ug_2 = ProfileLikelihood.RegularGrid(lb, ub, res)
+A_ug_2 = ProfileLikelihood.prepare_grid(ug_2)
 @test A_ug_2 == zeros(20, 50, 70)
 
-gs1 = PL.GridSearch(f, ig)
-gs2 = PL.GridSearch(f, ug)
-gs3 = PL.GridSearch(f, ug_2)
-B_ig = PL.prepare_grid(gs1)
-B_ug = PL.prepare_grid(gs2)
-B_ug_2 = PL.prepare_grid(gs3)
+gs1 = ProfileLikelihood.GridSearch(f, ig)
+gs2 = ProfileLikelihood.GridSearch(f, ug)
+gs3 = ProfileLikelihood.GridSearch(f, ug_2)
+B_ig = ProfileLikelihood.prepare_grid(gs1)
+B_ug = ProfileLikelihood.prepare_grid(gs2)
+B_ug_2 = ProfileLikelihood.prepare_grid(gs3)
 @test B_ig == A_ig
 @test B_ug == A_ug
 @test B_ug_2 == A_ug_2
@@ -75,18 +84,18 @@ ub = [10.0, 7.7, 14.4]
 res = [20, 50, 70]
 ug = RegularGrid(lb, ub, res)
 gs = GridSearch(prob, ug)
-@test PL.eval_function(gs, [1.0, 2.7]) == loglik([1.0, 2.7], dat)
-@inferred PL.eval_function(gs, [1.0, 2.7])
-@test PL.get_grid(gs) == ug
+@test ProfileLikelihood.eval_function(gs, [1.0, 2.7]) == loglik([1.0, 2.7], dat)
+@inferred ProfileLikelihood.eval_function(gs, [1.0, 2.7])
+@test ProfileLikelihood.get_grid(gs) == ug
 
 lb = [2.0, 5.0, 1.3, 5.0]
 ub = [5.0, 10.0, 17.3, 20.0]
 grid = [rand(2) for _ in 1:200]
 ig = IrregularGrid(lb, ub, grid)
 gs = GridSearch(prob, ig)
-@test PL.eval_function(gs, [1.0, 2.7]) == loglik([1.0, 2.7], dat)
-@inferred PL.eval_function(gs, [1.0, 2.7])
-@test PL.get_grid(gs) == ig
+@test ProfileLikelihood.eval_function(gs, [1.0, 2.7]) == loglik([1.0, 2.7], dat)
+@inferred ProfileLikelihood.eval_function(gs, [1.0, 2.7])
+@test ProfileLikelihood.get_grid(gs) == ig
 
 ## Test that the GridSearch works on a set of problems
 # Rastrigin function 
@@ -94,26 +103,26 @@ n = 4
 A = 10
 rastrigin_f(x, _) = @inline @inbounds A * n + (x[1]^2 - A * cos(2π * x[1])) + (x[2]^2 - A * cos(2π * x[2])) + (x[3]^2 - A * cos(2π * x[3])) + (x[4]^2 - A * cos(2π * x[4]))
 @test rastrigin_f(zeros(n), nothing) == 0.0
-ug = PL.RegularGrid(repeat([-5.12], n), repeat([5.12], n), 25)
-gs = PL.GridSearch((x, _) -> (@inline; -rastrigin_f(x, nothing)), ug)
-f_min, x_min = PL.grid_search(gs)
-@inferred PL.grid_search(gs)
-@inferred PL.grid_search(gs; save_vals=Val(true))
-@inferred PL.grid_search(gs; save_vals=Val(false), parallel=Val(true))
-@inferred PL.grid_search(gs; save_vals=Val(true), parallel=Val(true))
-@inferred PL.grid_search(gs; save_vals=Val(true), minimise=Val(true))
-@inferred PL.grid_search(gs; save_vals=Val(false), parallel=Val(true), minimise=Val(true))
-@inferred PL.grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(true))
-@inferred PL.grid_search(gs; minimise=Val(true))
+ug = ProfileLikelihood.RegularGrid(repeat([-5.12], n), repeat([5.12], n), 25)
+gs = ProfileLikelihood.GridSearch((x, _) -> (@inline; -rastrigin_f(x, nothing)), ug)
+f_min, x_min = ProfileLikelihood.grid_search(gs)
+@inferred ProfileLikelihood.grid_search(gs)
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(false), parallel=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(true), parallel=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(true), minimise=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(false), parallel=Val(true), minimise=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; save_vals=Val(true), parallel=Val(true), minimise=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; minimise=Val(true))
 
 @test f_min ≈ 0.0
 @test x_min ≈ zeros(n)
 
-gs = PL.GridSearch(rastrigin_f, ug)
+gs = ProfileLikelihood.GridSearch(rastrigin_f, ug)
 f_min, x_min = grid_search(gs; minimise=Val(true))
 @test f_min ≈ 0.0
 @test x_min ≈ zeros(n)
-@inferred PL.grid_search(gs; minimise=Val(true))
+@inferred ProfileLikelihood.grid_search(gs; minimise=Val(true))
 
 f_min, x_min, f_res = grid_search(gs; minimise=Val(true), save_vals=Val(true))
 @test f_min ≈ 0.0
@@ -123,10 +132,11 @@ param_ranges = [LinRange(-5.12, 5.12, 25) for i in 1:n]
 @test f_res ≈ [rastrigin_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
+    local lb, ub, ig, f_min, x_min
     lb = repeat([-5.12], n)
     ub = repeat([5.12], n)
     gr = rand(n, 2000)
-    ig = PL.IrregularGrid(lb, ub, gr)
+    ig = ProfileLikelihood.IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(rastrigin_f, ig; minimise=Val(true))
     @inferred grid_search(rastrigin_f, ig; minimise=Val(true))
     @test f_min == minimum(rastrigin_f(x, nothing) for x in eachcol(gr))
@@ -134,7 +144,7 @@ for _ in 1:250
     @test x_min == gr[:, xm]
 
     gr = [rand(n) for _ in 1:2000]
-    ig = PL.IrregularGrid(lb, ub, gr)
+    ig = ProfileLikelihood.IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(rastrigin_f, ig; minimise=Val(false))
     @test f_min == maximum(rastrigin_f(x, nothing) for x in gr)
     xm = findmax(x -> rastrigin_f(x, nothing), gr)[2]
@@ -165,6 +175,7 @@ f_min, x_min, f_res = grid_search((x, _) -> -ackley_f(x, nothing), ug; minimise=
 @test f_res ≈ [-ackley_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
+    local ig, f_min, x_min
     gr = rand(n, 500)
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(ackley_f, ig; minimise=Val(true))
@@ -227,6 +238,7 @@ f_min, x_min, f_res = grid_search((x, _) -> -sphere_f(x, nothing), ug; minimise=
 @test f_res ≈ [-sphere_f(x, nothing) for x in Iterators.product(param_ranges...)]
 
 for _ in 1:250
+    local ig, f_min, x_min, f_res
     gr = rand(n, 500)
     ig = IrregularGrid(lb, ub, gr)
     f_min, x_min = grid_search(sphere_f, ig; minimise=Val(true))
@@ -269,24 +281,24 @@ res = 27
 ug = RegularGrid(lb, ub, res)
 sol = grid_search(prob, ug; save_vals=Val(false))
 @inferred grid_search(prob, ug; save_vals=Val(false))
-@test sol isa PL.LikelihoodSolution
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test sol isa ProfileLikelihood.LikelihoodSolution
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
     3.2307692307692317]
 param_ranges = [LinRange(lb[i], ub[i], res) for i in eachindex(lb)]
 f_res_true = [loglikk(collect(x), dat) for x in Iterators.product(param_ranges...)]
-@test PL.get_maximum(sol) ≈ maximum(f_res_true)
+@test ProfileLikelihood.get_maximum(sol) ≈ maximum(f_res_true)
 max_idx = Tuple(findmax(f_res_true)[2])
-@test PL.get_mle(sol) ≈ [ug[i, max_idx[i]] for i in eachindex(lb)]
+@test ProfileLikelihood.get_mle(sol) ≈ [ug[i, max_idx[i]] for i in eachindex(lb)]
 
 sol, f_res = grid_search(prob, ug; save_vals=Val(true))
 @inferred grid_search(prob, ug; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
@@ -298,23 +310,23 @@ gr = hcat(gr, [0.09230769230823077, -0.9230769230769231, 0.8076923076923077, 0.4
 ig = IrregularGrid(lb, ub, gr)
 sol = grid_search(prob, ig; save_vals=Val(false))
 @inferred grid_search(prob, ig; save_vals=Val(false))
-@test sol isa PL.LikelihoodSolution
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test sol isa ProfileLikelihood.LikelihoodSolution
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
     3.2307692307692317]
 f_res_true = [loglikk(x, dat) for x in eachcol(gr)]
-@test PL.get_maximum(sol) ≈ maximum(f_res_true)
+@test ProfileLikelihood.get_maximum(sol) ≈ maximum(f_res_true)
 max_idx = findmax(f_res_true)[2]
-@test PL.get_mle(sol) ≈ gr[:, max_idx] == PL.get_parameters(ig, max_idx)
+@test ProfileLikelihood.get_mle(sol) ≈ gr[:, max_idx] == ProfileLikelihood.get_parameters(ig, max_idx)
 
 sol, f_res = grid_search(prob, ig; save_vals=Val(true))
 @inferred grid_search(prob, ig; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
@@ -327,23 +339,23 @@ gr = [collect(x) for x in eachcol(gr)]
 ig = IrregularGrid(lb, ub, gr)
 sol = grid_search(prob, ig; save_vals=Val(false))
 @inferred grid_search(prob, ig; save_vals=Val(false))
-@test sol isa PL.LikelihoodSolution
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test sol isa ProfileLikelihood.LikelihoodSolution
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
     3.2307692307692317]
 f_res_true = [loglikk(x, dat) for x in gr]
-@test PL.get_maximum(sol) ≈ maximum(f_res_true)
+@test ProfileLikelihood.get_maximum(sol) ≈ maximum(f_res_true)
 max_idx = findmax(f_res_true)[2]
-@test PL.get_mle(sol) ≈ gr[max_idx] == PL.get_parameters(ig, max_idx)
+@test ProfileLikelihood.get_mle(sol) ≈ gr[max_idx] == ProfileLikelihood.get_parameters(ig, max_idx)
 
 sol, f_res = grid_search(prob, ig; save_vals=Val(true))
 @inferred grid_search(prob, ig; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test PL.get_maximum(sol) ≈ 281.7360323629172
-@test PL.get_mle(sol) ≈ [0.09230769230823077
+@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
+@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
     -0.9230769230769231
     0.8076923076923077
     0.46153846153846156
@@ -373,7 +385,7 @@ ug = RegularGrid(lb, ub, res)
 sol, L1 = grid_search(prob, ug; save_vals=Val(true))
 sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
 @test L1 ≈ L2
-@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+@test ProfileLikelihood.get_mle(sol) ≈ ProfileLikelihood.get_mle(sol2)
 
 f = prob.log_likelihood_function
 p = prob.data
@@ -395,7 +407,7 @@ ug = IrregularGrid(lb, ub, gr)
 sol, L1 = grid_search(prob, ug; save_vals=Val(true))
 sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
 @test L1 ≈ L2
-@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+@test ProfileLikelihood.get_mle(sol) ≈ ProfileLikelihood.get_mle(sol2)
 
 f = prob.log_likelihood_function
 p = prob.data
@@ -454,7 +466,7 @@ ug = RegularGrid(get_lower_bounds(prob), get_upper_bounds(prob), [36, 36, 36, 36
 sol, L1 = grid_search(prob, ug; save_vals=Val(true))
 sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
 @test L1 ≈ L2
-@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+@test ProfileLikelihood.get_mle(sol) ≈ ProfileLikelihood.get_mle(sol2)
 
 #b1 = @benchmark grid_search($prob, $ug; save_vals=$Val(false))
 #b2 = @benchmark grid_search($prob, $ug; save_vals=$Val(false), parallel=$Val(true))
@@ -481,7 +493,7 @@ ug = IrregularGrid(lb, ub, gr)
 sol, L1 = grid_search(prob, ug; save_vals=Val(true))
 sol2, L2 = grid_search(prob, ug; save_vals=Val(true), parallel=Val(true))
 @test L1 ≈ L2
-@test PL.get_mle(sol) ≈ PL.get_mle(sol2)
+@test ProfileLikelihood.get_mle(sol) ≈ ProfileLikelihood.get_mle(sol2)
 
 prob_copies = [deepcopy(prob) for _ in 1:Base.Threads.nthreads()]
 gs = [GridSearch(prob_copies[i].log_likelihood_function, ug, prob_copies[i].data) for i in 1:Base.Threads.nthreads()]

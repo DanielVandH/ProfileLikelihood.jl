@@ -1,3 +1,10 @@
+using OrdinaryDiffEq 
+using ..ProfileLikelihood 
+using FiniteDiff 
+using Optimization
+using Random
+using OptimizationNLopt 
+
 # Setting up 
 λ = 0.01
 K = 100.0
@@ -41,18 +48,18 @@ prob = LikelihoodProblem(
 sol = mle(prob, NLopt.LD_LBFGS)
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, conf_level=0.95, parallel=true)
 
-# Spline 
-splines = PL.spline_other_mles(prof)
+# spline 
+splines = ProfileLikelihood.spline_other_mles(prof)
 cache = zeros(2)
 θ = zeros(3)
 for i in keys(splines)
     spl = splines[i]
     for (j, ψ) in pairs(get_parameter_values(prof[i]))
         other_mles = [spl[k](ψ) for k in eachindex(spl)]
-        @test other_mles ≈ PL.get_other_mles(prof[i])[j]
-        PL.eval_other_mles_spline!(cache, spl, ψ)
+        @test other_mles ≈ ProfileLikelihood.get_other_mles(prof[i])[j]
+        ProfileLikelihood.eval_other_mles_spline!(cache, spl, ψ)
         @test cache ≈ other_mles
-        PL.build_θ!(θ, i, spl, ψ)
+        ProfileLikelihood.build_θ!(θ, i, spl, ψ)
         if i == 1
             @test θ ≈ [ψ, cache...]
         elseif i == 2
@@ -62,7 +69,7 @@ for i in keys(splines)
         end
     end
 end
-@inferred PL.spline_other_mles(prof)
+@inferred ProfileLikelihood.spline_other_mles(prof)
 
 # Prediction 
 function prediction_function(θ, data)
@@ -72,10 +79,11 @@ function prediction_function(θ, data)
     sol = solve(prob, Rosenbrock23(), saveat=t)
     return sol.u::Vector{Float64}
 end
-λ_rng = LinRange(PL.get_confidence_intervals(prof[:λ])..., 250)
-q_vals = PL.eval_prediction_function(prediction_function, prof[:λ], λ_rng, t)
-@inferred PL.eval_prediction_function(prediction_function, prof[:λ], λ_rng, t)
+λ_rng = LinRange(ProfileLikelihood.get_confidence_intervals(prof[:λ])..., 250)
+q_vals = ProfileLikelihood.eval_prediction_function(prediction_function, prof[:λ], λ_rng, t)
+@inferred ProfileLikelihood.eval_prediction_function(prediction_function, prof[:λ], λ_rng, t)
 for (j, q) in pairs(q_vals)
+    local θ
     ψ = λ_rng[j]
     spl = splines[1]
     other_mles = [spl[k](ψ) for k in eachindex(spl)]
@@ -84,10 +92,10 @@ for (j, q) in pairs(q_vals)
     @test q ≈ _q
 end
 
-q = PL.eval_prediction_function(prediction_function, prof, t)
-@inferred PL.eval_prediction_function(prediction_function, prof, t)
+q = ProfileLikelihood.eval_prediction_function(prediction_function, prof, t)
+@inferred ProfileLikelihood.eval_prediction_function(prediction_function, prof, t)
 for i in 1:3
-    @test q[i] ≈ PL.eval_prediction_function(prediction_function, prof[i], LinRange(PL.get_confidence_intervals(prof[i])..., 250), t)
+    @test q[i] ≈ ProfileLikelihood.eval_prediction_function(prediction_function, prof[i], LinRange(ProfileLikelihood.get_confidence_intervals(prof[i])..., 250), t)
 end
 
 # Prediction intervals
@@ -97,13 +105,13 @@ intervals, union_intervals,  all_curves, param_ranges = get_prediction_intervals
 @test length(union_intervals) == length(t_many_pts)
 for i in 1:3
     for CI in intervals[i]
-        @test PL.get_lower(CI) ≤ PL.get_upper(CI)
-        @test PL.get_level(CI) == 0.95
+        @test ProfileLikelihood.get_lower(CI) ≤ ProfileLikelihood.get_upper(CI)
+        @test ProfileLikelihood.get_level(CI) == 0.95
     end
 end
 
-a = reduce(hcat, [[PL.get_lower(ci) for ci in intervals[i]] for i in 1:3])
-b = reduce(hcat, [[PL.get_upper(ci) for ci in intervals[i]] for i in 1:3])
+a = reduce(hcat, [[ProfileLikelihood.get_lower(ci) for ci in intervals[i]] for i in 1:3])
+b = reduce(hcat, [[ProfileLikelihood.get_upper(ci) for ci in intervals[i]] for i in 1:3])
 min_a = minimum(a; dims=2)
 max_b = maximum(b; dims=2)
 @test all(a[:, 1] .< b[:, 1])
@@ -111,8 +119,8 @@ max_b = maximum(b; dims=2)
 @test all(a[:, 3] .< b[:, 3])
 @test all(min_a .< max_b)
 for (j, CI) in pairs(union_intervals)
-    @test PL.get_lower(CI) ≤ PL.get_upper(CI)
-    @test PL.get_level(CI) == 0.95
-    @test PL.get_lower(CI) == min_a[j] 
-    @test PL.get_upper(CI) == max_b[j]
+    @test ProfileLikelihood.get_lower(CI) ≤ ProfileLikelihood.get_upper(CI)
+    @test ProfileLikelihood.get_level(CI) == 0.95
+    @test ProfileLikelihood.get_lower(CI) == min_a[j] 
+    @test ProfileLikelihood.get_upper(CI) == max_b[j]
 end

@@ -1,3 +1,6 @@
+using ..ProfileLikelihood
+using Optimization
+using OrdinaryDiffEq
 ######################################################
 ## LikelihoodProblem 
 ######################################################
@@ -32,25 +35,25 @@ negloglik = ProfileLikelihood.negate_loglik(loglik)
 data = (rand(100), [:a, :b])
 prob = ProfileLikelihood.construct_optimisation_problem(negloglik, θ₀, data)
 @test prob == OptimizationProblem(negloglik, θ₀, data)
-@test !PL.has_upper_bounds(prob)
-@test !PL.has_lower_bounds(prob)
-@test !PL.has_bounds(prob)
+@test !ProfileLikelihood.has_upper_bounds(prob)
+@test !ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.has_bounds(prob)
 
 lb = [1.0, 2.0]
 ub = [Inf, Inf]
 prob = ProfileLikelihood.construct_optimisation_problem(negloglik, θ₀, data; lb=lb, ub=ub)
 @test prob == OptimizationProblem(negloglik, θ₀, data; lb=lb, ub=ub)
-@test prob.lb === lb == PL.get_lower_bounds(prob)
-@test prob.ub === ub == PL.get_upper_bounds(prob)
-@test PL.finite_lower_bounds(prob)
-@test !PL.finite_upper_bounds(prob)
-@test PL.has_upper_bounds(prob)
-@test PL.has_lower_bounds(prob)
-@test PL.has_bounds(prob)
-@test PL.get_lower_bounds(prob, 1) == 1.0
-@test PL.get_lower_bounds(prob, 2) == 2.0
-@test PL.get_upper_bounds(prob, 1) == Inf
-@test PL.get_upper_bounds(prob, 2) == Inf
+@test prob.lb === lb == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.ub === ub == ProfileLikelihood.get_upper_bounds(prob)
+@test ProfileLikelihood.finite_lower_bounds(prob)
+@test !ProfileLikelihood.finite_upper_bounds(prob)
+@test ProfileLikelihood.has_upper_bounds(prob)
+@test ProfileLikelihood.has_lower_bounds(prob)
+@test ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.get_lower_bounds(prob, 1) == 1.0
+@test ProfileLikelihood.get_lower_bounds(prob, 2) == 2.0
+@test ProfileLikelihood.get_upper_bounds(prob, 1) == Inf
+@test ProfileLikelihood.get_upper_bounds(prob, 2) == Inf
 
 ## Test the construction of the integrator 
 f = (u, p, t) -> 1.01u
@@ -74,79 +77,79 @@ loglik = (θ, p) -> θ[1] * p[1] + θ[2]
 θ₀ = [5.0, 2.0]
 syms = [:a, :b]
 prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == prob.data
-@test PL.get_log_likelihood_function(prob) == loglik
-@test PL.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_θ₀(prob, 1) == 5.0
-@test PL.get_θ₀(prob, 2) == 2.0
-@test PL.get_syms(prob) == syms == prob.syms
-@test !PL.has_upper_bounds(prob)
-@test !PL.has_lower_bounds(prob)
-@test !PL.finite_lower_bounds(prob)
-@test !PL.finite_upper_bounds(prob)
-@test !PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 2
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == prob.data
+@test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
+@test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_θ₀(prob, 1) == 5.0
+@test ProfileLikelihood.get_θ₀(prob, 2) == 2.0
+@test ProfileLikelihood.get_syms(prob) == syms == prob.syms
+@test !ProfileLikelihood.has_upper_bounds(prob)
+@test !ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.finite_lower_bounds(prob)
+@test !ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 2
 
 adtype = Optimization.AutoFiniteDiff()
-prob = PL.LikelihoodProblem(loglik, θ₀; syms, f_kwargs=(adtype=adtype,))
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == prob.data
-@test PL.get_log_likelihood_function(prob) == loglik
-@test PL.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_syms(prob) == syms == prob.syms
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms, f_kwargs=(adtype=adtype,))
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == prob.data
+@test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
+@test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_syms(prob) == syms == prob.syms
 @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
-@test prob.problem.lb === nothing == PL.get_lower_bounds(prob)
-@test prob.problem.ub === nothing == PL.get_upper_bounds(prob)
-@test !PL.has_upper_bounds(prob)
-@test !PL.has_lower_bounds(prob)
-@test !PL.finite_lower_bounds(prob)
-@test !PL.finite_upper_bounds(prob)
-@test !PL.finite_bounds(prob)
-@test !PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 2
+@test prob.problem.lb === nothing == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.problem.ub === nothing == ProfileLikelihood.get_upper_bounds(prob)
+@test !ProfileLikelihood.has_upper_bounds(prob)
+@test !ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.finite_lower_bounds(prob)
+@test !ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.finite_bounds(prob)
+@test !ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 2
 
 adtype = Optimization.AutoFiniteDiff()
 data = [1.0, 3.0]
 lb = [3.0, -3.0]
 ub = [Inf, Inf]
-prob = PL.LikelihoodProblem(loglik, θ₀; f_kwargs=(adtype=adtype,), prob_kwargs=(lb=lb, ub=ub), data)
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == data == prob.data
-@test PL.get_log_likelihood_function(prob) == loglik
-@test PL.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_syms(prob) == 1:2
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; f_kwargs=(adtype=adtype,), prob_kwargs=(lb=lb, ub=ub), data)
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == data == prob.data
+@test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
+@test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_syms(prob) == 1:2
 @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
-@test prob.problem.lb == lb == PL.get_lower_bounds(prob)
-@test prob.problem.ub == ub == PL.get_upper_bounds(prob)
-@test PL.has_upper_bounds(prob)
-@test PL.has_lower_bounds(prob)
-@test PL.finite_lower_bounds(prob)
-@test !PL.finite_upper_bounds(prob)
-@test !PL.finite_bounds(prob)
-@test PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 2
+@test prob.problem.lb == lb == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.problem.ub == ub == ProfileLikelihood.get_upper_bounds(prob)
+@test ProfileLikelihood.has_upper_bounds(prob)
+@test ProfileLikelihood.has_lower_bounds(prob)
+@test ProfileLikelihood.finite_lower_bounds(prob)
+@test !ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.finite_bounds(prob)
+@test ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 2
 
 adtype = Optimization.AutoFiniteDiff()
 data = [1.0, 3.0]
 lb = [Inf, Inf]
 ub = [3.0, -3.0]
-prob = PL.LikelihoodProblem(loglik, θ₀; f_kwargs=(adtype=adtype,), prob_kwargs=(lb=lb, ub=ub), data)
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == data == prob.data
-@test PL.get_log_likelihood_function(prob) == loglik
-@test PL.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_syms(prob) == 1:2
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; f_kwargs=(adtype=adtype,), prob_kwargs=(lb=lb, ub=ub), data)
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == data == prob.data
+@test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
+@test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_syms(prob) == 1:2
 @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
-@test prob.problem.lb == lb == PL.get_lower_bounds(prob)
-@test prob.problem.ub == ub == PL.get_upper_bounds(prob)
-@test PL.has_upper_bounds(prob)
-@test PL.has_lower_bounds(prob)
-@test !PL.finite_lower_bounds(prob)
-@test PL.finite_upper_bounds(prob)
-@test !PL.finite_bounds(prob)
-@test PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 2
+@test prob.problem.lb == lb == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.problem.ub == ub == ProfileLikelihood.get_upper_bounds(prob)
+@test ProfileLikelihood.has_upper_bounds(prob)
+@test ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.finite_lower_bounds(prob)
+@test ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.finite_bounds(prob)
+@test ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 2
 
 ## Test the construction of the LikelihoodProblem with an integrator
 f = (u, p, t) -> 1.01u
@@ -154,54 +157,54 @@ u₀ = [0.5]
 tspan = (0.0, 1.0)
 p = nothing
 ode_alg = Tsit5()
-prob = PL.LikelihoodProblem(loglik, u₀, f, u₀, tspan;
+prob = ProfileLikelihood.LikelihoodProblem(loglik, u₀, f, u₀, tspan;
     ode_alg, ode_kwargs=(saveat=0.25,), ode_parameters=p)
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == SciMLBase.NullParameters()
-@test PL.get_log_likelihood_function(prob).loglik == loglik
-@test PL.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_syms(prob) == [1]
-@test PL.get_log_likelihood_function(prob).integrator.alg == ode_alg
-@test PL.get_log_likelihood_function(prob).integrator.p == p
-@test PL.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
-@test PL.get_log_likelihood_function(prob).integrator.f.f == f
-@test prob.problem.lb === nothing == PL.get_lower_bounds(prob)
-@test prob.problem.ub === nothing == PL.get_upper_bounds(prob)
-@test !PL.has_upper_bounds(prob)
-@test !PL.has_lower_bounds(prob)
-@test !PL.finite_lower_bounds(prob)
-@test !PL.finite_upper_bounds(prob)
-@test !PL.finite_bounds(prob)
-@test !PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 1
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == SciMLBase.NullParameters()
+@test ProfileLikelihood.get_log_likelihood_function(prob).loglik == loglik
+@test ProfileLikelihood.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_syms(prob) == [1]
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg == ode_alg
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.p == p
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.f.f == f
+@test prob.problem.lb === nothing == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.problem.ub === nothing == ProfileLikelihood.get_upper_bounds(prob)
+@test !ProfileLikelihood.has_upper_bounds(prob)
+@test !ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.finite_lower_bounds(prob)
+@test !ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.finite_bounds(prob)
+@test !ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 1
 
 p = [1.0, 3.0]
 ode_alg = Rosenbrock23(autodiff=false)
 dat = [2.0, 3.0]
 syms = [:u]
-prob = PL.LikelihoodProblem(loglik, u₀, f, u₀, tspan;
+prob = ProfileLikelihood.LikelihoodProblem(loglik, u₀, f, u₀, tspan;
     data=dat, syms=syms,
     ode_alg, ode_kwargs=(saveat=0.25,), ode_parameters=p,
     prob_kwargs=(lb=lb, ub=ub), f_kwargs=(adtype=adtype,))
-@test PL.get_problem(prob) == prob.problem
-@test PL.get_data(prob) == dat
-@test PL.get_log_likelihood_function(prob).loglik == loglik
-@test PL.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
-@test PL.get_syms(prob) == syms
-@test PL.get_log_likelihood_function(prob).integrator.alg == Rosenbrock23{1,false,OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum},typeof(OrdinaryDiffEq.DEFAULT_PRECS),Val{:forward},true,nothing}(OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum}(OrdinaryDiffEq.LinearAlgebra.RowMaximum()), OrdinaryDiffEq.DEFAULT_PRECS)
-@test PL.get_log_likelihood_function(prob).integrator.p == p
-@test PL.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
-@test PL.get_log_likelihood_function(prob).integrator.f.f == f
+@test ProfileLikelihood.get_problem(prob) == prob.problem
+@test ProfileLikelihood.get_data(prob) == dat
+@test ProfileLikelihood.get_log_likelihood_function(prob).loglik == loglik
+@test ProfileLikelihood.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
+@test ProfileLikelihood.get_syms(prob) == syms
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg == Rosenbrock23{1,false,OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum},typeof(OrdinaryDiffEq.DEFAULT_PRECS),Val{:forward},true,nothing}(OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum}(OrdinaryDiffEq.LinearAlgebra.RowMaximum()), OrdinaryDiffEq.DEFAULT_PRECS)
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.p == p
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
+@test ProfileLikelihood.get_log_likelihood_function(prob).integrator.f.f == f
 @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
-@test prob.problem.lb == lb == PL.get_lower_bounds(prob)
-@test prob.problem.ub == ub == PL.get_upper_bounds(prob)
-@test PL.has_upper_bounds(prob)
-@test PL.has_lower_bounds(prob)
-@test !PL.finite_lower_bounds(prob)
-@test PL.finite_upper_bounds(prob)
-@test !PL.finite_bounds(prob)
-@test PL.has_bounds(prob)
-@test PL.number_of_parameters(prob) == 1
+@test prob.problem.lb == lb == ProfileLikelihood.get_lower_bounds(prob)
+@test prob.problem.ub == ub == ProfileLikelihood.get_upper_bounds(prob)
+@test ProfileLikelihood.has_upper_bounds(prob)
+@test ProfileLikelihood.has_lower_bounds(prob)
+@test !ProfileLikelihood.finite_lower_bounds(prob)
+@test ProfileLikelihood.finite_upper_bounds(prob)
+@test !ProfileLikelihood.finite_bounds(prob)
+@test ProfileLikelihood.has_bounds(prob)
+@test ProfileLikelihood.number_of_parameters(prob) == 1
 
 ## Test the indexing 
 loglik = (θ, p) -> θ[1] * p[1] + θ[2]
@@ -221,6 +224,6 @@ prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
 
 ## Test that we can replace the initial estimate
 new_θ = [2.0, 3.0]
-new_prob = PL.update_initial_estimate(prob, new_θ)
+new_prob = ProfileLikelihood.update_initial_estimate(prob, new_θ)
 @test new_prob.θ₀ == new_θ
 @test new_prob.problem.u0 == new_θ

@@ -1,3 +1,12 @@
+using Random 
+using ..ProfileLikelihood
+using Optimization 
+using OrdinaryDiffEq
+using CairoMakie 
+using LaTeXStrings
+using OptimizationNLopt
+const SAVE_FIGURE = false 
+
 ######################################################
 ## Example II: Logistic ODE
 ######################################################

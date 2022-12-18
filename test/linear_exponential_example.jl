@@ -1,3 +1,17 @@
+using OrdinaryDiffEq
+using ..ProfileLikelihood
+using Optimization 
+using CairoMakie 
+using LaTeXStrings 
+using Random
+using Distributions
+using MuladdMacro
+using LoopVectorization
+using LatinHypercubeSampling 
+using OptimizationOptimJL
+using OptimizationNLopt
+const SAVE_FIGURE = false
+
 ######################################################
 ## Example III: Linear Exponential ODE with Grid Search
 ######################################################
@@ -82,13 +96,13 @@ parameter_vals = Matrix(scaleLHC(plan, bnds)') # transpose so that a column is a
 irregular_grid = IrregularGrid(lb, ub, parameter_vals)
 gs_ir, loglik_vals_ir = grid_search(prob, irregular_grid; save_vals=Val(true))
 max_lik, max_idx = findmax(loglik_vals_ir)
-@test max_lik == PL.get_maximum(gs_ir)
-@test parameter_vals[:, max_idx] ≈ PL.get_mle(gs_ir)
+@test max_lik == ProfileLikelihood.get_maximum(gs_ir)
+@test parameter_vals[:, max_idx] ≈ ProfileLikelihood.get_mle(gs_ir)
 
 _gs_ir, _loglik_vals_ir = grid_search(prob, irregular_grid; parallel=Val(true), save_vals=Val(true))
 _max_lik, _max_idx = findmax(_loglik_vals_ir)
-@test _max_lik == PL.get_maximum(gs_ir)
-@test parameter_vals[:, _max_idx] ≈ PL.get_mle(_gs_ir)
+@test _max_lik == ProfileLikelihood.get_maximum(gs_ir)
+@test parameter_vals[:, _max_idx] ≈ ProfileLikelihood.get_mle(_gs_ir)
 @test loglik_vals_ir ≈ _loglik_vals_ir
 @test _max_idx == max_idx
 
@@ -98,9 +112,9 @@ _max_lik, _max_idx = findmax(_loglik_vals_ir)
 # Also see MultistartOptimization.jl
 
 ## Step 4: Compute the MLE, starting at the grid search solution 
-prob = PL.update_initial_estimate(prob, gs)
+prob = ProfileLikelihood.update_initial_estimate(prob, gs)
 sol = mle(prob, Optim.LBFGS())
-@test PL.get_mle(sol, 1) ≈ -0.4994204745412974 rtol = 1e-2
+@test ProfileLikelihood.get_mle(sol, 1) ≈ -0.4994204745412974 rtol = 1e-2
 @test sol[2] ≈ 0.5287809 rtol = 1e-2
 @test sol[:y₀] ≈ 15.145175459094732 rtol = 1e-2
 

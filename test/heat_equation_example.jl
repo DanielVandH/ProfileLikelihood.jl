@@ -1,3 +1,16 @@
+using FiniteVolumeMethod 
+using ..ProfileLikelihood 
+using DelaunayTriangulation
+using Random 
+using LinearSolve 
+using OrdinaryDiffEq
+using CairoMakie 
+using LaTeXStrings
+using StaticArraysCore
+using Optimization 
+using OptimizationNLopt
+const SAVE_FIGURE = false
+
 ######################################################
 ## Example IV: Heat equation on a square plate
 ######################################################
@@ -171,7 +184,6 @@ xlims!(fig.content[1], 7.0, 9.5)
 SAVE_FIGURE && save("figures/heat_pde_example.png", fig)
 
 ### Now estimate only two parameters
-using StaticArraysCore
 @inline function loglik_fvm_2(θ::AbstractVector{T}, param, integrator) where {T}
     _k, _u₀, = θ
     (; c) = param
