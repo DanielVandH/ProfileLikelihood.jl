@@ -32,7 +32,7 @@ From Wilk's theorem, we know that $2\hat{\ell}\_p(\boldsymbol\theta \mid \boldsy
 
 We compute the profile log-likelihood in this package by starting at the MLE, and stepping left/right until we reach a given threshold. The code is iterative to not waste time in so much of the parameter space.
 
-More detail about the methods we use in this package is given at the very end in the Mathematical and Implementation Details section.
+More detail about the methods we use in this package is given at the very end in the Mathematical and Implementation Details section, and a lot more of the functionality is given in the tests.
 
 # Interface
 
