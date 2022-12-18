@@ -883,7 +883,7 @@ scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
 ```
 
-![Second set of profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_contour_example.png?raw=true)
+![Second set of profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_example_2.png?raw=true)
 
 See that we've recovered the parameters in the confidence intervals, and the profiles are smooth -- the identifiability issues are gone. So, it seems like $c$ was the problematic parameter, since our summary statistic does not really give us any information about it. Our idea of using the summary statistic $\mathcal S(t)$ from above would likely ameliorate this issue, since it will give information directly relating to $c$.
 
