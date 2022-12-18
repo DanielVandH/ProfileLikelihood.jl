@@ -388,7 +388,7 @@ fig = plot_profiles(prof;
 
 ### Prediction intervals 
 
-Let us now use these results to compute prediction intervals for $u(t)$. Following [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), the idea is to use the profile likelihood to construct another profile likelihood, called the *profile-wise profile likelihood*, that allows us to obtain prediction intervals for some prediction function $q(\boldsymbol \boldsymbol \theta)$. More detail is given in the mathematical details section.
+Let us now use these results to compute prediction intervals for $u(t)$. Following [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), the idea is to use the profile likelihood to construct another profile likelihood, called the *profile-wise profile likelihood*, that allows us to obtain prediction intervals for some prediction function $q(\boldsymbol \theta)$. More detail is given in the mathematical details section.
 
 The first step is to define a function $q(\boldsymbol\theta)$ that comptues our prediction given some parameters $\boldsymbol\theta$. The function in this case is simply:
 
