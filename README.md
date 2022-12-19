@@ -110,7 +110,21 @@ Let us now give some examples. More detail is given in the tests.
 
 ## Multiple linear regression
 
-Let us start with a linear regression example. We perform a simulation study where we try and estimate the parameters in a regression of the form 
+Let us start with a linear regression example. First, load the packages needed:
+
+```julia
+using ProfileLikelihood
+using Random 
+using PreallocationTools 
+using Distributions 
+using CairoMakie 
+using LaTeXStrings 
+using LinearAlgebra
+using Optimization 
+using OptimizationOptimJL
+```
+
+We perform a simulation study where we try and estimate the parameters in a regression of the form 
 
 $$
 y_i = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \beta_3x_{1i}x_{3i} + \varepsilon_i, \quad \varepsilon_i \sim \mathcal N(0, \sigma^2), \quad i=1,2,\ldots, n. 
@@ -288,9 +302,19 @@ plot_profiles(prof, :β₂) # symbols work
 
 ## Logistic ordinary differential equation
 
-The following example comes from the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
+The following example comes from the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367). First, load the packages we'll be using:
 
-Now let us consider the logistic ordinary differential equation (ODE). For ODEs, our treatment is as follows: Let us have some ODE $\mathrm dy/\mathrm dt = f(y, t; \boldsymbol \theta)$ for some parameters $\boldsymbol\theta$ of interest. We will suppose that we have some data $y_i^o$ at time $t_i$, $i=1,\ldots,n$, with initial condition $y_0^o$ at time $t_0=0$, which we model according to a normal distribution $y_i^o \mid \boldsymbol \theta \sim \mathcal N(y_i(\boldsymbol \theta), \sigma^2)$, $i=0,1,\ldots,n$, where $y_i$ is a solution of the ODE at time $t_i$. This defines a likelihood that we can use for estimating the parameters.
+```julia
+using Random 
+using ProfileLikelihood
+using Optimization 
+using OrdinaryDiffEq
+using CairoMakie 
+using LaTeXStrings
+using OptimizationNLopt
+```
+
+Let us consider the logistic ordinary differential equation (ODE). For ODEs, our treatment is as follows: Let us have some ODE $\mathrm dy/\mathrm dt = f(y, t; \boldsymbol \theta)$ for some parameters $\boldsymbol\theta$ of interest. We will suppose that we have some data $y_i^o$ at time $t_i$, $i=1,\ldots,n$, with initial condition $y_0^o$ at time $t_0=0$, which we model according to a normal distribution $y_i^o \mid \boldsymbol \theta \sim \mathcal N(y_i(\boldsymbol \theta), \sigma^2)$, $i=0,1,\ldots,n$, where $y_i$ is a solution of the ODE at time $t_i$. This defines a likelihood that we can use for estimating the parameters.
 
 Let us now proceed with our example. We are considering $\mathrm du/\mathrm dt = \lambda u(1-u/K)$, $u(0)=u_0$, and our interest is in estimating $(\lambda, K, u_0)$, we will fix the standard deviation of the noise, $\sigma$, at $\sigma=10$. Note that the exact solution to this ODE is $u(t) = Ku_0/[(K-u_0)\mathrm{e}^{-\lambda t} + u_0]$.
 
@@ -498,7 +522,24 @@ The first plot shows that the profile-wise prediction interval for $\lambda$ is 
 
 ## Linear exponential ODE and grid searching
 
-Now we consider $\mathrm dy/\mathrm dt = \lambda y$, $y(0) = y_0$. This has solution $y(t) = y_0\mathrm{e}^{\lambda t}$. Let us start by defining the data and the likelihood problem:
+Now we consider $\mathrm dy/\mathrm dt = \lambda y$, $y(0) = y_0$. This has solution $y(t) = y_0\mathrm{e}^{\lambda t}$. First, load the packages we'll be using:
+
+```julia
+using OrdinaryDiffEq
+using ProfileLikelihood
+using Optimization 
+using CairoMakie 
+using LaTeXStrings 
+using Random
+using Distributions
+using MuladdMacro
+using LoopVectorization
+using LatinHypercubeSampling 
+using OptimizationOptimJL
+using OptimizationNLopt
+```
+
+Let us start by defining the data and the likelihood problem:
 
 ```julia
 ## Step 1: Generate some data for the problem and define the likelihood
@@ -642,7 +683,23 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
 
 ## Diffusion equation on a square plate 
 
-*Warning*: Much of the code in this example takes a very long time, e.g. the MLEs take just under an hour.
+*Warning*: Much of the code in this example takes a very long time, e.g. the MLEs take just under an hour. The total runtime is around six hours on my machine (mostly coming from the mesh for the PDE being very dense). 
+
+The packages we use in this example are:
+
+```julia 
+using FiniteVolumeMethod 
+using ProfileLikelihood 
+using DelaunayTriangulation
+using Random 
+using LinearSolve 
+using OrdinaryDiffEq
+using CairoMakie 
+using LaTeXStrings
+using StaticArraysCore
+using Optimization 
+using OptimizationNLopt
+```
 
 Let us now consider the problem of estimating parameters defining a diffusion equation on a square plate. In particular, consider 
 
