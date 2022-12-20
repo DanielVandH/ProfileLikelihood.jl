@@ -62,6 +62,87 @@ LikelihoodProblem(loglik::Function, θ₀,
 
 Importantly, `loglik` in this case is now a function of the form `ℓ(θ, p, integrator)`, where `integrator` is the same integrator as in the integrator interface from DifferentialEquations.jl; see the documentation at DifferentialEquations.jl for more detail on using the integrator. Furthermore, `ode_function` is the function for the ODE, `u₀` its initial condition, and `tspan` its time span. Additionally, the parameters for the `ode_function` (e.g. the `p` in `ode_function(du, u, p, t)` or `ode_function(u, p, t)`) can be passed using the keyword argument `ode_parameters`. The algorithm used to solve the differential equation is passed with `ode_alg`, and lastly any additional keyword arguments for solving the problem are to be passed through `ode_kwargs`. 
 
+The full docstrings for the three methods available for defining a `LikelihoodProblem` are given below.
+
+```julia
+"""
+    LikelihoodProblem(loglik::Function, θ₀;
+        syms=eachindex(θ₀), data=SciMLBase.NullParameters(),
+        f_kwargs=nothing, prob_kwargs=nothing)
+
+Constructor for the [`LikelihoodProblem`](@ref).
+
+# Arguments 
+- `loglik::Function`: The log-likelihood function, taking the form `ℓ(θ, p)`.
+- `θ₀`: The estimates estimates for the MLEs.
+
+# Keyword Arguments 
+- `syms=eachindex(θ₀)`: Names for each parameter. 
+- `data=SciMLBase.NullParameters()`: The parameter `p` in the log-likelihood function. 
+- `f_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationFunction`.
+- `prob_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationProblem`.
+
+# Outputs 
+Returns the [`LikelihoodProblem`](@ref) problem object.
+"""
+```
+
+```julia 
+"""
+    LikelihoodProblem(loglik::Function, θ₀, integrator;
+        syms=eachindex(θ₀), data=SciMLBase.NullParameters(),
+        f_kwargs=nothing, prob_kwargs=nothing)
+
+Constructor for the [`LikelihoodProblem`](@ref) for a differential equation problem 
+with associated `integrator`.
+
+# Arguments 
+- `loglik::Function`: The log-likelihood function, taking the form `ℓ(θ, p, integrator)`.
+- `θ₀`: The estimates estimates for the MLEs.
+- `integrator`: The integrator for the differential equation problem. See also [`construct_integrator`](@ref).
+
+# Keyword Arguments 
+- `syms=eachindex(θ₀)`: Names for each parameter. 
+- `data=SciMLBase.NullParameters()`: The parameter `p` in the log-likelihood function. 
+- `f_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationFunction`.
+- `prob_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationProblem`.
+
+# Outputs 
+Returns the [`LikelihoodProblem`](@ref) problem object.
+"""
+```
+
+```julia
+"""
+    LikelihoodProblem(loglik::Function, θ₀,
+        ode_function, u₀, tspan;
+        syms=eachindex(θ₀), data=SciMLBase.NullParameters(),
+        ode_parameters=SciMLBase.NullParameters(), ode_alg,
+        ode_kwargs=nothing, f_kwargs=nothing, prob_kwargs=nothing)
+
+Constructor for the [`LikelihoodProblem`](@ref) for a differential equation problem.
+
+# Arguments 
+- `loglik::Function`: The log-likelihood function, taking the form `ℓ(θ, p, integrator)`.
+- `θ₀`: The estimates estimates for the MLEs.
+- `ode_function`: The function `f(du, u, p, t)` or `f(u, p, t)` for the differential equation.
+- `u₀`: The initial condition for the differential equation. 
+- `tspan`: The time-span to solve the differential equaton over. 
+
+# Keyword Arguments 
+- `syms=eachindex(θ₀)`: Names for each parameter. 
+- `data=SciMLBase.NullParameters()`: The parameter `p` in the log-likelihood function. 
+- `ode_parameters=SciMLBase.NullParameters()`: The parameter `p` in `ode_function`.
+- `ode_alg`: The algorithm used for solving the differential equatios.
+- `ode_kwargs=nothing`: Extra keyword arguments, passed as a `NamedTuple`, to pass into the integrator; see [`construct_integrator`](@ref).
+- `f_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationFunction`.
+- `prob_kwargs=nothing`: Keyword arguments, passed as a `NamedTuple`, for the `OptimizationProblem`.
+
+# Outputs 
+Returns the [`LikelihoodProblem`](@ref) problem object.
+"""
+```
+
 ## Solving the problem: mle and LikelihoodSolution 
 
 The MLEs for a given `LikelihoodProblem` are found using the function `mle`, e.g. `mle(prob, Optim.LBFGS())` will optimise the likelihood function using the LBFGS algorithm from Optim.jl (see also `?mle`). This function returns a `LikelihoodSolution`, defined by:
@@ -77,6 +158,25 @@ end
 ```
 
 If `sol isa LikelihoodSolution`, then you can use the `syms` from your original problem to access a specific MLE, e.g. `sol[:α]` would return the MLE for the paramter `:α`.
+
+If you want to use multiple optimisers, i.e. a sequence of optimisers $(O_1, O_2, \ldots)$, in which $O_j$'s initial estimate starts from the solution from the optimiser $O_{j-1}$, you can also provide a `Tuple` into the algorithm argument, e.g. `mle(prob, (Optim.LBFGS(), NLopt.LN_NELDERMEAD))`.
+
+The full docstring for `mle` is given below. 
+
+```julia
+"""
+    mle(prob::LikelihoodProblem, alg, args...; kwargs...)
+    mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
+
+Given the likelihood problem `prob` and an optimiser `alg`, finds the MLEs and returns a 
+[`LikelihoodSolution`](@ref) object. Extra arguments and keyword arguments for `solve` can be passed 
+through `args...` and `kwargs...`.
+
+If `alg` is a `Tuple`, then the problem is re-optimised after each algorithm with the next element in alg, 
+starting from `alg[1]`, with initial estimate coming from the solution with the 
+previous algorithm (starting with `get_initial_estimate(prob)`).
+"""
+```
 
 ## Profiling the parameters: profile and ProfileLikelihoodSolution 
 
@@ -98,11 +198,79 @@ Here, the parameter values used for each parameter are given in `parameter_value
 
 If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `prof(0.5, 1)` to evaluate the profile log-likelihood function of the first parameter at the point `0.5`. Alternatively, `prof(0.7, :α)` does the same but for the parameter `:α` at the point `0.7`. You can also index `prof` at a specific index (or symbol) to see the results only for that parameter, e.g. `prof[1]` or `prof[:α]`; this returns a `ProfileLikelihoodSolutionView`.
 
+The full docstring os `profile` is given below.
+
+```julia
+"""
+    profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of_parameters(prob);
+        alg=get_optimiser(sol),
+        conf_level::F=0.95,
+        confidence_interval_method=:spline,
+        threshold=get_chisq_threshold(conf_level),
+        resolution=200,
+        param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution),
+        min_steps=10,
+        normalise::Bool=true,
+        spline_alg=FritschCarlsonMonotonicInterpolation,
+        extrap=Line,
+        parallel=false,
+        next_initial_estimate_method = :prev,
+        kwargs...)
+
+Computes profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
+
+# Arguments 
+- `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
+- `sol::LikelihoodSolution`: The [`LikelihoodSolution`](@ref). See also [`mle`](@ref).
+- `n=1:number_of_parameters(prob)`: The parameter indices to compute the profile likelihoods for.
+
+# Keyword Arguments 
+- `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
+- `conf_level::F=0.95`: The level to use for the [`ConfidenceInterval`](@ref)s.
+- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also [`get_confidence_intervals!`](@ref). The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
+- `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
+- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
+- `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
+- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
+- `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
+- `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
+- `parallel=false`: Whether to use multithreading. If `true`, will use multithreading so that multiple parameters are profiled at once, and the steps to the left and right are done at the same time. 
+- `next_initial_estimate_method = :prev`: Method for selecting the next initial estimate when stepping forward when profiling. `:prev` simply uses the previous solution, but you can also use `:interp` to use linear interpolation. See also [`set_next_initial_estimate!`](@ref).
+- `kwargs...`: Extra keyword arguments to pass into `solve` for solving the `OptimizationProblem`. See also the docs from Optimization.jl.
+"""
+```
+
 ## Propagating uncertainty: Prediction intervals 
 
 The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example below (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
 
 The interface we use in `get_prediction_intervals` is not too refined currently, and is most subject to change. It works for now, but I will probably make it be more generally about predictions of vector quantities, assuming a function that returns a tuple of quantities, rather than having to deal with the case of scalar vs vector vs whatever else quantities. Ideally the interface should more easily support multithreading, and the code is not the cleanest to read either. Suggestions for this interface are especially welcome.
+
+The full docstring for `get_prediction_intervals` is given below.
+
+```julia
+"""
+    get_prediction_intervals(q, prof::ProfileLikelihoodSolution, data;
+        q_type=get_q_type(q, prof, data), resolution=250)
+
+Given a prediction of the form `q(θ, data)`, where `θ` has the same size as the `θ` used in 
+the profile likelihood solution `prof`, and `data` is the argument `data`, computes the prediction 
+intervals for `q` (possibly at each point if it outputs a vector) using the confidence intervals from `prof`.
+You can set the output of the prediction function using `q_type`, and the grid resolution when evaluating the prediction 
+function for each parameter via `resolution`.
+
+Two results are produced:
+
+- `parameterwise_cis`: This is a `Dict` mapping parameter indices to a a vector of confidence intervals from each output of `q` for the corresponding parameter. 
+- `union_cis`: This gives the union of the intervals from `parameterwise_cis` (just taking the extrema over each interal) at each output of `q`.
+
+We also return `all_curves`, a `Dict` mapping parameter indices to the vector of `q` values for each parameter, 
+and these parameter ranges are given in `param_ranges`. So, the final output looks like:
+
+`(parameterwise_cis, union_cis, all_curves, param_ranges)`.
+"""
+```
 
 # Examples 
 
@@ -1173,7 +1341,7 @@ Once we have terminated the algorithm, we need to obtain the confidence interval
 
 This is all done for each parameter.
 
-Note that a better method for initialising the optimisation for $\boldsymbol\omega_j$ may be to use e.g. linear interpolation for the previous two values, $\boldsymbol\omega_{j-1}$ and $\boldsymbol\omega_{j-2}$ (with special care for the bounds of the parameters), but this is not done in this package (yet?).
+Note that a better method for initialising the optimisation for $\boldsymbol\omega_j$ may be to use e.g. linear interpolation for the previous two values, $\boldsymbol\omega_{j-1}$ and $\boldsymbol\omega_{j-2}$ (with special care for the bounds of the parameters). We provide support for this, letting $\boldsymbol\omega_j = [\boldsymbol\omega_{j-2}(\psi_{j-1} - \psi_j) + \boldsymbol\omega_{j-1}(\psi_j - \psi_{j-2})] / (\psi_{j-1} - \psi_{j-2})$. See the `next_initial_estimate_method` option in `?profile`.
 
 ## Computing prediction intervals
 

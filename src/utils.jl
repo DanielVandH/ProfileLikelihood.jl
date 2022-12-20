@@ -49,3 +49,14 @@ function subscriptnumber(i::Int)#https://stackoverflow.com/a/64758370
     end
     return join(c)
 end
+
+function linear_extrapolation(x, x₀, y₀, x₁, y₁)
+    y = (y₀ * (x₁ - x) + y₁ * (x - x₀)) / (x₁ - x₀)
+    return y
+end
+function linear_extrapolation!(y, x, x₀, y₀, x₁, y₁)
+    for (i, y0, y1) in zip(eachindex(y), y₀, y₁)
+        y[i] = linear_extrapolation(x, x₀, y0, x₁, y1)
+    end
+    return nothing
+end

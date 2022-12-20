@@ -92,3 +92,27 @@ end
 @test ProfileLikelihood.subscriptnumber(6) == "₆"
 @test ProfileLikelihood.subscriptnumber(7) == "₇"
 @test ProfileLikelihood.subscriptnumber(13) == "₁₃"
+
+## linear_extrapolation 
+x₀, y₀ = 0.23, 0.58 
+x₁, y₁ = -0.271, 0.8
+x = 0.22
+y = ProfileLikelihood.linear_extrapolation(x, x₀,y₀,x₁,y₁)
+@test (y - y₁)/(x - x₁) ≈ (y₀ - y₁)/(x₀ - x₁)
+y = ProfileLikelihood.linear_extrapolation(x₀, x₀,y₀,x₁,y₁)
+@test y ≈ y₀
+y = ProfileLikelihood.linear_extrapolation(x₁, x₀,y₀,x₁,y₁)
+@test y ≈ y₁
+
+x₀ = 0.23
+y₀ = rand(4)
+x₁ = 0.999
+y₁ = rand(4)
+x = -0.29291
+y = zeros(4)
+ProfileLikelihood.linear_extrapolation!(y, x, x₀, y₀, x₁, y₁)
+@test all(i -> y[i] == ProfileLikelihood.linear_extrapolation(x, x₀, y₀[i], x₁, y₁[i]), 1:4)
+ProfileLikelihood.linear_extrapolation!(y, x₀, x₀, y₀, x₁, y₁) 
+@test y ≈ y₀
+ProfileLikelihood.linear_extrapolation!(y, x₁, x₀, y₀, x₁, y₁) 
+@test y ≈ y₁

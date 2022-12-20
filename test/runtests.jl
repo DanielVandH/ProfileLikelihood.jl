@@ -1,7 +1,7 @@
 using ProfileLikelihood
 using Test
 using SafeTestsets
-const RUN_EXAMPLE_4 = true
+const RUN_EXAMPLE_4 = false
 
 @safetestset "Utilities" begin
     include("utils.jl")

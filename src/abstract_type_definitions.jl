@@ -50,6 +50,14 @@ function Base.getindex(prob::AbstractLikelihoodProblem, sym::AbstractVector{Symb
     return get_θ₀(prob, idx)
 end
 
+function parameter_is_inbounds(prob, θ)
+    !has_bounds(prob) && return true
+    for (i,lb,ub) in zip(eachindex(θ), get_lower_bounds(prob), get_upper_bounds(prob))
+        (θ[i] < lb || θ[i] > ub) && return false 
+    end
+    return true
+end
+
 ######################################################
 ## AbstractLikelihoodSolution
 ######################################################

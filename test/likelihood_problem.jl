@@ -227,3 +227,46 @@ new_θ = [2.0, 3.0]
 new_prob = ProfileLikelihood.update_initial_estimate(prob, new_θ)
 @test new_prob.θ₀ == new_θ
 @test new_prob.problem.u0 == new_θ
+
+## Checking that a parameter is inbounds 
+lb = [Inf, Inf]
+ub = [3.0, -3.0]
+p = [1.0, 3.0]
+ode_alg = Rosenbrock23(autodiff=false)
+dat = [2.0, 3.0]
+syms = [:u, :b]
+prob = ProfileLikelihood.LikelihoodProblem(loglik, u₀, f, u₀, tspan;
+    data=dat, syms=syms,
+    ode_alg, ode_kwargs=(saveat=0.25,), ode_parameters=p,
+    prob_kwargs=(lb=lb, ub=ub), f_kwargs=(adtype=adtype,))
+@test !ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 3.0])
+
+loglik = (θ, p) -> θ[1] * p[1] + θ[2]
+θ₀ = [5.0, 2.0]
+syms = [:a, :b]
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
+@test ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 3.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob, randn(2))
+
+lb = [-1.0, 1.0]
+ub = [5.7, 3.3]
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms, prob_kwargs=(lb=lb,ub=ub))
+@test ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 3.0])
+@test !ProfileLikelihood.parameter_is_inbounds(prob, [0.0,0.0])
+@test !ProfileLikelihood.parameter_is_inbounds(prob.problem, [0.0,0.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob.problem, [0.0,2.0])
+
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
+@test ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 3.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob, [0.0,0.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob.problem, [0.0,0.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob.problem, [0.0,2.0])
+
+lb = [-Inf, 1.0]
+ub = [5.7, Inf]
+prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms, prob_kwargs=(lb=lb,ub=ub))
+@test ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 3.0])
+@test ProfileLikelihood.parameter_is_inbounds(prob, [2.0, 5.1])
+@test ProfileLikelihood.parameter_is_inbounds(prob, [0.0,3.0])
+@test !ProfileLikelihood.parameter_is_inbounds(prob.problem, [0.0,0.0])
+@test !ProfileLikelihood.parameter_is_inbounds(prob.problem, [10.0,2.0])
