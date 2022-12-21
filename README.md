@@ -1,29 +1,8 @@
 # ProfileLikelihood 
 
-- [ProfileLikelihood](#profilelikelihood)
-- [Interface](#interface)
-  - [Defining the problem: LikelihoodProblem](#defining-the-problem-likelihoodproblem)
-  - [Solving the problem: mle and LikelihoodSolution](#solving-the-problem-mle-and-likelihoodsolution)
-  - [Profiling the parameters: profile and ProfileLikelihoodSolution](#profiling-the-parameters-profile-and-profilelikelihoodsolution)
-  - [Propagating uncertainty: Prediction intervals](#propagating-uncertainty-prediction-intervals)
-- [Examples](#examples)
-  - [Multiple linear regression](#multiple-linear-regression)
-  - [Logistic ordinary differential equation](#logistic-ordinary-differential-equation)
-    - [Prediction intervals](#prediction-intervals)
-  - [Linear exponential ODE and grid searching](#linear-exponential-ode-and-grid-searching)
-  - [Diffusion equation on a square plate](#diffusion-equation-on-a-square-plate)
-    - [Building the FVMProblem](#building-the-fvmproblem)
-    - [Defining a summary statistic](#defining-a-summary-statistic)
-    - [Defining the LikelihoodProblem](#defining-the-likelihoodproblem)
-    - [Parameter estimation](#parameter-estimation)
-    - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
-    - [Comparing methods for constructing initial estimates when profiling](#comparing-methods-for-constructing-initial-estimates-when-profiling)
-    - [Prediction intervals for the mass](#prediction-intervals-for-the-mass)
-- [Mathematical and Implementation Details](#mathematical-and-implementation-details)
-  - [Computing the profile likelihood function](#computing-the-profile-likelihood-function)
-  - [Computing prediction intervals](#computing-prediction-intervals)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/dev)
 
-This module defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
+This package defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
 
 **Definition: Likelihood function** (see Casella & Berger, 2002): Let $f(\boldsymbol x \mid \boldsymbol \theta)$ denote the joint probability density function (PDF) of the sample $\boldsymbol X = (X_1,\ldots,X_n)^{\mathsf T}$, where $\boldsymbol \theta \in \Theta$ is some set of parameters and $\Theta$ is the parameter space. We define the _likelihood function_ $\mathcal L \colon \Theta \to [0, \infty)$ by $\mathcal L(\boldsymbol \theta \mid \boldsymbol x) = f(\boldsymbol x \mid \boldsymbol \theta)$ for some realisation $\boldsymbol x = (x_1,\ldots,x_n)^{\mathsf T}$ of $\boldsymbol X$. The _log-likelihood function_ $\ell\colon\Theta\to\mathbb R$ is defined by $\ell(\boldsymbol \theta \mid \boldsymbol x) =  \log\mathcal L(\boldsymbol\theta \mid \boldsymbol x)$.The _maximum likelihood estimate_ (MLE) $\hat{\boldsymbol\theta}$ is the parameter $\boldsymbol\theta$ that maximises the likelihood function, $\hat{\boldsymbol{\theta}} = argmax_{\boldsymbol{\theta} \in \Theta} \mathcal{L}(\boldsymbol{\theta} \mid \boldsymbol x) = argmax_{\boldsymbol\theta \in \Theta} \ell(\boldsymbol\theta \mid \boldsymbol x)$.
 
