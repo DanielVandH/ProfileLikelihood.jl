@@ -19,7 +19,8 @@ const dict_lock = ReentrantLock()
 Computes profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
 
 See also [`replace_profile!`](@ref) which allows you to re-profile a parameter in case you are not satisfied with 
-the results. 
+the results. For plotting, see the `plot_profiles` function (requires that you have loaded CairoMakie.jl and 
+LaTeXStrings.jl to access the function).
 
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
