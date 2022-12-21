@@ -1,13 +1,14 @@
-using FiniteVolumeMethod 
-using ..ProfileLikelihood 
+using FiniteVolumeMethod
+using ..ProfileLikelihood
 using DelaunayTriangulation
-using Random 
-using LinearSolve 
+using Random
+using LinearSolve
 using OrdinaryDiffEq
-using CairoMakie 
+using CairoMakie
 using LaTeXStrings
+using BenchmarkTools
 using StaticArraysCore
-using Optimization 
+using Optimization
 using OptimizationNLopt
 const SAVE_FIGURE = false
 
@@ -248,6 +249,24 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
 SAVE_FIGURE && save("figures/heat_pde_example_2.png", fig)
+
+### Compare methods for getting the initial estimates
+#bnch_prev_serial = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$false, next_initial_estimate_method=$:prev)
+#bnch_interp_serial = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$false, next_initial_estimate_method=$:interp)
+#bnch_prev_parallel = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$true, next_initial_estimate_method=$:prev)
+#bnch_interp_parallel = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$true, next_initial_estimate_method=$:interp)
+
+prev_serial = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=false, next_initial_estimate_method=:prev)
+interp_serial = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=false, next_initial_estimate_method=:interp)
+prev_parallel = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=true, next_initial_estimate_method=:prev)
+interp_parallel = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=true, next_initial_estimate_method=:interp)
+
+@test all(i -> abs((interp_serial.confidence_intervals[i].lower - prev_serial.confidence_intervals[i].lower) / prev_serial.confidence_intervals[i].lower) < 1e-2, 1:2)
+@test all(i -> abs((interp_serial.confidence_intervals[i].upper - prev_serial.confidence_intervals[i].upper) / prev_serial.confidence_intervals[i].upper) < 1e-2, 1:2)
+@test all(i -> abs((prev_parallel.confidence_intervals[i].lower - prev_serial.confidence_intervals[i].lower) / prev_serial.confidence_intervals[i].lower) < 1e-2, 1:2)
+@test all(i -> abs((prev_parallel.confidence_intervals[i].upper - prev_serial.confidence_intervals[i].upper) / prev_serial.confidence_intervals[i].upper) < 1e-2, 1:2)
+@test all(i -> abs((interp_parallel.confidence_intervals[i].lower - prev_serial.confidence_intervals[i].lower) / prev_serial.confidence_intervals[i].lower) < 1e-2, 1:2)
+@test all(i -> abs((interp_parallel.confidence_intervals[i].upper - prev_serial.confidence_intervals[i].upper) / prev_serial.confidence_intervals[i].upper) < 1e-2, 1:2)
 
 ## Prediction interval for mass 
 @inline function compute_mass_function(θ::AbstractVector{T}, data) where {T}

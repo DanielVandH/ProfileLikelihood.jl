@@ -18,6 +18,9 @@ const dict_lock = ReentrantLock()
 
 Computes profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
 
+See also [`replace_profile!`](@ref) which allows you to re-profile a parameter in case you are not satisfied with 
+the results. 
+
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
 - `sol::LikelihoodSolution`: The [`LikelihoodSolution`](@ref). See also [`mle`](@ref).
@@ -82,6 +85,54 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
     end
     # splines = Dict(keys(splines) .=> values(splines)) # fixes the type 
     return ProfileLikelihoodSolution(θ, prof, prob, sol, splines, confidence_intervals, other_mles)
+end
+
+"""
+    replace_profile!(prof::ProfileLikelihoodSolution, n);
+        alg=get_optimiser(prof.likelihood_solution),
+        conf_level::F=0.95,
+        confidence_interval_method=:spline,
+        threshold=get_chisq_threshold(conf_level),
+        resolution=200,
+        param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
+        min_steps=10,
+        normalise::Bool=true,
+        spline_alg=FritschCarlsonMonotonicInterpolation,
+        extrap=Line,
+        parallel=false,
+        next_initial_estimate_method=:prev,
+        kwargs...) where {F}
+
+Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n`. The keyword 
+arguments are the same as for [`profile!`](@ref).
+"""
+function replace_profile!(prof::ProfileLikelihoodSolution, n;
+    alg=get_optimiser(prof.likelihood_solution),
+    conf_level::F=0.95,
+    confidence_interval_method=:spline,
+    threshold=get_chisq_threshold(conf_level),
+    resolution=200,
+    param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
+    min_steps=10,
+    normalise::Bool=true,
+    spline_alg=FritschCarlsonMonotonicInterpolation,
+    extrap=Line,
+    parallel=false,
+    next_initial_estimate_method=:prev,
+    kwargs...) where {F}
+    _prof = profile(prof.likelihood_problem, prof.likelihood_solution, n;
+        alg, conf_level, confidence_interval_method,
+        threshold, resolution, param_ranges,
+        min_steps, normalise, spline_alg, extrap,
+        parallel, next_initial_estimate_method, kwargs...)
+    for _n in n 
+        prof.parameter_values[_n] = _prof.parameter_values[_n]
+        prof.profile_values[_n] = _prof.profile_values[_n]
+        prof.splines[_n] = _prof.splines[_n] 
+        prof.confidence_intervals[_n] = _prof.confidence_intervals[_n] 
+        prof.other_mles[_n] = _prof.other_mles[_n]
+    end
+    return nothing
 end
 
 function profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
@@ -243,7 +294,7 @@ function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θ�
             linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
             if !parameter_is_inbounds(prob, sub_cache)
                 set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=:prev)
-                return nothing 
+                return nothing
             end
             return nothing
         end

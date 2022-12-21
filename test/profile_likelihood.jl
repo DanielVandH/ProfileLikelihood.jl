@@ -647,3 +647,71 @@ rss = sum(resids .^ 2)
 σ_CI_exact = sqrt.(rss ./ (χ²_up, χ²_lo))
 @test get_confidence_intervals(prof_serial_interp, :σ).lower ≈ σ_CI_exact[1] atol = 1e-3
 @test ProfileLikelihood.get_upper(get_confidence_intervals(prof_serial_interp, :σ)) ≈ σ_CI_exact[2] atol = 1e-3
+
+## Refining a solution 
+λ = 0.01
+K = 100.0
+u₀ = 10.0
+t = 0:100:1000
+σ = 10.0
+@inline function ode_fnc(u, p, t)
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+tspan = extrema(t)
+p = (λ, K)
+prob = ODEProblem(ode_fnc, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2828)
+uᵒ = sol.u + σ * randn(length(t))
+@inline function loglik_fnc2(θ, data, integrator)
+    λ, K, u₀ = θ
+    uᵒ, σ = data
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u₀)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, length(uᵒ))
+end
+lb = [0.0, 50.0, 0.0]
+ub = [0.05, 150.0, 50.0]
+θ₀ = [λ, K, u₀]
+syms = [:λ, :K, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, maximum(t);
+    syms=syms,
+    data=(uᵒ, σ),
+    ode_parameters=[1.0, 1.0],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)
+sol = mle(prob, NLopt.LD_LBFGS)
+prof = profile(prob, sol;
+    alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=2, resolution=[5, 500, 10])
+_prof = deepcopy(prof)
+replace_profile!(prof, 1; min_steps=50)
+@test prof.parameter_values[2] == _prof.parameter_values[2]
+@test prof.profile_values[2] == _prof.profile_values[2]
+@test prof.other_mles[2] == _prof.other_mles[2]
+@test prof.splines[2] == _prof.splines[2]
+@test prof.confidence_intervals[2][1] == _prof.confidence_intervals[2][1]
+@test prof.confidence_intervals[2][2] == _prof.confidence_intervals[2][2]
+@test prof.parameter_values[3] == _prof.parameter_values[3]
+@test prof.profile_values[3] == _prof.profile_values[3]
+@test prof.other_mles[3] == _prof.other_mles[3]
+@test prof.splines[3] == _prof.splines[3]
+@test prof.confidence_intervals[3][1] == _prof.confidence_intervals[3][1]
+@test prof.confidence_intervals[3][2] == _prof.confidence_intervals[3][2]
+@test prof.likelihood_problem === _prof.likelihood_problem
+@test prof.likelihood_solution === _prof.likelihood_solution
+@test length(prof.parameter_values[1]) ≥ 49
+@test length(prof.profile_values[1]) ≥ 49
+@test length(prof.other_mles[1]) ≥ 49
+@test length(prof.splines[1]) ≥ 49
+@test prof.confidence_intervals[1][1] ≈ _prof.confidence_intervals[1][1] rtol = 1e-1
+@test prof.confidence_intervals[1][2] ≈ _prof.confidence_intervals[1][2] rtol = 1e-1
+@test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1] 
+@test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2] 

@@ -17,6 +17,7 @@
     - [Defining the LikelihoodProblem](#defining-the-likelihoodproblem)
     - [Parameter estimation](#parameter-estimation)
     - [Reducing to two parameters and grid searching](#reducing-to-two-parameters-and-grid-searching)
+    - [Comparing methods for constructing initial estimates when profiling](#comparing-methods-for-constructing-initial-estimates-when-profiling)
     - [Prediction intervals for the mass](#prediction-intervals-for-the-mass)
 - [Mathematical and Implementation Details](#mathematical-and-implementation-details)
   - [Computing the profile likelihood function](#computing-the-profile-likelihood-function)
@@ -1232,6 +1233,54 @@ scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(p
 ![Second set of profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_example_2.png?raw=true)
 
 See that we've recovered the parameters in the confidence intervals, and the profiles are smooth -- the identifiability issues are gone. So, it seems like $c$ was the problematic parameter, since our summary statistic does not really give us any information about it. Our idea of using the summary statistic $\mathcal S(t)$ from above would likely ameliorate this issue, since it will give information directly relating to $c$.
+
+### Comparing methods for constructing initial estimates when profiling
+
+In the mathematical details section at the end of this README, it is mentioned that initial values for $\boldsymbol\omega_j$ (the parameters to be optimised while an interest parameter is held fixed) can currently be set in two ways:
+
+- Method 1: Simply starting $\boldsymbol\omega_j$ at $\boldsymbol\omega_{j-1}$. This is the `next_initial_estimate_method = :prev` option in `profile`, and is the default.
+- Method 2: Using linear interpolation, we can use the previous two values and set $\boldsymbol\omega_j = [\boldsymbol\omega_{j-2}(\psi_{j-1} - \psi_j) + \boldsymbol\omega_{j-1}(\psi_j - \psi_{j-2})] / (\psi_{j-1} - \psi_{j-2})$ (if $\boldsymbol\omega_j$ then starts outside of the parameter bounds, we fall back to the first method).
+
+Is there a big difference in these methods? Let's demonstrate if there is any difference by doing some benchmarking. We will also compare multithreading versus no multithreading.
+
+```julia
+bnch_prev_serial = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$false, next_initial_estimate_method=$:prev)
+bnch_interp_serial = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$false, next_initial_estimate_method=$:interp)
+bnch_prev_parallel = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$true, next_initial_estimate_method=$:prev)
+bnch_interp_parallel = @benchmark profile($likprob_2, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4, xtol_rel=$1e-4, parallel=$true, next_initial_estimate_method=$:interp)
+```
+
+Here are the results:
+
+```julia
+julia> bnch_prev_serial
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 855.578 s (0.23% GC) to evaluate,
+ with a memory estimate of 155.70 GiB, over 24670284 allocations.
+```
+
+```julia
+julia> bnch_interp_serial
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 757.444 s (0.24% GC) to evaluate,
+ with a memory estimate of 144.34 GiB, over 22976564 allocations.
+```
+
+```julia
+julia> bnch_prev_parallel
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 548.814 s (0.34% GC) to evaluate,
+ with a memory estimate of 155.87 GiB, over 25443078 allocations.
+```
+
+```julia
+julia> bnch_interp_parallel
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 498.408 s (0.36% GC) to evaluate,
+ with a memory estimate of 144.52 GiB, over 23809418 allocations.
+```
+
+We see that linear interpolation is a significant help to the algorithm, saving 100 seconds when we profile without multithreading, and 50 seconds when we profile with multithreading. In summary, profiling with the `:interp` method was about 12% faster than `:prev` without multithreading, and about 10% faster with multithreading --- interpolation is certainly a big help. For problems where the likelihood function is much faster to compute, these results may be opposite -- it is worth thinking about this for your applications.
 
 ### Prediction intervals for the mass
 
