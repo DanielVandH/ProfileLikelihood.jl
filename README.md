@@ -199,7 +199,7 @@ Here, the parameter values used for each parameter are given in `parameter_value
 
 If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `prof(0.5, 1)` to evaluate the profile log-likelihood function of the first parameter at the point `0.5`. Alternatively, `prof(0.7, :α)` does the same but for the parameter `:α` at the point `0.7`. You can also index `prof` at a specific index (or symbol) to see the results only for that parameter, e.g. `prof[1]` or `prof[:α]`; this returns a `ProfileLikelihoodSolutionView`.
 
-The full docstring os `profile` is given below.
+The full docstring for `profile` is given below.
 
 ```julia
 """
@@ -219,6 +219,9 @@ The full docstring os `profile` is given below.
         kwargs...)
 
 Computes profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
+
+See also [`replace_profile!`](@ref) which allows you to re-profile a parameter in case you are not satisfied with 
+the results. 
 
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
