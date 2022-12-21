@@ -3,6 +3,7 @@
 
 [![DOI](https://zenodo.org/badge/508701126.svg)](https://zenodo.org/badge/latestdoi/508701126)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/dev)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/stable)
 
 This package defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code only works for scalar parameters of interest (i.e. out of a vector $\boldsymbol \theta$, you can profile a single scalar parameter $\theta_i \in \boldsymbol\theta$) for now.
 
