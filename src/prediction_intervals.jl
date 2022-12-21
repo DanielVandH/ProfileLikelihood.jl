@@ -71,7 +71,7 @@ that lead to the value of the profile likelihood function where `θ[i] = ψ`.
 
 You can set the type of the output from the prediction function `q` using `q_type`.
 
-The output is a `Dict` mapping the profiled parameter indices (from [`profiled_parameters`](@ref)) to the outputs from `q` at each 
+The output is a `Dict` mapping the profiled parameter indices (from `profiled_parameters`) to the outputs from `q` at each 
 corresponding parameter in `param_ranges`.
 """
 function eval_prediction_function(q, prof::ProfileLikelihoodSolution, data;

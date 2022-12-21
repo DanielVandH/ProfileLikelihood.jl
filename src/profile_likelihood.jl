@@ -29,7 +29,7 @@ the results.
 # Keyword Arguments 
 - `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
 - `conf_level::F=0.95`: The level to use for the [`ConfidenceInterval`](@ref)s.
-- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also [`get_confidence_intervals!`](@ref). The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
+- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also `get_confidence_intervals!`. The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
 - `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
@@ -104,7 +104,7 @@ end
         kwargs...) where {F}
 
 Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n`. The keyword 
-arguments are the same as for [`profile!`](@ref).
+arguments are the same as for [`profile`](@ref).
 """
 function replace_profile!(prof::ProfileLikelihoodSolution, n;
     alg=get_optimiser(prof.likelihood_solution),

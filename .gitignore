@@ -10,3 +10,6 @@ dev/Manifest.toml
 *.jl.*.cov
 *.jl.mem
 *.cov
+docs/build/
+docs/site/
+docs/Manifest.toml

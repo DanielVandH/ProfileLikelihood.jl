@@ -13,7 +13,7 @@ function choose_grid_layout(num_plots, cols, rows)
     return rows, cols, plot_positions
 end
 
-@doc (@doc plot_profiles) function plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j, 
+function plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j, 
 spline, true_vals, mle_val=nothing, shade_ci=true, param_name = LaTeXStrings.L"\theta_{%$ℓ}"; axis_kwargs=nothing)
     lower_ci, upper_ci = get_confidence_intervals(prof)
     θ_vals = get_parameter_values(prof)
@@ -80,12 +80,12 @@ SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 Plot results from a profile likelihood solution `prof`.
 
 # Arguments 
-- `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`prof`](@ref).
+- `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`profile`](@ref).
 - `vars = profiled_parameters(prof)`: The parameters to plot.
 
 # Keyword Arguments 
-- `ncol=nothing`: The number of columns to use. If `nothing`, chosen automatically via [`choose_grid_layout`](@ref).
-- `nrow=nothing`: The number of rows to use. If `nothing`, chosen automatically via [`choose_grid_layout`](@ref).
+- `ncol=nothing`: The number of columns to use. If `nothing`, chosen automatically via `choose_grid_layout`.
+- `nrow=nothing`: The number of rows to use. If `nothing`, chosen automatically via `choose_grid_layout`
 - `true_vals=Dict(vars .=> nothing)`: A dictionary mapping parameter indices to their true values, if they exist. If `nothing`, nothing is plotted, otherwise a black line is plotted at the true value for the profile. 
 - `spline=true`: Whether the curve plotted should come from a spline through the results, or if the data itself should be plotted. 
 - `show_mles=true`: Whether to put a red line at the MLEs. 
