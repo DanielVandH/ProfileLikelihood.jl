@@ -15,6 +15,6 @@ pages = [
 ])
 
 deploydocs(;
-    repo="github.com/DanielVandH/FiniteVolumeMethod.jl",
+    repo="github.com/DanielVandH/ProfileLikelihood.jl",
     devbranch="main"
 )
