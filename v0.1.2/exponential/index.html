@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Example III: Linear exponential ODE and grid searching · ProfileLikelihood.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">ProfileLikelihood.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../interface/">Interface</a></li><li><a class="tocitem" href="../docstrings/">Docstrings</a></li><li><a class="tocitem" href="../regression/">Example I: Multiple linear regression</a></li><li><a class="tocitem" href="../logistic/">Example II: Logistic ordinary differential equation</a></li><li class="is-active"><a class="tocitem" href>Example III: Linear exponential ODE and grid searching</a><ul class="internal"><li><a class="tocitem" href="#Setting-up-the-problem"><span>Setting up the problem</span></a></li><li><a class="tocitem" href="#Grid-searching"><span>Grid searching</span></a></li><li><a class="tocitem" href="#Parameter-estimation"><span>Parameter estimation</span></a></li><li><a class="tocitem" href="#Visualisation"><span>Visualisation</span></a></li></ul></li><li><a class="tocitem" href="../heat/">Example IV: Diffusion equation on a square plate</a></li><li><a class="tocitem" href="../math/">Mathematical and Implementation Details</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Example III: Linear exponential ODE and grid searching</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Example III: Linear exponential ODE and grid searching</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/docs/src/exponential.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Example-III:-Linear-exponential-ODE-and-grid-searching"><a class="docs-heading-anchor" href="#Example-III:-Linear-exponential-ODE-and-grid-searching">Example III: Linear exponential ODE and grid searching</a><a id="Example-III:-Linear-exponential-ODE-and-grid-searching-1"></a><a class="docs-heading-anchor-permalink" href="#Example-III:-Linear-exponential-ODE-and-grid-searching" title="Permalink"></a></h1><p>Now we consider <span>$\mathrm dy/\mathrm dt = \lambda y$</span>, <span>$y(0) = y_0$</span>. This has solution <span>$y(t) = y_0\mathrm{e}^{\lambda t}$</span>. First, load the packages we&#39;ll be using:</p><pre><code class="language-julia hljs">using OrdinaryDiffEq
+using ProfileLikelihood
+using Optimization 
+using CairoMakie 
+using LaTeXStrings 
+using Random
+using Distributions
+using MuladdMacro
+using LoopVectorization
+using LatinHypercubeSampling 
+using OptimizationOptimJL
+using OptimizationNLopt</code></pre><h2 id="Setting-up-the-problem"><a class="docs-heading-anchor" href="#Setting-up-the-problem">Setting up the problem</a><a id="Setting-up-the-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-problem" title="Permalink"></a></h2><p>Let us start by defining the data and the likelihood problem:</p><pre><code class="language-julia hljs">## Step 1: Generate some data for the problem and define the likelihood
+Random.seed!(2992999)
+λ = -0.5
+y₀ = 15.0
+σ = 0.5
+T = 5.0
+n = 450
+Δt = T / n
+t = [j * Δt for j in 0:n]
+y = y₀ * exp.(λ * t)
+yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
+@inline function ode_fnc(u, p, t)
+    local λ
+    λ = p
+    du = λ * u
+    return du
+end
+using LoopVectorization, MuladdMacro
+@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
+    local yᵒ, n, λ, σ, u0
+    yᵒ, n = data
+    λ, σ, u0 = θ
+    integrator.p = λ
+    ## Now solve the problem 
+    reinit!(integrator, u0)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ℓ = -0.5(n + 1) * log(2π * σ^2)
+    s = zero(T)
+    @turbo @muladd for i in eachindex(yᵒ, integrator.sol.u)
+        s = s + (yᵒ[i] - integrator.sol.u[i]) * (yᵒ[i] - integrator.sol.u[i])
+    end
+    ℓ = ℓ - 0.5s / σ^2
+end
+
+## Step 2: Define the problem
+θ₀ = [-1.0, 0.5, 19.73] # will be replaced anyway
+lb = [-10.0, 1e-6, 0.5]
+ub = [10.0, 10.0, 25.0]
+syms = [:λ, :σ, :y₀]
+prob = LikelihoodProblem(
+    loglik_fnc, θ₀, ode_fnc, y₀, (0.0, T);
+    syms=syms,
+    data=(yᵒ, n),
+    ode_parameters=1.0, # temp value for λ
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Tsit5()
+)</code></pre><h2 id="Grid-searching"><a class="docs-heading-anchor" href="#Grid-searching">Grid searching</a><a id="Grid-searching-1"></a><a class="docs-heading-anchor-permalink" href="#Grid-searching" title="Permalink"></a></h2><p>Let us now give an alternative way of exploring this likelihood function. We have been using <code>mle</code>, but we also provide some capability for using a grid search, which can sometimes be useful for e.g. visualising a likelihood function or obtaining initial estmiates for parameters (although it scales terribly for problems with more than even three parameters). Below we define a <code>RegularGrid</code>, a regular grid for each parameter:</p><pre><code class="language-julia hljs">regular_grid = RegularGrid(lb, ub, 50) # resolution can also be given as a vector for each parameter</code></pre><p>We can now use this grid to evaluate the likelihood function at each point, and then return the maximum values (use <code>save_vals=Val(true)</code> if you want all the computed values as an array, given as a second argument; also see <code>?grid_search</code>). (You can also set <code>parallel = Val(true)</code> so that the computation is done with multithreading.)</p><pre><code class="language-julia hljs">gs = grid_search(prob, regular_grid)
+LikelihoodSolution. retcode: Success
+Maximum likelihood: -547.9579886200935
+Maximum likelihood estimates: 3-element Vector{Float64}
+     λ: -0.612244897959183
+     σ: 0.816327448979592
+     y₀: 16.5</code></pre><p>You could also use an irregular grid, defining some grid as a matrix where each column is a set of parameter values, or a vector of vectors. Here is an example using LatinHypercubeSampling.jl to avoid the dimensionality issue (although in practice we would have to be more careful with choosing the parameter bounds to get good coverage of the parameter space).</p><pre><code class="language-julia hljs">using LatinHypercubeSampling
+d = 3
+gens = 1000
+plan, _ = LHCoptim(500, d, gens)
+new_lb = [-2.0, 0.05, 10.0]
+new_ub = [2.0, 0.2, 20.0]
+bnds = [(new_lb[i], new_ub[i]) for i in 1:d]
+parameter_vals = Matrix(scaleLHC(plan, bnds)&#39;) # transpose so that a column is a parameter set 
+irregular_grid = IrregularGrid(lb, ub, parameter_vals)
+gs_ir, loglik_vals_ir = grid_search(prob, irregular_grid; save_vals=Val(true), parallel = Val(true))</code></pre><pre><code class="language-julia hljs">LikelihoodSolution. retcode: Success
+Maximum likelihood: -1729.7407123603484
+Maximum likelihood estimates: 3-element Vector{Float64}
+     λ: -0.5090180360721444
+     σ: 0.19368737474949904
+     y₀: 15.791583166332664</code></pre><pre><code class="language-julia hljs">max_lik, max_idx = findmax(loglik_vals_ir)
+@test max_lik == PL.get_maximum(gs_ir)
+@test parameter_vals[:, max_idx] ≈ PL.get_mle(gs_ir)</code></pre><p>(If you just want to try many points for starting your optimiser, see the optimiser in MultistartOptimization.jl.)</p><h2 id="Parameter-estimation"><a class="docs-heading-anchor" href="#Parameter-estimation">Parameter estimation</a><a id="Parameter-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Parameter-estimation" title="Permalink"></a></h2><p>Now let&#39;s use <code>mle</code>. We will restart the initial guess to use the estimates from our grid search.</p><pre><code class="language-julia hljs">prob = update_initial_estimate(prob, gs)
+sol = mle(prob, Optim.LBFGS())</code></pre><p>Now we profile.</p><pre><code class="language-julia hljs">prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel = true)</code></pre><pre><code class="language-julia hljs">ProfileLikelihoodSolution. MLE retcode: Success
+Confidence intervals: 
+     95.0% CI for λ: (-0.51091362373969, -0.49491369219060505)
+     95.0% CI for σ: (0.49607205632240814, 0.5652591835193789)
+     95.0% CI for y₀: (14.98587355568687, 15.305179849533756)</code></pre><pre><code class="language-julia hljs">@test λ ∈ get_confidence_intervals(prof, :λ)
+@test σ ∈ get_confidence_intervals(prof[:σ])
+@test y₀ ∈ get_confidence_intervals(prof, 3)</code></pre><h2 id="Visualisation"><a class="docs-heading-anchor" href="#Visualisation">Visualisation</a><a id="Visualisation-1"></a><a class="docs-heading-anchor-permalink" href="#Visualisation" title="Permalink"></a></h2><p>Finally, we can visualise the profiles:</p><pre><code class="language-julia hljs">fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L&quot;\lambda&quot;, L&quot;\sigma&quot;, L&quot;y_0&quot;],
+    true_vals=[λ, σ, y₀],
+    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    axis_kwargs=(width=600, height=300))</code></pre><p><img src="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/linear_exponential_example.png?raw=true" alt="Linear exponential profiles"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../logistic/">« Example II: Logistic ordinary differential equation</a><a class="docs-footer-nextpage" href="../heat/">Example IV: Diffusion equation on a square plate »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Wednesday 21 December 2022 18:53">Wednesday 21 December 2022</span>. Using Julia version 1.8.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
