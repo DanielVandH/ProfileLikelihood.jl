@@ -1242,7 +1242,7 @@ See that we've recovered the parameters in the confidence intervals, and the pro
 In the mathematical details section at the end of this README, it is mentioned that initial values for $\boldsymbol\omega_j$ (the parameters to be optimised while an interest parameter is held fixed) can currently be set in two ways:
 
 - Method 1: Simply starting $\boldsymbol\omega_j$ at $\boldsymbol\omega_{j-1}$. This is the `next_initial_estimate_method = :prev` option in `profile`, and is the default.
-- Method 2: Using linear interpolation, we can use the previous two values and set $\boldsymbol\omega_j = [\boldsymbol\omega_{j-2}(\psi_{j-1} - \psi_j) + \boldsymbol\omega_{j-1}(\psi_j - \psi_{j-2})] / (\psi_{j-1} - \psi_{j-2})$ (if $\boldsymbol\omega_j$ then starts outside of the parameter bounds, we fall back to the first method).
+- Method 2: Using linear interpolation, we can use the previous two values and set $\boldsymbol\omega_j = [\boldsymbol\omega_{j-2}(\psi_{j-1} - \psi_j) + \boldsymbol\omega_{j-1}(\psi_j - \psi_{j-2})] / (\psi_{j-1} - \psi_{j-2})$ (if $\boldsymbol\omega_j$ then starts outside of the parameter bounds, we fall back to the first method). This is the `next_initial_estimate_method = :interp` option in `profile`.
 
 Is there a big difference in these methods? Let's demonstrate if there is any difference by doing some benchmarking. We will also compare multithreading versus no multithreading.
 
