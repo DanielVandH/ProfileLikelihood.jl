@@ -10,7 +10,7 @@ Let us start by giving a mathematical description of the method that we use for 
 \hat\ell_p(\psi) = \sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^*\right],
 ```
 
-where $\Omega$ is the parameter space for $\boldsymbol \omega$, $\ell(\psi,\boldsymbol\omega) = \mathcal L(\psi, \boldsymbol \omega)$, and $\ell^* = \ell(\hat{\boldsymbol \theta})$, where $\boldsymbol \theta$ are the MLEs for $\boldsymbol \theta$. This definition of $\hat\ell_p(\psi)$ induces a function $\boldsymbol\omega^*(\psi)$ depending on $\psi$ that gives the values of $\boldsymbol \omega$ leading to the supremum above, i.e. 
+where $\Omega$ is the parameter space for $\boldsymbol \omega$, $\ell(\psi,\boldsymbol\omega) = \log \mathcal L(\psi, \boldsymbol \omega)$, and $\ell^* = \ell(\hat{\boldsymbol \theta})$, where $\boldsymbol \theta$ are the MLEs for $\boldsymbol \theta$. This definition of $\hat\ell_p(\psi)$ induces a function $\boldsymbol\omega^*(\psi)$ depending on $\psi$ that gives the values of $\boldsymbol \omega$ leading to the supremum above, i.e. 
 
 ```math
 \ell(\psi, \boldsymbol\omega^{\star}(\psi)) = \sup_{\boldsymbol \omega \in \Omega \mid \psi} \left[\ell(\psi, \boldsymbol\omega) - \ell^{\star}\right]. 
