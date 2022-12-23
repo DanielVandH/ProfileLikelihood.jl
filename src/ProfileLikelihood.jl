@@ -10,6 +10,8 @@ using Interpolations
 using Requires
 using Printf
 using ChunkSplitters
+using OffsetArrays
+using Contour
 
 include("utils.jl")
 include("problem_updates.jl")

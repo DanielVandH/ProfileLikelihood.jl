@@ -1,4 +1,6 @@
 using ..ProfileLikelihood
+using OffsetArrays
+
 ######################################################
 ## RegularGrid 
 ######################################################
@@ -143,7 +145,7 @@ for i in 1:4
     reverse!(left)
     right = [centre[i] + j * Δpos[i] for j in 1:173]
     rng1_true = [left..., centre[i], right...]
-    @test rng1 ≈ rng1_true
+    @test rng1 ≈ OffsetVector(rng1_true, -173:173)
 end
 θ = zeros(4)
 ProfileLikelihood.get_parameters!(θ, fused, (2, 0, -7, 17))
@@ -233,7 +235,7 @@ for i in 1:5
     reverse!(left)
     right = [centre[i] + j * Δpos[i] for j in 1:[2, 23, 19, 50, 17][i]]
     rng1_true = [left..., centre[i], right...]
-    @test rng1 ≈ rng1_true
+    @test rng1 ≈ OffsetVector(rng1_true, (-[11,25,21,51,99][i]):[2,23,19,50,17][i])
 end
 θ = zeros(5)
 ProfileLikelihood.get_parameters!(θ, fused, (2, 0, -7, 17, 6))
