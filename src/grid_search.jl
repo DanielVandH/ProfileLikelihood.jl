@@ -92,10 +92,15 @@ This is the second part of the grid, indexed into by negative integers.
 
 The two grids meet at a common centre, and this is that `centre`. 
 
+- `resolutions::R`
+
+This is the vector of resolutions provided (e.g. if `store_original_resolutions=true` in the constructor below), or the transformed 
+version from `get_resolution_tuples`.
+
 # Constructor 
 You can construct a `FusedRegularGrid` using the method
 
-    FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R) where {B,R,C}
+    FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,R,C}
 
 For example, the following code creates `fused` as the fusion of `grid_1` and `grid_2`:
 
@@ -125,6 +130,7 @@ Base.@kwdef struct FusedRegularGrid{N,B,R,S,T,C} <: AbstractGrid{N,B,T}
     positive_grid::RegularGrid{N,B,R,S,T}
     negative_grid::RegularGrid{N,B,R,S,T}
     centre::C
+    resolutions::R
 end
 
 function get_resolution_tuples(resolutions, N)
@@ -147,11 +153,11 @@ function get_resolution_tuples(resolutions, N)
     throw("Invalid resolution specified.")
 end
 
-function FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R) where {B,R,C}
+function FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,R,C}
     res = get_resolution_tuples(resolutions, length(centre))
     grid_1 = RegularGrid(centre .+ (upper_bounds .- centre) ./ getindex.(res, 1), upper_bounds, getindex.(res, 1))
     grid_2 = RegularGrid(centre .+ (lower_bounds .- centre) ./ getindex.(res, 2), lower_bounds, getindex.(res, 2))
-    return FusedRegularGrid(grid_1, grid_2, centre)
+    return FusedRegularGrid(grid_1, grid_2, centre, store_original_resolutions ? resolutions : res)
 end
 
 get_positive_grid(grid::FusedRegularGrid) = grid.positive_grid

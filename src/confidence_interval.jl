@@ -31,7 +31,7 @@ get_bounds(CI::ConfidenceInterval{T,F}) where {T,F} = NTuple{2,T}((get_lower(CI)
     end
 end
 
-@inline Base.length(CI) = get_upper(CI) - get_lower(CI)
+@inline Base.length(CI::ConfidenceInterval) = get_upper(CI) - get_lower(CI)
 @inline Base.iterate(CI::ConfidenceInterval, state=1) = state == 1 ? (get_lower(CI), 2) : (state == 2 ? (get_upper(CI), nothing) : nothing)
 
 Base.in(x, CI::ConfidenceInterval) = get_lower(CI) ≤ x ≤ get_upper(CI)
