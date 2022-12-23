@@ -249,8 +249,8 @@ ProfileLikelihood.get_parameters!(θ, fused, (2, 23, 19, 50, 17))
 @test θ ≈ ProfileLikelihood.get_parameters(fused, (2, 23, 19, 50, 17))
 ProfileLikelihood.get_parameters!(θ, fused, [2, 5, -10, 12, 15])
 @test θ ≈ [centre[1] + 2Δpos[1], centre[2] + 5Δpos[2], centre[3] - 10Δneg[3], centre[4] + 12Δpos[4], centre[5] + 15Δpos[5]]
-@test θ ≈ ProfileLikelihood.get_parameters(fused, (2,5,-10,12,15))
-ProfileLikelihood.get_parameters!(θ, fused, [-2,-12,12,10,9])
+@test θ ≈ ProfileLikelihood.get_parameters(fused, (2, 5, -10, 12, 15))
+ProfileLikelihood.get_parameters!(θ, fused, [-2, -12, 12, 10, 9])
 @test θ ≈ [centre[1] - 2Δneg[1], centre[2] - 12Δneg[2], centre[3] + 12Δpos[3], centre[4] + 10Δpos[4], centre[5] + 9Δpos[5]]
-@test θ ≈ ProfileLikelihood.get_parameters(fused, (-2,-12,12,10,9))
+@test θ ≈ ProfileLikelihood.get_parameters(fused, (-2, -12, 12, 10, 9))
 @test ProfileLikelihood.finite_bounds(fused)
