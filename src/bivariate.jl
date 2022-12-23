@@ -23,7 +23,7 @@ function construct_profile_grids(n::NTuple{N,NTuple{2,I}}, sol, lower_bounds, up
     return grids
 end
 
-struct LayerIterator{N,B,T}
+struct LayerIterator{N,B,T} # Don't use Iterators.flatten as it cannot infer when we use repeated (this was originally implemented as being a collection of `zip`s, e.g. the bottom row was `zip(-layer_number:layer_number, Iterators.repeated(-layer_number, 2layer_number+1))`, but this returns `Any` type)
     bottom::B
     right::B
     top::T

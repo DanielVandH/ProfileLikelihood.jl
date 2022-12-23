@@ -162,6 +162,45 @@ itr = ProfileLikelihood.LayerIterator(3)
     (-3, -2)
 ]
 
+itr = ProfileLikelihood.LayerIterator(4)
+@inferred first(itr)
+@test eltype(itr) == NTuple{2,Int64}
+@test length(itr) == 32
+@test collect(itr) == [
+    (-4,-4),
+    (-3,-4),
+    (-2,-4),
+    (-1,-4),
+    (0,-4),
+    (1,-4),
+    (2,-4),
+    (3,-4),
+    (4,-4),
+    (4,-3),
+    (4,-2),
+    (4,-1),
+    (4,0),
+    (4,1),
+    (4,2),
+    (4,3),
+    (4,4),
+    (3,4),
+    (2,4),
+    (1,4),
+    (0,4),
+    (-1,4),
+    (-2,4),
+    (-3,4),
+    (-4,4),
+    (-4,3),
+    (-4,2),
+    (-4,1),
+    (-4,0),
+    (-4,-1),
+    (-4,-2),
+    (-4,-3),
+]
+
 function ___testf(itr)
     s1 = 0.0
     s2 = 0.0
