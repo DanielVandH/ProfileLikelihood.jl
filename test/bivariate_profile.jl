@@ -94,9 +94,84 @@ for i in eachindex(n)
     end
 end
 
+## Constructing the layer iterator 
+itr = ProfileLikelihood.LayerIterator(1)
+@test eltype(itr) == NTuple{2,Int64}
+@test collect(itr) == [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0)
+]
+@test length(itr) == 8 
 
+itr = ProfileLikelihood.LayerIterator(2)
+@test eltype(itr) == NTuple{2,Int64}
+@test length(itr) ==  16
+@test collect(itr) == [
+    (-2, -2),
+    (-1, -2),
+    (0, -2),
+    (1, -2),
+    (2, -2),
+    (2, -1),
+    (2, 0),
+    (2, 1),
+    (2, 2),
+    (1, 2),
+    (0, 2),
+    (-1, 2),
+    (-2, 2),
+    (-2, 1),
+    (-2, 0),
+    (-2, -1)
+]
 
+itr = ProfileLikelihood.LayerIterator(3)
+@inferred first(itr)
+@test eltype(itr) == NTuple{2,Int64}
+@test length(itr) == 24
+@test collect(itr) == [
+    (-3, -3),
+    (-2, -3),
+    (-1, -3),
+    (0, -3),
+    (1, -3),
+    (2, -3),
+    (3, -3),
+    (3, -2),
+    (3, -1),
+    (3, 0),
+    (3, 1),
+    (3, 2),
+    (3, 3),
+    (2, 3),
+    (1, 3),
+    (0, 3),
+    (-1, 3),
+    (-2, 3),
+    (-3, 3),
+    (-3, 2),
+    (-3, 1),
+    (-3, 0),
+    (-3, -1),
+    (-3, -2)
+]
 
+function ___testf(itr)
+    s1 = 0.0
+    s2 = 0.0
+    for (i, j) in itr 
+        s1 += i + 2j + rand()
+        s2 += j - 3i - rand()
+    end
+    return s1 + s2
+end
+@inferred ___testf(itr)
 
 ## Setup the logistic example
 λ = 0.01
