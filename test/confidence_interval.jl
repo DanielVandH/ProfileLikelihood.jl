@@ -20,3 +20,17 @@ a, b = CI
 @test 0.17 ∈ CI
 @test 0.24 ∉ CI
 @test 0.0 ∉ CI
+
+######################################################
+## ConfidenceRegion 
+######################################################
+x = rand(100)
+y = rand(100)
+CR = ProfileLikelihood.ConfidenceRegion(x,y,0.95)
+@test ProfileLikelihood.get_x(CR) == x 
+@test ProfileLikelihood.get_y(CR) == y 
+@test ProfileLikelihood.get_level(CR) == 0.95 
+@test length(CR) == 100 
+@test eltype(CR) == NTuple{2,Float64}
+cr_xy = collect(CR)
+@test cr_xy == [(x, y) for (x, y) in zip(x, y)]
