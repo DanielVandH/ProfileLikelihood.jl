@@ -165,6 +165,7 @@ ProfileLikelihood.get_parameters!(θ, fused, [-22, 75, -160, 100])
 @test θ ≈ [centre[1] - 22Δneg[1], centre[2] + 75Δpos[2], centre[3] - 160Δneg[3], centre[4] + 100Δpos[4]]
 @test θ ≈ ProfileLikelihood.get_parameters(fused, (-22, 75, -160, 100))
 @test ProfileLikelihood.finite_bounds(fused)
+@test fused.resolutions == ProfileLikelihood.get_resolution_tuples(173, 4)
 
 ## Varying resolutons 
 lb = [2.0, 3.0, 1.0, 5.0, 4.0]
@@ -254,3 +255,30 @@ ProfileLikelihood.get_parameters!(θ, fused, [-2, -12, 12, 10, 9])
 @test θ ≈ [centre[1] - 2Δneg[1], centre[2] - 12Δneg[2], centre[3] + 12Δpos[3], centre[4] + 10Δpos[4], centre[5] + 9Δpos[5]]
 @test θ ≈ ProfileLikelihood.get_parameters(fused, (-2, -12, 12, 10, 9))
 @test ProfileLikelihood.finite_bounds(fused)
+@test fused.resolutions == ProfileLikelihood.get_resolution_tuples(res, 5)
+
+## Storing the original resolutions 
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, 263; store_original_resolutions=true)
+@test fused.resolutions == 263
+@test fused.positive_grid.resolution == [263, 263, 263, 263]
+@test fused.negative_grid.resolution == [263, 263, 263, 263]
+
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, [17, 23, 4, 50]; store_original_resolutions=true)
+@test fused.resolutions == [17, 23, 4, 50]
+@test fused.positive_grid.resolution == [17, 23, 4, 50]
+@test fused.negative_grid.resolution == [17, 23, 4, 50]
+
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, [(17, 23), (48, 50), (11, 11), (17, 18)]; store_original_resolutions=true)
+@test fused.resolutions == [(17, 23), (48, 50), (11, 11), (17, 18)]
+@test fused.positive_grid.resolution == [17, 48, 11, 17]
+@test fused.negative_grid.resolution == [23, 50, 11, 18]
+

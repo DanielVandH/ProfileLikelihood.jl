@@ -77,7 +77,7 @@ end
 ## FusedRegularGrid 
 ######################################################
 """
-    struct FusedRegularGrid{N,B,R,S,T,C} <: AbstractGrid{N,B,T}
+    struct FusedRegularGrid{N,B,R,S,T,C,OR} <: AbstractGrid{N,B,T}
 
 Struct representing the fusing of two grids.
 
@@ -126,11 +126,22 @@ grid_2 = RegularGrid(centre .- (centre .- lb) ./ [11, 25, 21, 51, 99], lb, [11, 
 fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, res) # fused grid_1 and grid_2
 ```
 """
-Base.@kwdef struct FusedRegularGrid{N,B,R,S,T,C} <: AbstractGrid{N,B,T}
+Base.@kwdef struct FusedRegularGrid{N,B,R,S,T,C,OR} <: AbstractGrid{N,B,T}
     positive_grid::RegularGrid{N,B,R,S,T}
     negative_grid::RegularGrid{N,B,R,S,T}
     centre::C
-    resolutions::R
+    resolutions::OR
+    function FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,C,R}
+        res = get_resolution_tuples(resolutions, length(centre))
+        grid_1 = RegularGrid(centre .+ (upper_bounds .- centre) ./ getindex.(res, 1), upper_bounds, getindex.(res, 1))
+        grid_2 = RegularGrid(centre .+ (lower_bounds .- centre) ./ getindex.(res, 2), lower_bounds, getindex.(res, 2))
+        stored_res = store_original_resolutions ? resolutions : res 
+        N = number_of_parameters(grid_1)
+        S = typeof(get_step_sizes(grid_1)) 
+        R_type = typeof(stored_res)
+        T = number_type(lower_bounds)
+        return new{N,B,typeof(getindex.(res,1)),S,T,C,R_type}(grid_1,grid_2,centre,stored_res)
+    end
 end
 
 function get_resolution_tuples(resolutions, N)
@@ -151,13 +162,6 @@ function get_resolution_tuples(resolutions, N)
         return res
     end
     throw("Invalid resolution specified.")
-end
-
-function FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,R,C}
-    res = get_resolution_tuples(resolutions, length(centre))
-    grid_1 = RegularGrid(centre .+ (upper_bounds .- centre) ./ getindex.(res, 1), upper_bounds, getindex.(res, 1))
-    grid_2 = RegularGrid(centre .+ (lower_bounds .- centre) ./ getindex.(res, 2), lower_bounds, getindex.(res, 2))
-    return FusedRegularGrid(grid_1, grid_2, centre, store_original_resolutions ? resolutions : res)
 end
 
 get_positive_grid(grid::FusedRegularGrid) = grid.positive_grid
