@@ -181,8 +181,8 @@ get_centre(grid::FusedRegularGrid, i) = get_centre(grid)[i]
         return get_centre(grid, i)
     end
 end
-function get_range(grid::FusedRegularGrid, i)
-    rng = -get_resolutions(get_negative_grid(grid), i):get_resolutions(get_positive_grid(grid), i)
+function get_range(grid::FusedRegularGrid, i, lower = -get_resolutions(get_negative_grid(grid), i), upper = get_resolutions(get_positive_grid(grid), i))
+    rng = lower:upper
     return OffsetVector([grid[i, j] for j in rng], rng)
 end
 

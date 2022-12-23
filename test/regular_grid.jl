@@ -235,7 +235,7 @@ for i in 1:5
     reverse!(left)
     right = [centre[i] + j * Δpos[i] for j in 1:[2, 23, 19, 50, 17][i]]
     rng1_true = [left..., centre[i], right...]
-    @test rng1 ≈ OffsetVector(rng1_true, (-[11,25,21,51,99][i]):[2,23,19,50,17][i])
+    @test rng1 ≈ OffsetVector(rng1_true, (-[11, 25, 21, 51, 99][i]):[2, 23, 19, 50, 17][i])
 end
 θ = zeros(5)
 ProfileLikelihood.get_parameters!(θ, fused, (2, 0, -7, 17, 6))
@@ -283,4 +283,28 @@ fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, [(17, 23), (48, 50), 
 @test fused.resolutions == [(17, 23), (48, 50), (11, 11), (17, 18)]
 @test fused.positive_grid.resolution == [17, 48, 11, 17]
 @test fused.negative_grid.resolution == [23, 50, 11, 18]
+
+## Sub-grid ranges
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, 263; store_original_resolutions=true)
+@test get_range(fused, 1, -30, 73) == OffsetVector(get_range(fused, 1)[-30:73], -30:73)
+@test get_range(fused, 1, 5, 73) == OffsetVector(get_range(fused, 1)[5:73], 5:73)
+@test get_range(fused, 2, -30, 73) == OffsetVector(get_range(fused, 2)[-30:73], -30:73)
+@test get_range(fused, 2, 5, 73) == OffsetVector(get_range(fused, 2)[5:73], 5:73)
+@test get_range(fused, 3, -30, 73) == OffsetVector(get_range(fused, 3)[-30:73], -30:73)
+@test get_range(fused, 3, 5, 73) == OffsetVector(get_range(fused, 3)[5:73], 5:73)
+@test get_range(fused, 4, -30, 73) == OffsetVector(get_range(fused, 4)[-30:73], -30:73)
+@test get_range(fused, 4, 5, 73) == OffsetVector(get_range(fused, 4)[5:73], 5:73)
+
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, [17, 23, 4, 50]; store_original_resolutions=true)
+@test get_range(fused, 1, -10, 16) == OffsetVector(get_range(fused, 1)[-10:16], -10:16)
+@test get_range(fused, 2, -20, 4) == OffsetVector(get_range(fused, 2)[-20:4], -20:4)
+@test get_range(fused, 3, 0, 4) == OffsetVector(get_range(fused, 3)[0:4], 0:4)
+@test get_range(fused, 4, -44, 49) == OffsetVector(get_range(fused, 4)[-44:49], -44:49)
+
 
