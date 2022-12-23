@@ -9,6 +9,10 @@ using Distributions
 using PreallocationTools
 using OptimizationOptimJL
 using LinearAlgebra
+using InvertedIndices
+using Contour
+using OffsetArrays
+using Interpolations
 const SAVE_FIGURE = false
 
 ## Constructing the profile grids 
@@ -79,7 +83,7 @@ for i in eachindex(n)
 end
 for i in eachindex(n)
     u, v = n[i]
-    @test grids[n[i]].negative_grid.resolution == max(res[u], res[v])
+    @test grids[n[i]].resolutions == max(res[u], res[v])
 end
 
 n = ((1, 2), (5, 1), (2, 3), (2, 1), (5, 3))
@@ -90,14 +94,18 @@ grids = construct_profile_grids(n, sol, lb, ub, res)
 for i in eachindex(n)
     u, v = n[i]
     for j in 1:2
-        @test get_range(grids[(u, v)], j) == get_range(ProfileLikelihood.FusedRegularGrid(lb[[u, v]], ub[[u, v]], [sol[u], sol[v]], maximum(res[[u, v]])), j)
+        @test get_range(grids[(u, v)], j) == get_range(ProfileLikelihood.FusedRegularGrid(lb[[u, v]], ub[[u, v]], [sol[u], sol[v]], maximum([res[u]..., res[v]...])), j)
     end
+end
+for i in eachindex(n)
+    u, v = n[i]
+    @test grids[n[i]].resolutions == max(res[u]..., res[v]...)
 end
 
 ## Constructing the layer iterator 
 itr = ProfileLikelihood.LayerIterator(1)
-@test eltype(itr) == NTuple{2,Int64}
-@test collect(itr) == [
+@test eltype(itr) == CartesianIndex{2}
+@test collect(itr) == CartesianIndex.([
     (-1, -1),
     (0, -1),
     (1, -1),
@@ -106,13 +114,13 @@ itr = ProfileLikelihood.LayerIterator(1)
     (0, 1),
     (-1, 1),
     (-1, 0)
-]
-@test length(itr) == 8 
+])
+@test length(itr) == 8
 
 itr = ProfileLikelihood.LayerIterator(2)
-@test eltype(itr) == NTuple{2,Int64}
-@test length(itr) ==  16
-@test collect(itr) == [
+@test eltype(itr) == CartesianIndex{2}
+@test length(itr) == 16
+@test collect(itr) == CartesianIndex.([
     (-2, -2),
     (-1, -2),
     (0, -2),
@@ -129,13 +137,13 @@ itr = ProfileLikelihood.LayerIterator(2)
     (-2, 1),
     (-2, 0),
     (-2, -1)
-]
+])
 
 itr = ProfileLikelihood.LayerIterator(3)
 @inferred first(itr)
-@test eltype(itr) == NTuple{2,Int64}
+@test eltype(itr) == CartesianIndex{2}
 @test length(itr) == 24
-@test collect(itr) == [
+@test collect(itr) == CartesianIndex.([
     (-3, -3),
     (-2, -3),
     (-1, -3),
@@ -160,57 +168,69 @@ itr = ProfileLikelihood.LayerIterator(3)
     (-3, 0),
     (-3, -1),
     (-3, -2)
-]
+])
 
 itr = ProfileLikelihood.LayerIterator(4)
 @inferred first(itr)
-@test eltype(itr) == NTuple{2,Int64}
+@test eltype(itr) == CartesianIndex{2}
 @test length(itr) == 32
-@test collect(itr) == [
-    (-4,-4),
-    (-3,-4),
-    (-2,-4),
-    (-1,-4),
-    (0,-4),
-    (1,-4),
-    (2,-4),
-    (3,-4),
-    (4,-4),
-    (4,-3),
-    (4,-2),
-    (4,-1),
-    (4,0),
-    (4,1),
-    (4,2),
-    (4,3),
-    (4,4),
-    (3,4),
-    (2,4),
-    (1,4),
-    (0,4),
-    (-1,4),
-    (-2,4),
-    (-3,4),
-    (-4,4),
-    (-4,3),
-    (-4,2),
-    (-4,1),
-    (-4,0),
-    (-4,-1),
-    (-4,-2),
-    (-4,-3),
-]
+@test collect(itr) == CartesianIndex.([
+    (-4, -4),
+    (-3, -4),
+    (-2, -4),
+    (-1, -4),
+    (0, -4),
+    (1, -4),
+    (2, -4),
+    (3, -4),
+    (4, -4),
+    (4, -3),
+    (4, -2),
+    (4, -1),
+    (4, 0),
+    (4, 1),
+    (4, 2),
+    (4, 3),
+    (4, 4),
+    (3, 4),
+    (2, 4),
+    (1, 4),
+    (0, 4),
+    (-1, 4),
+    (-2, 4),
+    (-3, 4),
+    (-4, 4),
+    (-4, 3),
+    (-4, 2),
+    (-4, 1),
+    (-4, 0),
+    (-4, -1),
+    (-4, -2),
+    (-4, -3),
+])
 
 function ___testf(itr)
     s1 = 0.0
     s2 = 0.0
-    for (i, j) in itr 
+    for I in itr
+        i, j = Tuple(I)
         s1 += i + 2j + rand()
         s2 += j - 3i - rand()
     end
     return s1 + s2
 end
 @inferred ___testf(itr)
+
+## Preparing the results 
+N = 3
+T = Float64
+F = Float64
+θ, prof, other_mles, interpolants, confidence_regions = ProfileLikelihood.prepare_bivariate_profile_results(N, T, F)
+@test θ == Dict{NTuple{2,Int64},NTuple{2,OffsetVector{T,Vector{T}}}}([])
+@test prof == Dict{NTuple{2,Int64},OffsetMatrix{T,Matrix{T}}}([])
+@test other_mles == Dict{NTuple{2,Int64},OffsetMatrix{Vector{T},Matrix{Vector{T}}}}([])
+@test interpolants == Dict{NTuple{2,Int64},Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}}}([])
+@test confidence_regions == Dict{NTuple{2,Int64},ProfileLikelihood.ConfidenceRegion{Vector{T},F}}([])
 
 ## Setup the logistic example
 λ = 0.01
@@ -254,7 +274,8 @@ prob = LikelihoodProblem(
 )
 sol = mle(prob, NLopt.LN_BOBYQA)
 
-##
+
+#=
 Base.@kwdef struct ___FusedRegularGrid{PG,GR,C}
     positive_grid::PG
     negative_grid::GR
@@ -274,15 +295,79 @@ Base.@kwdef struct ___BivariateProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM}
     confidence_regions::Dict{I,___ConfidenceRegion{CT,CF}}
     other_mles::OM
 end
+=#
 
+normalise = true
+n = ((1, 2),)
+res = [50, 50, 50]
+grids = construct_profile_grids(n, sol, lb, ub, res)
+alg = NLopt.LN_NELDERMEAD
+conf_level = 0.95
+threshold = ProfileLikelihood.get_chisq_threshold(conf_level, 2)
 
 ## Extract the problem and solution 
 opt_prob, mles, ℓmax = ProfileLikelihood.extract_problem_and_solution(prob, sol)
 
-## Prepare the profile results 
-n = ((1, 3), (2, 3))
-N = length(n)
-T = ProfileLikelihood.number_type(mles)
-resolution = 200
-param_ranges = construct_profile_ranges(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)
+## Normalise the objective function 
+shifted_opt_prob = ProfileLikelihood.normalise_objective_function(opt_prob, ℓmax, normalise)
 
+num_params = ProfileLikelihood.number_of_parameters(shifted_opt_prob)
+
+## Pair to profile 
+_n = n[1]
+grid = grids[_n]
+res = grid.resolutions
+
+## Prepare the cache vectors
+profile_vals = OffsetArray(Matrix{Float64}(undef, 2res + 1, 2res + 1), -res:res, -res:res)
+other_mles = OffsetArray(Matrix{Vector{Float64}}(undef, 2res + 1, 2res + 1), -res:res, -res:res)
+cache = DiffCache(zeros(Float64, num_params))
+sub_cache = zeros(Float64, num_params - 2)
+sub_cache .= mles[Not(_n[1], _n[2])]
+fixed_vals = zeros(Float64, 2)
+profile_vals[0, 0] = normalise ? 0.0 : ℓmax
+other_mles[0, 0] = mles[Not(_n[1], _n[2])]
+
+## Now restrict the problem 
+restricted_prob = ProfileLikelihood.exclude_parameter(shifted_opt_prob, _n)
+
+## Solve outwards
+layer = 1
+final_layer = res
+for i in 1:res
+    layer_iterator = ProfileLikelihood.LayerIterator(layer)
+    any_above_threshold = false
+    for I in layer_iterator
+        ProfileLikelihood.get_parameters!(fixed_vals, grid, I)
+        fixed_prob = ProfileLikelihood.construct_fixed_optimisation_function(restricted_prob, _n, fixed_vals, cache)
+        fixed_prob.u0 .= mles[Not(_n[1], _n[2])]
+        soln = solve(fixed_prob, alg)
+        profile_vals[I] = -soln.objective - ℓmax * !normalise
+        other_mles[I] = soln.u
+        if !any_above_threshold && profile_vals[I] > threshold
+            any_above_threshold = true
+        end
+    end
+    if !any_above_threshold
+        global final_layer
+        final_layer = layer
+        break
+    end
+    layer += 1
+end
+
+## Resize the arrays 
+profile_vals = OffsetArray(profile_vals[-final_layer:final_layer, -final_layer:final_layer], -final_layer:final_layer, -final_layer:final_layer)
+other_mles = OffsetArray(other_mles[-final_layer:final_layer, -final_layer:final_layer], -final_layer:final_layer, -final_layer:final_layer)
+param_1_range = get_range(grid, 1, -final_layer, final_layer)
+param_2_range = get_range(grid, 2, -final_layer, final_layer)
+
+## Make the contour 
+c = Contour.contour(param_1_range, param_2_range, profile_vals, threshold)
+all_coords = reduce(vcat, [reduce(hcat, coordinates(xy)) for xy in Contour.lines(c)])
+region_x = all_coords[:, 1]
+region_y = all_coords[:, 2]
+region = ProfileLikelihood.ConfidenceRegion(region_x, region_y, conf_level)
+
+## Make an interpolant
+interpolant = Interpolations.interpolate((param_1_range, param_2_range), profile_vals, Gridded(Linear()))

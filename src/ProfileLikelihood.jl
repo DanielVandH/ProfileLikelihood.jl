@@ -44,12 +44,15 @@ export get_mle
 export get_maximum 
 export get_lower_bounds 
 export get_upper_bounds
+export get_x 
+export get_y
 export get_parameter_values
 export get_profile_values
 export get_range 
 export eval_prediction_function
 export replace_profile!
 export construct_profile_grids
+export bivariate_profile
 
 function __init__()
     @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin
