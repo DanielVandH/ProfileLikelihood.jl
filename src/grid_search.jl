@@ -97,8 +97,29 @@ You can construct a `FusedRegularGrid` using the method
 
     FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R) where {B,R,C}
 
-which lets the positive grid be `RegularGrid(centre, upper_bounds, resolutions)`, and the negative grid 
-is `RegularGrid(centre, lower_bounds, resolutions)`.
+For example, the following code creates `fused` as the fusion of `grid_1` and `grid_2`:
+
+```jula-repl
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+grid_1 = RegularGrid(centre .+ (ub .- centre) / 173, ub, 173)
+grid_2 = RegularGrid(centre .- (centre .- lb) / 173, lb, 173)
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, 173)
+```
+
+There are `173` points to the left and right of `centre` in this case. To use a varying 
+number of points, use e.g.
+
+```julia-repl 
+lb = [2.0, 3.0, 1.0, 5.0, 4.0]
+ub = [15.0, 13.0, 27.0, 10.0, 13.0]
+centre = [7.3, 8.3, 2.3, 7.5, 10.0]
+res = [(2, 11), (23, 25), (19, 21), (50, 51), (17, 99)]
+grid_1 = RegularGrid(centre .+ (ub .- centre) ./ [2, 23, 19, 50, 17], ub, [2, 23, 19, 50, 17])
+grid_2 = RegularGrid(centre .- (centre .- lb) ./ [11, 25, 21, 51, 99], lb, [11, 25, 21, 51, 99])
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, res) # fused grid_1 and grid_2
+```
 """
 Base.@kwdef struct FusedRegularGrid{N,B,R,S,T,C} <: AbstractGrid{N,B,T}
     positive_grid::RegularGrid{N,B,R,S,T}
