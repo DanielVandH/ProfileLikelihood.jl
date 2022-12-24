@@ -40,15 +40,15 @@ export get_prediction_intervals
 export gaussian_loglikelihood
 export update_initial_estimate
 export construct_integrator
-export get_mle 
-export get_maximum 
-export get_lower_bounds 
+export get_mle
+export get_maximum
+export get_lower_bounds
 export get_upper_bounds
-export get_x 
+export get_x
 export get_y
 export get_parameter_values
 export get_profile_values
-export get_range 
+export get_range
 export eval_prediction_function
 export replace_profile!
 export construct_profile_grids
@@ -59,6 +59,18 @@ function __init__()
         @require LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f" begin
             include("plotting.jl")
             export plot_profiles
+        end
+    end
+
+    @require Surrogates = "6fc51010-71bc-11e9-0e15-a3fcc6593c49" begin
+        function _set_next_initial_estimate_radial!(sub_cache, combined_grid, other_mles, layer, I, grid)
+            grid_data = @views combined_grid[(-layer+1):(layer-1), (-layer+1):(layer-1)]
+            grid_values = @views other_mles[(-layer+1):(layer-1), (-layer+1):(layer-1)]
+            lb = get_parameters(grid, (-layer, -layer))
+            ub = get_parameters(grid, (layer, layer))
+            basis = Surrogates.RadialBasis(grid_data, grid_values, lb, ub)
+            sub_cache .= basis(combined_grid[I])
+            return nothing
         end
     end
 end

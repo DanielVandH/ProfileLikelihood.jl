@@ -13,6 +13,9 @@ using InvertedIndices
 using Contour
 using OffsetArrays
 using Interpolations
+using DelaunayTriangulation
+using PolygonInbounds
+using Surrogates
 const SAVE_FIGURE = false
 
 ## Constructing the profile grids 
@@ -232,6 +235,95 @@ F = Float64
 @test interpolants == Dict{NTuple{2,Int64},Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}}}([])
 @test confidence_regions == Dict{NTuple{2,Int64},ProfileLikelihood.ConfidenceRegion{Vector{T},F}}([])
 
+## Preparing the cache vectors 
+n = (1, 3)
+mles = [3.0, 4.0, 5.5, 6.6, 8.322]
+res = 40
+num_params = 5
+normalise = true
+ℓmax = 0.5993
+prof, other, cache, sub_cache, fixed_vals, fixed_val_pairs = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+@test prof == OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
+_other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+_other[0, 0] .= [4.0, 6.6, 8.322]
+@test other == _other
+_cache = DiffCache(zeros(num_params))
+@test cache.any_du == _cache.any_du
+@test cache.dual_du == _cache.dual_du
+@test cache.du == _cache.du
+_sub_cache = [4.0, 6.6, 8.322]
+@test sub_cache == _sub_cache
+_fixed = zeros(2)
+@test fixed_vals == _fixed
+@test prof[0, 0] == 0.0
+mat = OffsetArray([(zero(T), zero(T)) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+mat[0, 0] = (3.0, 5.5)
+@test fixed_val_pairs == mat
+@test mat[3, 3] ≠ mat[0, 0] # aliasing
+
+n = (1, 3)
+mles = [3.0, 4.0, 5.5, 6.6, 8.322]
+res = 40
+num_params = 5
+normalise = false
+ℓmax = 0.5993
+prof, other, cache, sub_cache, fixed_vals, combined_grid = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+@test prof[0, 0] == 0.5993
+_prof = OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
+_prof[0, 0] = 0.5993
+@test prof == _prof
+_other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+_other[0, 0] .= [4.0, 6.6, 8.322]
+@test other == _other
+_cache = DiffCache(zeros(num_params))
+@test cache.any_du == _cache.any_du
+@test cache.dual_du == _cache.dual_du
+@test cache.du == _cache.du
+_sub_cache = [4.0, 6.6, 8.322]
+@test sub_cache == _sub_cache
+_fixed = zeros(2)
+@test fixed_vals == _fixed
+_mat = OffsetArray([(zero(T), zero(T)) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+_mat[0, 0] = (3.0, 5.5)
+@test _mat == combined_grid
+
+## Testing set_next_initial_estimate! 
+n = (1, 3)
+mles = [3.0, 4.0, 5.5, 6.6, 8.322]
+res = 40
+num_params = 5
+normalise = false
+ℓmax = 0.5993
+prof, other, cache, sub_cache, fixed_vals, combined_grid = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+for I in ProfileLikelihood.LayerIterator(1)
+    prof[I] = rand()
+    other[I] = rand(3)
+    combined_grid[I] = Tuple(rand(2))
+end
+lb = [2.0, 3.0, 1.0, 5.0, 4.0][[1, 3]]
+ub = [15.0, 13.0, 27.0, 10.0, 13.0][[1, 3]]
+centre = mles[[1, 3]]
+grid = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, res)
+layer = 2
+Id = CartesianIndex((2, 2))
+fixed_vals = zeros(2)
+
+# :mle
+next_initial_estimate_method = :mle
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method=next_initial_estimate_method)
+@test sub_cache == mles[[2, 4, 5]]
+
+# :radial 
+grid_data = @views combined_grid[(-layer+1):(layer-1), (-layer+1):(layer-1)]
+grid_values = @views other[(-layer+1):(layer-1), (-layer+1):(layer-1)]
+lb = [grid[1, -layer], grid[2, -layer]]
+ub = [grid[1, layer], grid[2, layer]]
+radial_basis = RadialBasis(grid_data, grid_values, lb, ub)
+@test norm([radial_basis((x,y)) for (x, y) in zip(getindex.(grid_data, 1), getindex.(grid_data, 2))] .- grid_values) ≤ 1e-6
+_sub_cache = radial_basis(combined_grid[Id])
+ProfileLikelihood._set_next_initial_estimate_radial!(sub_cache,combined_grid,other,layer,Id,grid)
+@test sub_cache ≈ _sub_cache
+
 ## Setup the logistic example
 λ = 0.01
 K = 100.0
@@ -274,100 +366,226 @@ prob = LikelihoodProblem(
 )
 sol = mle(prob, NLopt.LN_BOBYQA)
 
+# Get the results 
+@time results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10);
+@time _results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method = :radial);
 
-#=
-Base.@kwdef struct ___FusedRegularGrid{PG,GR,C}
-    positive_grid::PG
-    negative_grid::GR
-    centre::C
-end
-Base.@kwdef struct ___ConfidenceRegion{T,F}
-    lower::T
-    upper::T
-    level::F
-end
-Base.@kwdef struct ___BivariateProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM}
-    parameter_values::Dict{I,V}
-    profile_values::Dict{I,V}
-    likelihood_problem::LP
-    likelihood_solution::LS
-    interpolants::Dict{I,Spl}
-    confidence_regions::Dict{I,___ConfidenceRegion{CT,CF}}
-    other_mles::OM
-end
-=#
+# Test the getters 
+@test ProfileLikelihood.get_parameter_values(results) == results.parameter_values
+@test ProfileLikelihood.get_parameter_values(results, 1, 2) == results.parameter_values[(1, 2)]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K) == results.parameter_values[(1, 2)]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1) == results.parameter_values[(3, 1)]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ) == results.parameter_values[(3, 1)]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, 1) == results.parameter_values[(1, 2)][1]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, 2) == results.parameter_values[(1, 2)][2]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, :λ) == results.parameter_values[(1, 2)][1]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, :K) == results.parameter_values[(1, 2)][2]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, 1) == results.parameter_values[(3, 1)][1]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, 2) == results.parameter_values[(3, 1)][2]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, :u₀) == results.parameter_values[(3, 1)][1]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, :λ) == results.parameter_values[(3, 1)][2]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, 1) == results.parameter_values[(1, 2)][1]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, 2) == results.parameter_values[(1, 2)][2]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, :λ) == results.parameter_values[(1, 2)][1]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, :K) == results.parameter_values[(1, 2)][2]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, 1) == results.parameter_values[(3, 1)][1]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, 2) == results.parameter_values[(3, 1)][2]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, :u₀) == results.parameter_values[(3, 1)][1]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, :λ) == results.parameter_values[(3, 1)][2]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, 1, 5) == results.parameter_values[(1, 2)][1][5]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, 2, 7) == results.parameter_values[(1, 2)][2][7]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, :λ, 4) == results.parameter_values[(1, 2)][1][4]
+@test ProfileLikelihood.get_parameter_values(results, 1, 2, :K, 6) == results.parameter_values[(1, 2)][2][6]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, 1, 2) == results.parameter_values[(3, 1)][1][2]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, 2, 3) == results.parameter_values[(3, 1)][2][3]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, :u₀, -3) == results.parameter_values[(3, 1)][1][-3]
+@test ProfileLikelihood.get_parameter_values(results, 3, 1, :λ, 0) == results.parameter_values[(3, 1)][2][0]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, 1, 2) == results.parameter_values[(1, 2)][1][2]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, 2, 1) == results.parameter_values[(1, 2)][2][1]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, :λ, -5) == results.parameter_values[(1, 2)][1][-5]
+@test ProfileLikelihood.get_parameter_values(results, :λ, :K, :K, 0) == results.parameter_values[(1, 2)][2][0]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, 1, 7) == results.parameter_values[(3, 1)][1][7]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, 2, 5) == results.parameter_values[(3, 1)][2][5]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, :u₀, -2) == results.parameter_values[(3, 1)][1][-2]
+@test ProfileLikelihood.get_parameter_values(results, :u₀, :λ, :λ, -2) == results.parameter_values[(3, 1)][2][-2]
+@test ProfileLikelihood.get_profile_values(results) == results.profile_values
+@test ProfileLikelihood.get_profile_values(results, 1, 2) == results.profile_values[(1, 2)]
+@test ProfileLikelihood.get_profile_values(results, :λ, :K) == results.profile_values[(1, 2)]
+@test ProfileLikelihood.get_profile_values(results, 3, 1) == results.profile_values[(3, 1)]
+@test ProfileLikelihood.get_profile_values(results, :u₀, :λ) == results.profile_values[(3, 1)]
+@test ProfileLikelihood.get_likelihood_problem(results) == prob
+@test ProfileLikelihood.get_likelihood_solution(results) == sol
+@test ProfileLikelihood.get_interpolants(results) == results.interpolants
+@test ProfileLikelihood.get_interpolants(results, 1, 2) == results.interpolants[(1, 2)]
+@test ProfileLikelihood.get_interpolants(results, :λ, :K) == results.interpolants[(1, 2)]
+@test ProfileLikelihood.get_interpolants(results, 3, 1) == results.interpolants[(3, 1)]
+@test ProfileLikelihood.get_interpolants(results, :u₀, :λ) == results.interpolants[(3, 1)]
+@test ProfileLikelihood.get_confidence_regions(results) == results.confidence_regions
+@test ProfileLikelihood.get_confidence_regions(results, 1, 2) == results.confidence_regions[(1, 2)]
+@test ProfileLikelihood.get_confidence_regions(results, :λ, :K) == results.confidence_regions[(1, 2)]
+@test ProfileLikelihood.get_confidence_regions(results, 3, 1) == results.confidence_regions[(3, 1)]
+@test ProfileLikelihood.get_confidence_regions(results, :u₀, :λ) == results.confidence_regions[(3, 1)]
+@test ProfileLikelihood.get_other_mles(results) == results.other_mles
+@test ProfileLikelihood.get_other_mles(results, 1, 2) == results.other_mles[(1, 2)]
+@test ProfileLikelihood.get_other_mles(results, :λ, :K) == results.other_mles[(1, 2)]
+@test ProfileLikelihood.get_other_mles(results, 3, 1) == results.other_mles[(3, 1)]
+@test ProfileLikelihood.get_other_mles(results, :u₀, :λ) == results.other_mles[(3, 1)]
+@test ProfileLikelihood.get_syms(results) == [:λ, :K, :u₀]
+@test ProfileLikelihood.get_syms(results, 1, 2) == (:λ, :K)
+@test ProfileLikelihood.get_syms(results, 3, 1) == (:u₀, :λ)
+@test ProfileLikelihood.profiled_parameters(results) == [(1, 2), (3, 1)]
+@test ProfileLikelihood.number_of_profiled_parameters(results) == 2
+@test ProfileLikelihood.number_of_layers(results, 1, 2) == 102
+@test ProfileLikelihood.number_of_layers(results, 3, 1) == 188
+bbox = ProfileLikelihood.get_bounding_box(results, 1, 2)
+@test all(bbox .≈ (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195))
+bbox = ProfileLikelihood.get_bounding_box(results, 3, 1)
+@test all(bbox .≈ (0.8585793458749309, 22.24256937316934, 0.005641851160910081, 0.02088915793720584))
+CR = ProfileLikelihood.get_confidence_regions(results, 1, 2)
+conf_x = CR.x
+conf_y = CR.y
+xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
+A = DelaunayTriangulation.area(xy)
+@test A ≈ 0.23243592745692931
+CR = ProfileLikelihood.get_confidence_regions(results, 3, 1)
+conf_x = CR.x
+conf_y = CR.y
+xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
+A = DelaunayTriangulation.area(xy)
+@test A ≈ 0.09636388019922583
+@test_throws BoundsError results[1, 3]
+@test length(results.parameter_values[(1, 2)][1]) == 205
+@test length(results.parameter_values[(1, 2)][2]) == 205
+@test length(results.profile_values[(1, 2)]) == 205^2
+@test length(results.other_mles[(1, 2)]) == 205^2
+@test length(results.parameter_values[(1, 2)][1]) == 205
+@test length(results.parameter_values[(1, 2)][2]) == 205
+@test length(results.profile_values[(1, 2)]) == 205^2
+@test length(results.other_mles[(1, 2)]) == 205^2
+@test length(results.parameter_values[(3, 1)][1]) == 377
+@test length(results.parameter_values[(3, 1)][2]) == 377
+@test length(results.profile_values[(3, 1)]) == 377^2
+@test length(results.other_mles[(3, 1)]) == 377^2
+@test length(results.parameter_values[(3, 1)][1]) == 377
+@test length(results.parameter_values[(3, 1)][2]) == 377
+@test length(results.profile_values[(3, 1)]) == 377^2
+@test length(results.other_mles[(3, 1)]) == 377^2
+prof = results[1, 2]
+@test ProfileLikelihood.get_parent(prof) === results
+@test ProfileLikelihood.get_index(prof) == (1, 2)
+@test get_parameter_values(prof) == results.parameter_values[(1, 2)]
+@test get_parameter_values(prof, 1) == results.parameter_values[(1, 2)][1]
+@test get_parameter_values(prof, 2) == results.parameter_values[(1, 2)][2]
+@test get_parameter_values(prof, 1, 0) == results.parameter_values[(1, 2)][1][0]
+@test get_parameter_values(prof, 2, -5) == results.parameter_values[(1, 2)][2][-5]
+@test get_parameter_values(prof, :λ) == results.parameter_values[(1, 2)][1]
+@test get_parameter_values(prof, :K, 4) == results.parameter_values[(1, 2)][2][4]
+@test get_profile_values(prof) == results.profile_values[(1, 2)]
+@test get_profile_values(prof, 7, 4) == results.profile_values[(1, 2)][7, 4]
+@test ProfileLikelihood.get_likelihood_problem(prof) == prob
+@test ProfileLikelihood.get_likelihood_solution(prof) == sol
+@test ProfileLikelihood.get_interpolants(prof) == results.interpolants[(1, 2)]
+@test ProfileLikelihood.get_confidence_regions(prof) == results.confidence_regions[(1, 2)]
+@test ProfileLikelihood.get_other_mles(prof) == results.other_mles[(1, 2)]
+@test ProfileLikelihood.get_other_mles(prof, 0, -4) == results.other_mles[(1, 2)][0, -4]
+@test ProfileLikelihood.number_of_layers(prof) == 102
+bbox = ProfileLikelihood.get_bounding_box(prof)
+@test all(bbox .≈ (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195))
 
-normalise = true
-n = ((1, 2),)
-res = [50, 50, 50]
-grids = construct_profile_grids(n, sol, lb, ub, res)
-alg = NLopt.LN_NELDERMEAD
-conf_level = 0.95
-threshold = ProfileLikelihood.get_chisq_threshold(conf_level, 2)
-
-## Extract the problem and solution 
-opt_prob, mles, ℓmax = ProfileLikelihood.extract_problem_and_solution(prob, sol)
-
-## Normalise the objective function 
-shifted_opt_prob = ProfileLikelihood.normalise_objective_function(opt_prob, ℓmax, normalise)
-
-num_params = ProfileLikelihood.number_of_parameters(shifted_opt_prob)
-
-## Pair to profile 
-_n = n[1]
-grid = grids[_n]
-res = grid.resolutions
-
-## Prepare the cache vectors
-profile_vals = OffsetArray(Matrix{Float64}(undef, 2res + 1, 2res + 1), -res:res, -res:res)
-other_mles = OffsetArray(Matrix{Vector{Float64}}(undef, 2res + 1, 2res + 1), -res:res, -res:res)
-cache = DiffCache(zeros(Float64, num_params))
-sub_cache = zeros(Float64, num_params - 2)
-sub_cache .= mles[Not(_n[1], _n[2])]
-fixed_vals = zeros(Float64, 2)
-profile_vals[0, 0] = normalise ? 0.0 : ℓmax
-other_mles[0, 0] = mles[Not(_n[1], _n[2])]
-
-## Now restrict the problem 
-restricted_prob = ProfileLikelihood.exclude_parameter(shifted_opt_prob, _n)
-
-## Solve outwards
-layer = 1
-final_layer = res
-for i in 1:res
-    layer_iterator = ProfileLikelihood.LayerIterator(layer)
-    any_above_threshold = false
-    for I in layer_iterator
-        ProfileLikelihood.get_parameters!(fixed_vals, grid, I)
-        fixed_prob = ProfileLikelihood.construct_fixed_optimisation_function(restricted_prob, _n, fixed_vals, cache)
-        fixed_prob.u0 .= mles[Not(_n[1], _n[2])]
-        soln = solve(fixed_prob, alg)
-        profile_vals[I] = -soln.objective - ℓmax * !normalise
-        other_mles[I] = soln.u
-        if !any_above_threshold && profile_vals[I] > threshold
-            any_above_threshold = true
-        end
+# Test the confidence intervals 
+λgrid = results.parameter_values[(1, 2)][1].parent
+Kgrid = results.parameter_values[(1, 2)][2].parent
+ℓvals = results.profile_values[(1, 2)].parent
+conf_x = results.confidence_regions[(1, 2)].x
+conf_y = results.confidence_regions[(1, 2)].y
+λK_pts = [(λgrid[i], Kgrid[j]) for i in eachindex(λgrid), j in eachindex(Kgrid)]
+Idx = CartesianIndices(λK_pts)
+λK_vec = vec(λK_pts)
+nodes = [conf_x conf_y]
+edges = [vec(1:length(conf_x)) [(2:length(conf_x))..., 1]]
+tol = 1e-1
+res = inpoly2(λK_vec, nodes, edges, atol=tol)
+for i in axes(res, 1)
+    mat_idx = Idx[i]
+    inside_ci = res[i, 1]
+    if inside_ci
+        @test ℓvals[mat_idx] > ProfileLikelihood.get_chisq_threshold(0.95, 2)
+    else
+        @test ℓvals[mat_idx] < ProfileLikelihood.get_chisq_threshold(0.95, 2)
     end
-    if !any_above_threshold
-        global final_layer
-        final_layer = layer
-        break
-    end
-    layer += 1
 end
 
-## Resize the arrays 
-profile_vals = OffsetArray(profile_vals[-final_layer:final_layer, -final_layer:final_layer], -final_layer:final_layer, -final_layer:final_layer)
-other_mles = OffsetArray(other_mles[-final_layer:final_layer, -final_layer:final_layer], -final_layer:final_layer, -final_layer:final_layer)
-param_1_range = get_range(grid, 1, -final_layer, final_layer)
-param_2_range = get_range(grid, 2, -final_layer, final_layer)
+u₀grid = results.parameter_values[(3, 1)][1].parent
+λgrid = results.parameter_values[(3, 1)][2].parent
+ℓvals = results.profile_values[(3, 1)].parent
+conf_x = results.confidence_regions[(3, 1)].x
+conf_y = results.confidence_regions[(3, 1)].y
+u₀λ_pts = [(u₀grid[i], λgrid[j]) for i in eachindex(u₀grid), j in eachindex(λgrid)]
+Idx = CartesianIndices(u₀λ_pts)
+u₀λ_vec = vec(u₀λ_pts)
+nodes = [conf_x conf_y]
+edges = [vec(1:length(conf_x)) [(2:length(conf_x))..., 1]]
+tol = 1e-1
+res = inpoly2(u₀λ_vec, nodes, edges, atol=tol)
+for i in axes(res, 1)
+    mat_idx = Idx[i]
+    inside_ci = res[i, 1]
+    if inside_ci
+        @test ℓvals[mat_idx] > ProfileLikelihood.get_chisq_threshold(0.95, 2)
+    else
+        @test ℓvals[mat_idx] < ProfileLikelihood.get_chisq_threshold(0.95, 2)
+    end
+end
 
-## Make the contour 
-c = Contour.contour(param_1_range, param_2_range, profile_vals, threshold)
-all_coords = reduce(vcat, [reduce(hcat, coordinates(xy)) for xy in Contour.lines(c)])
-region_x = all_coords[:, 1]
-region_y = all_coords[:, 2]
-region = ProfileLikelihood.ConfidenceRegion(region_x, region_y, conf_level)
+# Test the interpolants 
+interp = ProfileLikelihood.get_interpolants(results, :λ, :K)
+@test interp(sol[1], sol[2]) ≈ 0.0
+for i in axes(results.profile_values[(1, 2)], 1)
+    for j in axes(results.profile_values[(1, 2)], 2)
+        λval = results.parameter_values[(1, 2)][1][i]
+        Kval = results.parameter_values[(1, 2)][2][j]
+        @test interp(λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+        @test results[1, 2](λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+        @test results(λval, Kval, 1, 2) ≈ results.profile_values[(1, 2)][i, j]
+        @test results(λval, Kval, :λ, :K) ≈ results.profile_values[(1, 2)][i, j]
+        @test results[:λ, :K](λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+    end
+end
+conf_x = results.confidence_regions[(1, 2)].x
+conf_y = results.confidence_regions[(1, 2)].y
+for (x, y) in zip(conf_x, conf_y)
+    @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+    @test results(x, y, 1, 2) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+end
 
-## Make an interpolant
-interpolant = Interpolations.interpolate((param_1_range, param_2_range), profile_vals, Gridded(Linear()))
+interp = ProfileLikelihood.get_interpolants(results, :u₀, :λ)
+@test interp(sol[:u₀], sol[1]) ≈ 0.0
+for i in axes(results.profile_values[(3, 1)], 1)
+    for j in axes(results.profile_values[(3, 1)], 2)
+        u₀val = results.parameter_values[(3, 1)][1][i]
+        λval = results.parameter_values[(3, 1)][2][j]
+        @test interp(u₀val, λval) ≈ results.profile_values[(3, 1)][i, j]
+        @test results[3, 1](u₀val, λval) ≈ results.profile_values[(3, 1)][i, j]
+        @test results(u₀val, λval, 3, 1) ≈ results.profile_values[(3, 1)][i, j]
+        @test results(u₀val, λval, :u₀, :λ) ≈ results.profile_values[(3, 1)][i, j]
+        @test results[:u₀, :λ](u₀val, λval) ≈ results.profile_values[(3, 1)][i, j]
+    end
+end
+conf_x = results.confidence_regions[(3, 1)].x
+conf_y = results.confidence_regions[(3, 1)].y
+for (x, y) in zip(conf_x, conf_y)
+    @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+    @test results(x, y, 3, 1) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+end
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+contourf!(ax, results.parameter_values[(3, 1)][2].parent, results.parameter_values[(3, 1)][1].parent, results.profile_values[(3, 1)].parent', levels=50)
+#heatmap!(ax, results.parameter_values[(1, 2)][1].parent, results.parameter_values[(1, 2)][2].parent, results.profile_values[(1, 2)].parent)
+lines!(ax, results.confidence_regions[(3, 1)].y, results.confidence_regions[(3, 1)].x, linestyle=:solid)
+fig
+#lines!(ax, [bbox[1], bbox[2], bbox[2], bbox[1], bbox[1]], [bbox[3], bbox[3], bbox[4], bbox[4], bbox[3]])
+
+
