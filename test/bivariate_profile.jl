@@ -242,7 +242,7 @@ res = 40
 num_params = 5
 normalise = true
 ℓmax = 0.5993
-prof, other, cache, sub_cache, fixed_vals, fixed_val_pairs = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+prof, other, cache, sub_cache, fixed_vals = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
 @test prof == OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
 _other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
 _other[0, 0] .= [4.0, 6.6, 8.322]
@@ -256,10 +256,6 @@ _sub_cache = [4.0, 6.6, 8.322]
 _fixed = zeros(2)
 @test fixed_vals == _fixed
 @test prof[0, 0] == 0.0
-mat = OffsetArray([(zero(T), zero(T)) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
-mat[0, 0] = (3.0, 5.5)
-@test fixed_val_pairs == mat
-@test mat[3, 3] ≠ mat[0, 0] # aliasing
 
 n = (1, 3)
 mles = [3.0, 4.0, 5.5, 6.6, 8.322]
@@ -267,7 +263,7 @@ res = 40
 num_params = 5
 normalise = false
 ℓmax = 0.5993
-prof, other, cache, sub_cache, fixed_vals, combined_grid = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+prof, other, cache, sub_cache, fixed_vals = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
 @test prof[0, 0] == 0.5993
 _prof = OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
 _prof[0, 0] = 0.5993
@@ -283,9 +279,6 @@ _sub_cache = [4.0, 6.6, 8.322]
 @test sub_cache == _sub_cache
 _fixed = zeros(2)
 @test fixed_vals == _fixed
-_mat = OffsetArray([(zero(T), zero(T)) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
-_mat[0, 0] = (3.0, 5.5)
-@test _mat == combined_grid
 
 ## Testing set_next_initial_estimate! 
 n = (1, 3)
@@ -294,11 +287,10 @@ res = 40
 num_params = 5
 normalise = false
 ℓmax = 0.5993
-prof, other, cache, sub_cache, fixed_vals, combined_grid = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+prof, other, cache, sub_cache, fixed_vals = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
 for I in ProfileLikelihood.LayerIterator(1)
     prof[I] = rand()
     other[I] = rand(3)
-    combined_grid[I] = Tuple(rand(2))
 end
 lb = [2.0, 3.0, 1.0, 5.0, 4.0][[1, 3]]
 ub = [15.0, 13.0, 27.0, 10.0, 13.0][[1, 3]]
@@ -310,7 +302,7 @@ fixed_vals = zeros(2)
 
 # :mle
 next_initial_estimate_method = :mle
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method=next_initial_estimate_method)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer; next_initial_estimate_method=next_initial_estimate_method)
 @test sub_cache == mles[[2, 4, 5]]
 
 ## Setup the logistic example

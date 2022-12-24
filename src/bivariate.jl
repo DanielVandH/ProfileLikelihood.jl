@@ -75,9 +75,7 @@ function prepare_cache_vectors(n, mles::AbstractVector{T}, res, num_params, norm
     fixed_vals = zeros(T, 2)
     profile_vals[0, 0] = normalise ? zero(T) : ℓmax
     other_mles[0, 0] .= mles[Not(n[1], n[2])]
-    fixed_value_pairs = OffsetArray([(zero(T), zero(T)) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
-    fixed_value_pairs[0, 0] = (mles[n[1]], mles[n[2]])
-    return profile_vals, other_mles, cache, sub_cache, fixed_vals, fixed_value_pairs
+    return profile_vals, other_mles, cache, sub_cache, fixed_vals
 end
 
 function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
@@ -120,7 +118,7 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
     ## Setup
     grid = grids[n]
     res = grid.resolutions
-    profile_vals, other_mle, cache, sub_cache, fixed_vals, combined_grid = prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+    profile_vals, other_mle, cache, sub_cache, fixed_vals = prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
     restricted_prob = exclude_parameter(shifted_opt_prob, n)
 
     ## Evolve outwards 
@@ -129,8 +127,7 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
     outer_layer = 0
     for i in 1:res
         any_above_threshold = expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
-            grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method,
-            combined_grid)
+            grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method)
         if !any_above_threshold
             final_layer = layer
             outer_layer += 1
@@ -149,13 +146,12 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
 end
 
 function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob, alg,
-    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, combined_grid)
+    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method)
     layer_iterator = LayerIterator(layer)
     any_above_threshold = false
     for I in layer_iterator
         get_parameters!(fixed_vals, grid, I)
-        combined_grid[I] = (fixed_vals[1], fixed_vals[2])
-        set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method)
+        set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer; next_initial_estimate_method)
         fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, fixed_vals, cache)
         fixed_prob.u0 .= sub_cache
         soln = solve(fixed_prob, alg)
