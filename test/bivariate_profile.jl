@@ -313,17 +313,6 @@ next_initial_estimate_method = :mle
 ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method=next_initial_estimate_method)
 @test sub_cache == mles[[2, 4, 5]]
 
-# :radial 
-grid_data = @views combined_grid[(-layer+1):(layer-1), (-layer+1):(layer-1)]
-grid_values = @views other[(-layer+1):(layer-1), (-layer+1):(layer-1)]
-lb = [grid[1, -layer], grid[2, -layer]]
-ub = [grid[1, layer], grid[2, layer]]
-radial_basis = RadialBasis(grid_data, grid_values, lb, ub)
-@test norm([radial_basis((x,y)) for (x, y) in zip(getindex.(grid_data, 1), getindex.(grid_data, 2))] .- grid_values) ≤ 1e-6
-_sub_cache = radial_basis(combined_grid[Id])
-ProfileLikelihood._set_next_initial_estimate_radial!(sub_cache,combined_grid,other,layer,Id,grid)
-@test sub_cache ≈ _sub_cache
-
 ## Setup the logistic example
 λ = 0.01
 K = 100.0
@@ -369,8 +358,6 @@ sol = mle(prob, NLopt.LN_BOBYQA)
 # Get the results 
 @time results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
     outer_layers=10);
-@time _results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method = :radial);
 
 # Test the getters 
 @test ProfileLikelihood.get_parameter_values(results) == results.parameter_values

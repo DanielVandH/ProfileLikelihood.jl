@@ -61,18 +61,6 @@ function __init__()
             export plot_profiles
         end
     end
-
-    @require Surrogates = "6fc51010-71bc-11e9-0e15-a3fcc6593c49" begin
-        function _set_next_initial_estimate_radial!(sub_cache, combined_grid, other_mles, layer, I, grid)
-            grid_data = @views combined_grid[(-layer+1):(layer-1), (-layer+1):(layer-1)]
-            grid_values = @views other_mles[(-layer+1):(layer-1), (-layer+1):(layer-1)]
-            lb = get_parameters(grid, (-layer, -layer))
-            ub = get_parameters(grid, (layer, layer))
-            basis = Surrogates.RadialBasis(grid_data, grid_values, lb, ub)
-            sub_cache .= basis(combined_grid[I])
-            return nothing
-        end
-    end
 end
 
 end

@@ -206,12 +206,5 @@ function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fi
     if next_initial_estimate_method == :mle
         sub_cache .= other_mles[0, 0]
         return nothing
-    elseif next_initial_estimate_method == :radial
-        if layer > 1
-            _set_next_initial_estimate_radial!(sub_cache, combined_grid, other_mles, layer, I, grid)
-        else
-            set_next_initial_estimate!(sub_cache, other_mles, I, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method=:mle)
-        end
-        return nothing
     end
 end
