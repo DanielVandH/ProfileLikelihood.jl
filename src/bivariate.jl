@@ -66,16 +66,29 @@ function prepare_bivariate_profile_results(N, T, F)
     return θ, prof, other_mles, interpolants, confidence_regions
 end
 
-function prepare_cache_vectors(n, mles::AbstractVector{T}, res, num_params, normalise, ℓmax) where {T}
+function prepare_cache_vectors(n, mles::AbstractVector{T}, res, num_params, normalise, ℓmax; parallel=false) where {T}
     profile_vals = OffsetArray(zeros(T, 2res + 1, 2res + 1), -res:res, -res:res)
     other_mles = OffsetArray([zeros(T, num_params - 2) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
-    cache = DiffCache(zeros(T, num_params))
-    sub_cache = zeros(T, num_params - 2)
-    sub_cache .= mles[Not(n[1], n[2])]
-    fixed_vals = zeros(T, 2)
     profile_vals[0, 0] = normalise ? zero(T) : ℓmax
     other_mles[0, 0] .= mles[Not(n[1], n[2])]
-    return profile_vals, other_mles, cache, sub_cache, fixed_vals
+    if !parallel
+        cache = DiffCache(zeros(T, num_params))
+        sub_cache = zeros(T, num_params - 2)
+        sub_cache .= mles[Not(n[1], n[2])]
+        fixed_vals = zeros(T, 2)
+        any_above_threshold = false
+        return profile_vals, other_mles, cache, sub_cache, fixed_vals, any_above_threshold
+    else
+        nt = Base.Threads.nthreads()
+        cache = [DiffCache(zeros(T, num_params)) for _ in 1:nt]
+        sub_cache = [zeros(T, num_params - 2) for _ in 1:nt]
+        for i in 1:nt
+            sub_cache[i] .= mles[Not(n[1], n[2])]
+        end
+        fixed_vals = [zeros(T, 2) for _ in 1:nt]
+        any_above_threshold = [false for _ in 1:nt]
+        return profile_vals, other_mles, cache, sub_cache, fixed_vals, any_above_threshold
+    end
 end
 
 function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
@@ -106,7 +119,7 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     for _n in n
         profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
             mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
-            conf_level, confidence_region_method, next_initial_estimate_method)
+            conf_level, confidence_region_method, next_initial_estimate_method; parallel)
     end
     results = BivariateProfileLikelihoodSolution(θ, prof, prob, sol, interpolants, confidence_regions, other_mles)
     return results
@@ -114,12 +127,16 @@ end
 
 function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, n,
     mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
-    conf_level, confidence_region_method, next_initial_estimate_method)
+    conf_level, confidence_region_method, next_initial_estimate_method; parallel=false)
     ## Setup
     grid = grids[n]
     res = grid.resolutions
-    profile_vals, other_mle, cache, sub_cache, fixed_vals = prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
-    restricted_prob = exclude_parameter(shifted_opt_prob, n)
+    profile_vals, other_mle, cache, sub_cache, fixed_vals, any_above_threshold = prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel)
+    if !parallel
+        restricted_prob = exclude_parameter(shifted_opt_prob, n)
+    else
+        restricted_prob = [exclude_parameter(deepcopy(shifted_opt_prob), n) for _ in 1:Base.Threads.nthreads()]
+    end
 
     ## Evolve outwards 
     layer = 1
@@ -127,8 +144,8 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
     outer_layer = 0
     for i in 1:res
         any_above_threshold = expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
-            grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method)
-        if !any_above_threshold
+            grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold; parallel)
+        if !any(any_above_threshold)
             final_layer = layer
             outer_layer += 1
             outer_layer ≥ outer_layers && layer ≥ min_layers && break
@@ -146,20 +163,39 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
 end
 
 function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob, alg,
-    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method)
+    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold; parallel=false)
     layer_iterator = LayerIterator(layer)
-    any_above_threshold = false
-    for I in layer_iterator
-        get_parameters!(fixed_vals, grid, I)
-        set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer, restricted_prob; next_initial_estimate_method)
-        fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, fixed_vals, cache)
-        fixed_prob.u0 .= sub_cache
-        soln = solve(fixed_prob, alg)
-        profile_vals[I] = -soln.objective - ℓmax * !normalise
-        other_mle[I] = soln.u
-        if !any_above_threshold && profile_vals[I] > threshold
-            any_above_threshold = true
+    if !parallel
+        any_above_threshold = false
+        for I in layer_iterator
+            any_above_threshold = solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
+                next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
         end
+        return any_above_threshold
+    else
+        fill!(any_above_threshold, false)
+        collected_iterator = collect(layer_iterator) # can we do better than collect()? -
+        Base.Threads.@threads for I in collected_iterator
+            id = Base.Threads.threadid()
+            any_above_threshold[id] = solve_at_layer_node!(fixed_vals[id], grid, I, sub_cache[id], other_mle, layer, restricted_prob[id],
+                next_initial_estimate_method, cache[id], alg, profile_vals, ℓmax, normalise, any_above_threshold[id], threshold, n)
+        end
+        return any_above_threshold
+    end
+end
+
+function solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
+    next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
+    get_parameters!(fixed_vals, grid, I)
+    set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer, restricted_prob; next_initial_estimate_method)
+    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, fixed_vals, cache)
+    fixed_prob.u0 .= sub_cache
+    soln = solve(fixed_prob, alg)
+    profile_vals[I] = -soln.objective - ℓmax * !normalise
+    other_mle[I] = soln.u
+    if !any_above_threshold && profile_vals[I] > threshold # keep the any_above_threshold here so we need only check once
+        any_above_threshold = true
+        return any_above_threshold
     end
     return any_above_threshold
 end

@@ -235,13 +235,14 @@ F = Float64
 @test confidence_regions == Dict{NTuple{2,Int64},ProfileLikelihood.ConfidenceRegion{Vector{T},F}}([])
 
 ## Preparing the cache vectors 
+# Serial
 n = (1, 3)
 mles = [3.0, 4.0, 5.5, 6.6, 8.322]
 res = 40
 num_params = 5
 normalise = true
 ℓmax = 0.5993
-prof, other, cache, sub_cache, fixed_vals = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+prof, other, cache, sub_cache, fixed_vals, any_above = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
 @test prof == OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
 _other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
 _other[0, 0] .= [4.0, 6.6, 8.322]
@@ -255,6 +256,7 @@ _sub_cache = [4.0, 6.6, 8.322]
 _fixed = zeros(2)
 @test fixed_vals == _fixed
 @test prof[0, 0] == 0.0
+@test !any_above
 
 n = (1, 3)
 mles = [3.0, 4.0, 5.5, 6.6, 8.322]
@@ -262,7 +264,7 @@ res = 40
 num_params = 5
 normalise = false
 ℓmax = 0.5993
-prof, other, cache, sub_cache, fixed_vals = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
+prof, other, cache, sub_cache, fixed_vals, any_above = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax)
 @test prof[0, 0] == 0.5993
 _prof = OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
 _prof[0, 0] = 0.5993
@@ -278,6 +280,62 @@ _sub_cache = [4.0, 6.6, 8.322]
 @test sub_cache == _sub_cache
 _fixed = zeros(2)
 @test fixed_vals == _fixed
+@test !any_above
+
+# Parallel 
+n = (1, 3)
+mles = [3.0, 4.0, 5.5, 6.6, 8.322]
+res = 40
+num_params = 5
+normalise = true
+ℓmax = 0.5993
+prof, other, cache, sub_cache, fixed_vals, any_above = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel=true)
+@test prof == OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
+_other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+_other[0, 0] .= [4.0, 6.6, 8.322]
+@test other == _other
+_cache = DiffCache(zeros(num_params))
+for i in 1:Base.Threads.nthreads()
+    @test cache[i].any_du == _cache.any_du
+    @test cache[i].dual_du == _cache.dual_du
+    @test cache[i].du == _cache.du
+end
+_sub_cache = [4.0, 6.6, 8.322]
+@test all(sub_cache[i] == _sub_cache for i in 1:Base.Threads.nthreads())
+_fixed = zeros(2)
+@test all(fixed_vals[i] == _fixed for i in 1:Base.Threads.nthreads())
+@test prof[0, 0] == 0.0
+@test all(!any_above[i] for i in 1:Base.Threads.nthreads())
+
+n = (1, 3)
+mles = [3.0, 4.0, 5.5, 6.6, 8.322]
+res = 40
+num_params = 5
+normalise = false
+ℓmax = 0.5993
+prof, other, cache, sub_cache, fixed_vals, any_above = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel=true)
+@test prof[0, 0] == 0.5993
+_prof = OffsetArray(zeros(2res + 1, 2res + 1), -res:res, -res:res)
+_prof[0, 0] = 0.5993
+@test prof == _prof
+_other = OffsetArray([zeros(3) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
+_other[0, 0] .= [4.0, 6.6, 8.322]
+@test other == _other
+_cache = DiffCache(zeros(num_params))
+for i in 1:Base.Threads.nthreads()
+    @test cache[i].any_du == _cache.any_du
+    @test cache[i].dual_du == _cache.dual_du
+    @test cache[i].du == _cache.du
+end
+_sub_cache = [4.0, 6.6, 8.322]
+@test all(sub_cache[i] == _sub_cache for i in 1:Base.Threads.nthreads())
+_fixed = zeros(2)
+@test all(fixed_vals[i] == _fixed for i in 1:Base.Threads.nthreads())
+@test prof[0, 0] == 0.5993
+@test all(!any_above[i] for i in 1:Base.Threads.nthreads())
+_fixed = zeros(2)
+@test all(fixed_vals[i] == _fixed for i in 1:Base.Threads.nthreads())
+@test all(!any_above[i] for i in 1:Base.Threads.nthreads())
 
 ## Testing set_next_initial_estimate! 
 n = (1, 3)
@@ -495,9 +553,15 @@ ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, g
     outer_layers=10, next_initial_estimate_method=:nearest);
 @time results_int = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
     outer_layers=10, next_initial_estimate_method=:interp);
+@time results_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, parallel=true);
+@time results_near_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
+@time results_int_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:interp, parallel=true);
 
 # Test the results
-for results in (results, results_near, results_int)
+for results in (results, results_near, results_int, results_par, results_near_par, results_int_par)
     @test ProfileLikelihood.get_parameter_values(results) == results.parameter_values
     @test ProfileLikelihood.get_parameter_values(results, 1, 2) == results.parameter_values[(1, 2)]
     @test ProfileLikelihood.get_parameter_values(results, :λ, :K) == results.parameter_values[(1, 2)]
@@ -706,6 +770,44 @@ for results in (results, results_near, results_int)
     end
 end
 
+# Test the parallelism 
+for (serial_res, parallel_res) in ((results, results_par), (results_near, results_near_par), (results_int, results_int_par))
+    CR = serial_res.confidence_regions
+    interp = serial_res.interpolants
+    prob = serial_res.likelihood_problem
+    sol = serial_res.likelihood_solution
+    other = serial_res.other_mles
+    params = serial_res.parameter_values
+    profiles = serial_res.profile_values
+
+    CR_par = parallel_res.confidence_regions
+    interp_par = parallel_res.interpolants
+    prob_par = parallel_res.likelihood_problem
+    sol_par = parallel_res.likelihood_solution
+    other_par = parallel_res.other_mles
+    params_par = parallel_res.parameter_values
+    profiles_par = parallel_res.profile_values
+
+    @test CR[(1, 2)].x ≈ CR_par[(1, 2)].x
+    @test CR[(3, 1)].x ≈ CR_par[(3, 1)].x
+    @test CR[(1, 2)].y ≈ CR_par[(1, 2)].y
+    @test CR[(3, 1)].y ≈ CR_par[(3, 1)].y
+    @test CR[(1, 2)].level ≈ CR_par[(1, 2)].level
+    @test CR[(3, 1)].level ≈ CR_par[(3, 1)].level
+    @test interp[(1, 2)] ≈ interp_par[(1, 2)]
+    @test interp_par[(3, 1)] ≈ interp_par[(3, 1)]
+    @test prob === prob_par
+    @test sol === sol_par
+    @test other[(1, 2)] ≈ other_par[(1, 2)]
+    @test other[(3, 1)] ≈ other_par[(3, 1)]
+    @test params[(1, 2)][1] ≈ params_par[(1, 2)][1]
+    @test params[(1, 2)][2] ≈ params_par[(1, 2)][2]
+    @test params[(3, 1)][1] ≈ params_par[(3, 1)][1]
+    @test params[(3, 1)][2] ≈ params_par[(3, 1)][2]
+    @test profiles[(1, 2)] ≈ profiles_par[(1, 2)]
+    @test profiles[(3, 1)] ≈ profiles_par[(3, 1)]
+end
+
 # Test the next_initial_estimate_method methods with the results
 for (n1, n2, n3) in ((1, 2, 3), (3, 1, 2))
     n1, n2, n3 = 1, 2, 3
@@ -754,6 +856,16 @@ for (n1, n2, n3) in ((1, 2, 3), (3, 1, 2))
     err3 = getindex.(err3, 1).parent
     @test median(abs.(err3)) < 0.001
 end
+
+
+
+
+
+
+
+
+
+
 
 fig = Figure()
 ax = Axis(fig[1, 1])
