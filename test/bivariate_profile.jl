@@ -547,6 +547,18 @@ ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, g
 @test sub_cache ≈ mles[[3]]
 
 # Get the results 
+@time results_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, confidence_region_method=:delaunay);
+@time results_near_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:nearest, confidence_region_method=:delaunay);
+@time results_int_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:interp, confidence_region_method=:delaunay);
+@time results_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, parallel=true, confidence_region_method=:delaunay);
+@time results_near_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:nearest, parallel=true, confidence_region_method=:delaunay);
+@time results_int_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+    outer_layers=10, next_initial_estimate_method=:interp, parallel=true, confidence_region_method=:delaunay);
 @time results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
     outer_layers=10);
 @time results_near = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
@@ -561,7 +573,9 @@ ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, g
     outer_layers=10, next_initial_estimate_method=:interp, parallel=true);
 
 # Test the results
-for results in (results, results_near, results_int, results_par, results_near_par, results_int_par)
+for results in (results, results_near, results_int, results_par, results_near_par, results_int_par,
+    results_delaunay, results_near_delaunay, results_int_delaunay, results_par_delaunay, results_near_par_delaunay,
+    results_int_par_delaunay)
     @test ProfileLikelihood.get_parameter_values(results) == results.parameter_values
     @test ProfileLikelihood.get_parameter_values(results, 1, 2) == results.parameter_values[(1, 2)]
     @test ProfileLikelihood.get_parameter_values(results, :λ, :K) == results.parameter_values[(1, 2)]
@@ -857,12 +871,39 @@ for (n1, n2, n3) in ((1, 2, 3), (3, 1, 2))
     @test median(abs.(err3)) < 0.001
 end
 
+# Test the contour methods 
 
 
 
 
 
 
+
+
+gridx = results.parameter_values[(1, 2)][1]
+gridy = results.parameter_values[(1, 2)][2]
+grid_xy = vec([(x, y) for x in gridx, y in gridy])
+@time tri = triangulate_bowyer(grid_xy)
+conf_contour = NTuple{2,Float64}[]
+DG = DelaunayTriangulation.get_graph(tri)
+DelaunayTriangulation.delete_point!(DG, DelaunayTriangulation.BoundaryIndex)
+for (u, v) in edges(DG)
+    u₁, u₂ = results.profile_values[(1, 2)][u], results.profile_values[(1, 2)][v]
+    if ProfileLikelihood.threshold_intersection_exists(ProfileLikelihood.get_chisq_threshold(0.95, 2), u₁, u₂)
+        p₁ = grid_xy[u]
+        p₂ = grid_xy[v]
+        t = ProfileLikelihood.threshold_intersection(ProfileLikelihood.get_chisq_threshold(0.95, 2), u₁, u₂)
+        p = @. p₁ + t * (p₂ - p₁)
+        push!(conf_contour, Tuple(p))
+    end
+end
+θ = zeros(length(conf_contour))
+for j in eachindex(conf_contour)
+    x, y = conf_contour[j]
+    θ[j] = atan(y - mles[2], x - mles[1])
+end
+sort_idx = sortperm(θ)
+permute!(conf_contour, sort_idx)
 
 
 
@@ -875,6 +916,7 @@ lines!(ax, results.confidence_regions[(1, 2)].x, results.confidence_regions[(1, 
 ylims!(ax, 60, 140)
 xlims!(ax, 0, 0.04)
 fig
+lines!(ax,)
 #lines!(ax, [bbox[1], bbox[2], bbox[2], bbox[1], bbox[1]], [bbox[3], bbox[3], bbox[4], bbox[4], bbox[3]])
 
 interp = results.interpolants[(1, 2)]

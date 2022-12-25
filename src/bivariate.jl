@@ -218,6 +218,8 @@ end
 function get_confidence_regions!(confidence_regions, n, range_1, range_2, profile_values, threshold, conf_level, final_layer, method)
     if method == :contour
         _get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, profile_values, threshold, conf_level, final_layer)
+    elseif method == :delaunay 
+        _get_confidence_regions_delaunay!(confidence_regions, n, range_1, range_2, profile_values, threshold, conf_level)
     else
         throw("Invalid confidence region method, $method, specified.")
     end
