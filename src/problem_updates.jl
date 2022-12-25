@@ -45,7 +45,7 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n::NTu
     original_f = prob.f
     new_f = @inline (θ, p) -> begin
         cache2 = get_tmp(cache, θ)
-        for i in eachindex(cache2)
+        @inbounds for i in eachindex(cache2)
             if i < n₁
                 cache2[i] = θ[i]
             elseif i == n₁
