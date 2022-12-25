@@ -116,10 +116,18 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     shifted_opt_prob = normalise_objective_function(opt_prob, ℓmax, normalise)
 
     ## Profile each parameter 
-    for _n in n
-        profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
-            mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
-            conf_level, confidence_region_method, next_initial_estimate_method; parallel)
+    if !parallel
+        for _n in n
+            profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
+                mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
+                conf_level, confidence_region_method, next_initial_estimate_method; parallel)
+        end
+    else
+        @sync for _n in n
+            Base.Threads.@spawn profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
+                mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
+                conf_level, confidence_region_method, next_initial_estimate_method; parallel)
+        end
     end
     results = BivariateProfileLikelihoodSolution(θ, prof, prob, sol, interpolants, confidence_regions, other_mles)
     return results
@@ -233,6 +241,7 @@ function interpolate_profile!(interpolants, n, range_1, range_2, profile_values)
     interpolants[n] = extrapolate(interpolate((range_1, range_2), profile_values, Gridded(Linear())), Line())
     return nothing
 end
+
 function nearest_node_to_layer(I::CartesianIndex, layer)
     i, j = Tuple(I)
     if layer == 1
