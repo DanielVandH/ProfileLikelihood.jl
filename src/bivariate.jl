@@ -197,10 +197,37 @@ function interpolate_profile!(interpolants, n, range_1, range_2, profile_values)
     interpolants[n] = interpolate((range_1, range_2), profile_values, Gridded(Linear()))
     return nothing
 end
+function mapped_layer_node(I::CartesianIndex, layer)
+    i, j = Tuple(I)
+    if layer == 1
+        u, v = 0, 0
+    elseif i == layer && j == layer
+        u, v = i - 1, j - 1
+    elseif i == layer && j == -layer
+        u, v = i - 1, j + 1
+    elseif i == -layer && j == layer
+        u, v = i + 1, j - 1
+    elseif i == -layer && j == -layer
+        u, v = i + 1, j + 1
+    elseif i == layer
+        u, v = i - 1, j
+    elseif i == -layer
+        u, v = i + 1, j
+    elseif j == layer
+        u, v = i, j - 1
+    elseif j == -layer
+        u, v = i, j + 1
+    end
+    return CartesianIndex((u, v))
+end
 
-function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer, combined_grid; next_initial_estimate_method=:mle)
+function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer; next_initial_estimate_method=:mle)
     if next_initial_estimate_method == :mle
         sub_cache .= other_mles[0, 0]
+        return nothing
+    elseif next_initial_estimate_method == :nearest
+        J = mapped_layer_node(I, layer)
+        sub_cache .= other_mles[J]
         return nothing
     end
 end

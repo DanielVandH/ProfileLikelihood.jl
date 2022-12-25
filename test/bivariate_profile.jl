@@ -292,6 +292,7 @@ for I in ProfileLikelihood.LayerIterator(1)
     prof[I] = rand()
     other[I] = rand(3)
 end
+_orig_other = deepcopy(other) # for checking aliasing later
 lb = [2.0, 3.0, 1.0, 5.0, 4.0][[1, 3]]
 ub = [15.0, 13.0, 27.0, 10.0, 13.0][[1, 3]]
 centre = mles[[1, 3]]
@@ -304,6 +305,87 @@ fixed_vals = zeros(2)
 next_initial_estimate_method = :mle
 ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer; next_initial_estimate_method=next_initial_estimate_method)
 @test sub_cache == mles[[2, 4, 5]]
+@test other == _orig_other
+
+# nearest 
+Id = CartesianIndex.([
+    (-2, -2),
+    (-1, -2),
+    (0, -2),
+    (1, -2),
+    (2, -2),
+    (2, -1),
+    (2, 0),
+    (2, 1),
+    (2, 2),
+    (1, 2),
+    (0, 2),
+    (-1, 2),
+    (-2, 2),
+    (-2, 1),
+    (-2, 0),
+    (-2, -1)
+])
+MappedID = CartesianIndex.([
+    (-1, -1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (1, -1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+    (1, 1),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1)
+])
+J = ProfileLikelihood.mapped_layer_node.(Id, layer)
+@test J == MappedID
+
+Id = CartesianIndex.([
+    (-1,-1),
+    (0,-1),
+    (1,-1),
+    (1,0),
+    (1,1),
+    (0,1),
+    (-1,1),
+    (-1,0)
+])
+J = ProfileLikelihood.mapped_layer_node.(Id, 1)
+@test all(J .== Ref(CartesianIndex(0,0)))
+
+Id = CartesianIndex.([
+    (-2, -2),
+    (-1, -2),
+    (0, -2),
+    (1, -2),
+    (2, -2),
+    (2, -1),
+    (2, 0),
+    (2, 1),
+    (2, 2),
+    (1, 2),
+    (0, 2),
+    (-1, 2),
+    (-2, 2),
+    (-2, 1),
+    (-2, 0),
+    (-2, -1)
+])
+J = ProfileLikelihood.mapped_layer_node.(Id, layer)
+for (I, J) in zip(Id, J)
+    ProfileLikelihood.set_next_initial_estimate!(sub_cache,other,I,fixed_vals,grid,layer;next_initial_estimate_method=:nearest)
+    @test sub_cache == other[J]
+end
+@test other == _orig_other
+
+
 
 ## Setup the logistic example
 λ = 0.01
