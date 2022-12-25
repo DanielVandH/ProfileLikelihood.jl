@@ -56,7 +56,7 @@ function prepare_bivariate_profile_results(N, T, F)
     θ = Dict{NTuple{2,Int64},NTuple{2,OffsetVector{T,Vector{T}}}}([])
     prof = Dict{NTuple{2,Int64},OffsetMatrix{T,Matrix{T}}}([])
     other_mles = Dict{NTuple{2,Int64},OffsetMatrix{Vector{T},Matrix{Vector{T}}}}([])
-    interpolants = Dict{NTuple{2,Int64},Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}}}([])
+    interpolants = Dict{NTuple{2,Int64},Interpolations.Extrapolation{T,2,Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}},Gridded{Linear{Throw{OnGrid}}},Line{Nothing}}}([])
     confidence_regions = Dict{NTuple{2,Int64},ConfidenceRegion{Vector{T},F}}([])
     sizehint!(θ, N)
     sizehint!(prof, N)
@@ -151,7 +151,7 @@ function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n, gri
     any_above_threshold = false
     for I in layer_iterator
         get_parameters!(fixed_vals, grid, I)
-        set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer; next_initial_estimate_method)
+        set_next_initial_estimate!(sub_cache, other_mle, I, fixed_vals, grid, layer, restricted_prob; next_initial_estimate_method)
         fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, fixed_vals, cache)
         fixed_prob.u0 .= sub_cache
         soln = solve(fixed_prob, alg)
@@ -194,10 +194,10 @@ function _get_confidence_regions_contour!(confidence_regions, n, range_1, range_
 end
 
 function interpolate_profile!(interpolants, n, range_1, range_2, profile_values)
-    interpolants[n] = interpolate((range_1, range_2), profile_values, Gridded(Linear()))
+    interpolants[n] = extrapolate(interpolate((range_1, range_2), profile_values, Gridded(Linear())), Line())
     return nothing
 end
-function mapped_layer_node(I::CartesianIndex, layer)
+function nearest_node_to_layer(I::CartesianIndex, layer)
     i, j = Tuple(I)
     if layer == 1
         u, v = 0, 0
@@ -221,13 +221,29 @@ function mapped_layer_node(I::CartesianIndex, layer)
     return CartesianIndex((u, v))
 end
 
-function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer; next_initial_estimate_method=:mle)
+function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer, prob; next_initial_estimate_method=:mle)
     if next_initial_estimate_method == :mle
         sub_cache .= other_mles[0, 0]
         return nothing
     elseif next_initial_estimate_method == :nearest
-        J = mapped_layer_node(I, layer)
+        J = nearest_node_to_layer(I, layer)
         sub_cache .= other_mles[J]
         return nothing
+    elseif next_initial_estimate_method == :interp # need to improve this...
+        if layer > 1
+            range_1 = get_range(grid, 1, -layer + 1, layer - 1).parent
+            range_2 = get_range(grid, 2, -layer + 1, layer - 1).parent # Can't use @views below without some extra work, and the allocations don't make much of a difference. Maybe optimise it later, but not worth dealing with for now
+            interp = extrapolate(interpolate((range_1, range_2), other_mles[(-layer+1):(layer-1), (-layer+1):(layer-1)], Gridded(Linear())), Line())
+            sub_cache .= interp(fixed_vals[1], fixed_vals[2])
+            if !parameter_is_inbounds(prob, sub_cache)
+                set_next_initial_estimate!(sub_cache, other_mles, I, fixed_vals, grid, layer, prob; next_initial_estimate_method=:mle)
+            end
+            return nothing
+        else
+            set_next_initial_estimate!(sub_cache, other_mles, I, fixed_vals, grid, layer, prob; next_initial_estimate_method=:mle)
+            return nothing
+        end
+        return nothing
     end
+    throw("Invalid method selected, $next_initial_estimate_method, for set_next_initial_estimate!.")
 end
