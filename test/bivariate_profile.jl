@@ -547,18 +547,18 @@ ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, g
 @test sub_cache ≈ mles[[3]]
 
 # Get the results 
-@time results_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, confidence_region_method=:delaunay);
+@time results_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, confidence_region_method=:delaunay, next_initial_estimate_method=:mle);
 @time results_near_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, confidence_region_method=:delaunay);
 @time results_int_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, confidence_region_method=:delaunay);
-@time results_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true, confidence_region_method=:delaunay);
+@time results_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true, confidence_region_method=:delaunay, next_initial_estimate_method=:mle);
 @time results_near_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true, confidence_region_method=:delaunay);
 @time results_int_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, parallel=true, confidence_region_method=:delaunay);
-@time results_mle = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10);
+@time results_mle = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:mle);
 _t0 = time()
 @time results_near = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest);
 _t1 = time()
 @time results_int = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp);
-@time results_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true);
+@time results_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true, next_initial_estimate_method=:mle);
 t0 = time()
 @time results_near_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
 t1 = time()

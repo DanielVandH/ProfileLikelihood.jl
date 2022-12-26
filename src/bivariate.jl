@@ -1,3 +1,45 @@
+"""
+    bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
+        alg=get_optimiser(sol),
+        conf_level::F=0.95,
+        confidence_region_method=Val(:contour),
+        threshold=get_chisq_threshold(conf_level, 2),
+        resolution=200,
+        grids=construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution),
+        min_layers=10,
+        outer_layers=0,
+        normalise=Val(true),
+        parallel=Val(false),
+        next_initial_estimate_method=Val(:nearest),
+        kwargs...) where {M,F}
+
+Computes bivariates profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
+       
+For plotting, see the `plot_profiles` function (requires that you have loaded CairoMakie.jl and 
+LaTeXStrings.jl to access the function).
+
+# Arguments 
+- `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
+- `sol::LikelihoodSolution`: The [`LikelihoodSolution`](@ref). See also [`mle`](@ref).
+- `n::NTuple{M,NTuple{2,Int64}}`: The parameter indices to compute the profile likelihoods for. These should be tuples of indices, e.g. `n = ((1, 2),)` will compute the bivariate profile between the parameters `1` and `2`.
+
+# Keyword Arguments 
+- `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
+- `conf_level::F=0.95`: The level to use for the [`ConfidenceRegion`](@ref)s.
+- `confidence_region_method=:contour`: The method to use for computing the confidence regions. See also `get_confidence_regions!`. The default, `:contour`, using Contour.jl to compute the boundary of the confidence region. An alternative option is `:delaunay`, which uses DelaunayTriangulation.jl and triangulation contouring to find the boundary. 
+- `threshold=get_chisq_threshold(conf_level, 2)`: The threshold to use for defining the confidence regions. 
+- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
+- `grids=construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The grids to use fo reach parameter pair.
+- `min_layers=10`: The minimum number of layers to allow for the profile away from the MLE. If fewer than this number of layers are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `outer_layers=0`: The number of layers to go out away from the bounding box of the confidence region.
+- `normalise=true`: Whether to optimise the normalised profile log-likelihood or not. 
+- `parallel=false`: Whether to use multithreading. If `true`, will use multithreading so that multiple parameters are profiled at once, and the work done evaluating the solution at each node in a layer is distributed across each thread.
+- `next_initial_estimate_method = :nearest`: Method for selecting the next initial estimate when stepping onto the next layer when profiling. `:nearest` simply uses the solution at the nearest node from the previous layer, but you can also use `:mle` to reuse the MLE or `:interp` to use linear interpolation. See also [`set_next_initial_estimate!`](@ref).
+- `kwargs...`: Extra keyword arguments to pass into `solve` for solving the `OptimizationProblem`. See also the docs from Optimization.jl.
+
+# Output 
+Returns a [`BivariateProfileLikelihoodSolution`](@ref).
+"""
 function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
     alg=get_optimiser(sol),
     conf_level::F=0.95,
@@ -9,7 +51,7 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     outer_layers=0,
     normalise=Val(true),
     parallel=Val(false),
-    next_initial_estimate_method=Val(:mle),
+    next_initial_estimate_method=Val(:nearest),
     kwargs...) where {M,F}
     parallel = Val(SciMLBase._unwrap_val(parallel))
     normalise = Val(SciMLBase._unwrap_val(normalise))
@@ -300,6 +342,30 @@ end
     return CartesianIndex((u, v))
 end
 
+"""
+    set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer, prob, next_initial_estimate_method::Val{M}) where {M}
+
+Method for selecting the next initial estimate for the optimisers. 
+
+# Arguments 
+- `sub_cache`: Cache for the next initial estimate. 
+- `other_mles`: Solutions to the optimisation problems found so far. 
+- `I::CartesianIndex`: The coordinate of the node currently being considered. 
+- `fixed_vals`: The current values for the parameters of interest. 
+- `grid`: The grid for the parameters of interest. 
+- `layer`: The current layer. 
+- `prob`: The restricted optimisation problem. 
+- `next_initial_estimate_method::Val{M}`: The method to use.
+
+The methods currently available for `next_initial_estimate_method` are: 
+
+- `next_initial_estimate_method = Val(:mle)`: Simply sets `sub_cache` to be the MLE. 
+- `next_initial_estimate_method = Val(:nearest)`: Sets `sub_cache` to be `other_mles[J]`, where `J` is the nearest node to `I` in the previous layer. 
+- `next_initial_estimate_method = Val(:interp)`: Uses linear interpolation from all the previous layers to extrapolate and compute a new `sub_cache`.
+
+# Outputs 
+There are no outputs.
+"""
 @inline function set_next_initial_estimate!(sub_cache, other_mles, I::CartesianIndex, fixed_vals, grid, layer, prob, next_initial_estimate_method::Val{M}) where {M}
     if M == :mle
         _set_next_initial_estimate_mle!(sub_cache, other_mles)

@@ -41,6 +41,9 @@ LaTeXStrings.jl to access the function).
 - `parallel=false`: Whether to use multithreading. If `true`, will use multithreading so that multiple parameters are profiled at once, and the steps to the left and right are done at the same time. 
 - `next_initial_estimate_method = :prev`: Method for selecting the next initial estimate when stepping forward when profiling. `:prev` simply uses the previous solution, but you can also use `:interp` to use linear interpolation. See also [`set_next_initial_estimate!`](@ref).
 - `kwargs...`: Extra keyword arguments to pass into `solve` for solving the `OptimizationProblem`. See also the docs from Optimization.jl.
+
+# Output 
+Returns a [`ProfileLikelihoodSolution`](@ref).
 """
 function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of_parameters(prob);
     alg=get_optimiser(sol),
