@@ -36,6 +36,7 @@ export IrregularGrid
 export profile
 export construct_profile_ranges
 export get_confidence_intervals
+export get_confidence_regions
 export get_prediction_intervals
 export gaussian_loglikelihood
 export update_initial_estimate
