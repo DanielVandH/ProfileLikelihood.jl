@@ -118,9 +118,49 @@ eval_spline(prof::ProfileLikelihoodSolution, θ, i) = prof[i](θ)
 """
     BivariateProfileLikelihoodSolution{I,V,LP,LS,Spl,CT,CF,OM} 
 
-Struct for the normalised bivariate profile log-likelihood. See [`bivariate_profile`](@ref) for a constructor.
+Struct for the normalised bivariate profile log-likelihood. See [`bivariate_profile`](@ref) for a constructor. 
 
+# Arguments 
+- `parameter_values::Dict{I, G}`
 
+Maps the tuple `(i, j)` to the grid values used for this parameter pair. The result is a `Tuple`, with the first element 
+the grid for the `i`th parameter, and the second element the grid for the `j`th parameter. The grids are given as 
+`OffsetVector`s, with the `0`th index the MLE, negative indices to the left of the MLE, and positive indices to the 
+right of the MLE.
+
+- `profile_values::Dict{I, V}`
+
+Maps the tuple `(i, j)` to the matrix used for this parameter pair. The result is a `OffsetMatrix`, with the `(k, ℓ)` entry 
+the profile at `(parameter_values[(i, j)][1][k], parameter_values[(i, j)][2][k])`, and particularly the `(0, 0)` entry is the 
+profile at the MLEs.
+
+- `likelihood_problem::LP`
+
+The original likelihood problem. 
+
+- `likelihood_solution::LS`
+
+The original likelihood solution. 
+
+- `interpolants::Dict{I,Spl}`
+
+Maps the tuple `(i, j)` to the interpolant for that parameter pair's profile. This interpolant also uses linear extrapolation. 
+
+- `confidence_regions::Dict{I,ConfidenceRegion{CT,CF}}`
+
+Maps the tuple `(i, j)` to the confidence region for that parameter pair's confidence region. See also [`ConfidenceRegion`](@ref).
+
+- `other_mles::OM`
+
+Maps the tuple `(i, j)` to an `OffsetMatrix` storing the solutions for the nuisance parameters at the corresponding grid values. 
+
+# Spline evaluation 
+
+This struct is callable. We define the method 
+
+    (prof::BivariateProfileLikelihoodSolution)(θ, ψ, i, j)
+
+that evaluates the interpolant through the `(i, j)`th profile at the point `(θ, ψ)`.
 """
 Base.@kwdef struct BivariateProfileLikelihoodSolution{I,G,V,LP,LS,Spl,CT,CF,OM}
     parameter_values::Dict{I,G}
