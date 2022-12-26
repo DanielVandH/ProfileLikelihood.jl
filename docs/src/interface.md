@@ -48,7 +48,7 @@ If you want to use multiple optimisers, i.e. a sequence of optimisers $(O_1, O_2
 
 The full docstring for `mle` is given in the docstring section in the sidebar, along with the docstring for `LikelihoodSolution`.
 
-## ProfileLikelihoodsolution: Profiling the parameters 
+## ProfileLikelihoodSolution: Profiling the parameters 
 
 The results for a profile likelihood, obtained from `profile(prob, sol)` (see also `?profile`), are stored in a `ProfileLikelihoodSolution` struct:
 
@@ -69,6 +69,24 @@ Here, the parameter values used for each parameter are given in `parameter_value
 If `prof` is a `ProfileLikelihoodSolution`, then you can also call it as e.g. `prof(0.5, 1)` to evaluate the profile log-likelihood function of the first parameter at the point `0.5`. Alternatively, `prof(0.7, :α)` does the same but for the parameter `:α` at the point `0.7`. You can also index `prof` at a specific index (or symbol) to see the results only for that parameter, e.g. `prof[1]` or `prof[:α]`; this returns a `ProfileLikelihoodSolutionView`.
 
 The full docstring for `profile` and related functions are given in the sidebar.
+
+## BivariateProfileLikelihoodSolution: Computing bivariate profiles 
+
+You can also compute bivariate profiles, obtained from e.g. `bivariate_profile(prob, sol, ((1, 2), (3, 1)))`, which will compute bivariate profiles between the parameters `(1, 2)` and between `(3, 1)`. The results are stored in a `BivariateProfileLikelihoodSolution` struct: 
+
+```julia 
+struct BivariateProfileLikelihoodSolution{I,G,V,LP,LS,Spl,CT,CF,OM}
+    parameter_values::Dict{I,G}
+    profile_values::Dict{I,V}
+    likelihood_problem::LP
+    likelihood_solution::LS
+    interpolants::Dict{I,Spl}
+    confidence_regions::Dict{I,ConfidenceRegion{CT,CF}}
+    other_mles::OM
+end
+```
+
+The definitions are similar to the univariate case, although `parameter_values` now maps to `Tuple`s of grids, making use of `OffsetVector`s to define grids relative to an MLE. Similarly, we use `OffsetMatrix`s to define the grid of profile values, given in `profile_values`. You can also call the resulting struct, e.g. if `prof` is a `BivariateProfileLikelihoodSolution`, then `prof(0.3, 0.9, :λ, :K)` computes the bivariate profile between $\lambda$ and $K$ at $(\lambda,K)=(0.3,0.9)$. See `?ProfileLikelihood.BivariateProfileLikelihoodSolution` for more detail, or its docstring in the sidebar. 
 
 ## Propagating uncertainty: Prediction intervals 
 

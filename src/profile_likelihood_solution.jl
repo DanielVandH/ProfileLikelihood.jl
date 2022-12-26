@@ -171,7 +171,6 @@ Base.@kwdef struct BivariateProfileLikelihoodSolution{I,G,V,LP,LS,Spl,CT,CF,OM}
     confidence_regions::Dict{I,ConfidenceRegion{CT,CF}}
     other_mles::OM
 end
-
 get_parameter_values(prof::BivariateProfileLikelihoodSolution) = prof.parameter_values
 get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j) = get_parameter_values(prof)[(i, j)]
 get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j, k) = get_parameter_values(prof, i, j)[k]

@@ -26,7 +26,7 @@ LaTeXStrings.jl to access the function).
 # Keyword Arguments 
 - `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
 - `conf_level::F=0.95`: The level to use for the [`ConfidenceRegion`](@ref)s.
-- `confidence_region_method=:contour`: The method to use for computing the confidence regions. See also `get_confidence_regions!`. The default, `:contour`, using Contour.jl to compute the boundary of the confidence region. An alternative option is `:delaunay`, which uses DelaunayTriangulation.jl and triangulation contouring to find the boundary. 
+- `confidence_region_method=:contour`: The method to use for computing the confidence regions. See also `get_confidence_regions!`. The default, `:contour`, using Contour.jl to compute the boundary of the confidence region. An alternative option is `:delaunay`, which uses DelaunayTriangulation.jl and triangulation contouring to find the boundary. This latter option is only available if you have already done `using DelaunayTriangulation`.
 - `threshold=get_chisq_threshold(conf_level, 2)`: The threshold to use for defining the confidence regions. 
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
 - `grids=construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The grids to use fo reach parameter pair.
