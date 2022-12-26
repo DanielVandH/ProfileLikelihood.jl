@@ -874,9 +874,7 @@ end
 ## Look at the inference issues 
 for parallel in [Val(true), Val(false)]
     @inferred ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-        outer_layers=10, next_initial_estimate_method=:nearest, parallel=true)
-    @inferred ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-        outer_layers=10, next_initial_estimate_method=:nearest, parallel=false)
+        outer_layers=10, next_initial_estimate_method=:nearest, parallel)
     n = ((1, 2), (3, 1))
     alg = ProfileLikelihood.get_optimiser(sol)
     conf_level = 0.95
@@ -934,9 +932,9 @@ for parallel in [Val(true), Val(false)]
     layer = 1
     final_layer = res
     outer_layer = 0
-    @inferred ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+    @inferred ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, Val(layer), n,
         grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
-    @code_warntype ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+    @code_warntype ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, Val(layer), n,
         grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
 
     # Call V 
@@ -1015,11 +1013,11 @@ for parallel in [Val(true), Val(false)]
     ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
     @inferred ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
     @code_warntype ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
-    ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
+    ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
     @code_warntype ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
     @inferred ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
-    @code_warntype ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
-    @inferred ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
+    @code_warntype ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
+    @inferred ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
     ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
     @code_warntype ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
     @inferred ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])

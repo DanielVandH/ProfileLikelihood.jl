@@ -63,7 +63,7 @@ function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpol
     final_layer = res
     outer_layer = 0
     for i in 1:res
-        any_above_threshold = expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+        any_above_threshold = expand_layer!(fixed_vals, profile_vals, other_mle, cache, Val(layer), n,
             grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel; kwargs...)
         if !any(any_above_threshold)
             final_layer = layer
@@ -176,14 +176,14 @@ end
     end
 end
 
-@inline function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob, alg,
-    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel=Val(false), kwargs...)
-    layer_iterator = LayerIterator(layer)
+@inline function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer::Val{N}, n, grid, restricted_prob, alg,
+    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel=Val(false), kwargs...) where {N}
+    layer_iterator = LayerIterator(N)
     if parallel == Val(false) # Split this up into separate functions to help with inference
-        _expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob, alg,
+        _expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, N, n, grid, restricted_prob, alg,
             ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator; kwargs...)
     else
-        _expand_layer_parallel!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob, alg,
+        _expand_layer_parallel!(fixed_vals, profile_vals, other_mle, cache, N, n, grid, restricted_prob, alg,
             ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator; kwargs...)
     end
 end
