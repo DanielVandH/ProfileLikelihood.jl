@@ -57,7 +57,7 @@ x = getx.(xy)
 y = gety.(xy)
 r = 0.022
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
