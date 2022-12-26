@@ -33,6 +33,9 @@ end
 @safetestset "Prediction Intervals" begin
     include("prediction_intervals.jl")
 end
+@safetestset "Bivariate ProfileLikelihood" begin 
+    include("bivariate_profile.jl")
+end
 @safetestset "Example I: Regression" begin
     include("regression_example.jl")
 end
@@ -46,4 +49,7 @@ if RUN_EXAMPLE_4
     @safetestset "Example IV: Heat Equation" begin
         include("heat_equation_example.jl")
     end
+end
+@safetestset "Evample V: Lotka-Volterra ODE" begin 
+    include("lotka_volterra_example.jl")
 end

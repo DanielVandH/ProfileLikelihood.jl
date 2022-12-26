@@ -15,6 +15,7 @@ using OffsetArrays
 using Interpolations
 using DelaunayTriangulation
 using PolygonInbounds
+using InteractiveUtils
 const SAVE_FIGURE = false
 
 ## Constructing the profile grids 
@@ -946,9 +947,9 @@ for parallel in [Val(true), Val(false)]
         @inferred ProfileLikelihood.solve_at_layer_node!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
             next_initial_estimate_method, cache[1], alg, profile_vals, ℓmax, normalise, any_above_threshold[1], threshold, n)
     else
-        @code_warntype ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob[1],
+        @code_warntype ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
             next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
-        @inferred ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob[1],
+        @inferred ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
             next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
     end
     if parallel == Val(false)
@@ -994,7 +995,7 @@ for parallel in [Val(true), Val(false)]
 
     # Call VIII 
     for i in 1:res
-        any_above_threshold = ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+        any_above_threshold = ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, Val(layer), n,
             grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
         if !any(any_above_threshold)
             final_layer = layer
@@ -1022,64 +1023,3 @@ for parallel in [Val(true), Val(false)]
     @code_warntype ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
     @inferred ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
 end
-
-
-
-gridx = results.parameter_values[(1, 2)][1]
-gridy = results.parameter_values[(1, 2)][2]
-grid_xy = vec([(x, y) for x in gridx, y in gridy])
-@time tri = triangulate_bowyer(grid_xy)
-conf_contour = NTuple{2,Float64}[]
-DG = DelaunayTriangulation.get_graph(tri)
-DelaunayTriangulation.delete_point!(DG, DelaunayTriangulation.BoundaryIndex)
-for (u, v) in edges(DG)
-    u₁, u₂ = results.profile_values[(1, 2)][u], results.profile_values[(1, 2)][v]
-    if ProfileLikelihood.threshold_intersection_exists(ProfileLikelihood.get_chisq_threshold(0.95, 2), u₁, u₂)
-        p₁ = grid_xy[u]
-        p₂ = grid_xy[v]
-        t = ProfileLikelihood.threshold_intersection(ProfileLikelihood.get_chisq_threshold(0.95, 2), u₁, u₂)
-        p = @. p₁ + t * (p₂ - p₁)
-        push!(conf_contour, Tuple(p))
-    end
-end
-θ = zeros(length(conf_contour))
-for j in eachindex(conf_contour)
-    x, y = conf_contour[j]
-    θ[j] = atan(y - mles[2], x - mles[1])
-end
-sort_idx = sortperm(θ)
-permute!(conf_contour, sort_idx)
-
-
-
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-contourf!(ax, results.parameter_values[(1, 2)][1].parent, results.parameter_values[(1, 2)][2].parent, results.profile_values[(1, 2)].parent, levels=50)
-#heatmap!(ax, results.parameter_values[(1, 2)][1].parent, results.parameter_values[(1, 2)][2].parent, results.profile_values[(1, 2)].parent)
-lines!(ax, results.confidence_regions[(1, 2)].x, results.confidence_regions[(1, 2)].y, linestyle=:solid)
-ylims!(ax, 60, 140)
-xlims!(ax, 0, 0.04)
-fig
-lines!(ax,)
-#lines!(ax, [bbox[1], bbox[2], bbox[2], bbox[1], bbox[1]], [bbox[3], bbox[3], bbox[4], bbox[4], bbox[3]])
-
-interp = results.interpolants[(1, 2)]
-gridx = LinRange(0, 0.04, 500)
-gridy = LinRange(60, 140, 500)
-z = [interp(x, y) for x in gridx, y in gridy]
-ax = Axis(fig[1, 2])
-contourf!(ax, gridx, gridy, z, levels=50)
-ylims!(ax, 60, 140)
-xlims!(ax, 0, 0.04)
-lines!(ax, results.confidence_regions[(1, 2)].x, results.confidence_regions[(1, 2)].y, linestyle=:solid)
-fig
-
-
-gridx = results.parameter_values[(1, 2)][1]
-gridy = results.parameter_values[(1, 2)][2]
-z = results.other_mles[(1, 2)]
-interp = interpolate((gridx, gridy), z, Gridded(Linear()))
-interp(gridx[0], gridy[0])
-
-

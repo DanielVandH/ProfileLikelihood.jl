@@ -9,6 +9,7 @@ using Optimization
 using OptimizationOptimJL
 using OptimizationNLopt
 using FiniteVolumeMethod
+using InteractiveUtils
 using DelaunayTriangulation
 include("templates.jl")
 
@@ -67,7 +68,10 @@ _θ, _prof, _other_mles, _splines, _confidence_intervals = ProfileLikelihood.pre
 
 ## Test that we can correctly normalise the objective function 
 shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, false)
-@test shifted_opt_prob === _opt_prob
+@test shifted_opt_prob.f.f.shift == 0.0 
+@test shifted_opt_prob.f.f.original_f == _opt_prob.f
+@test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -loglikk(reduce(vcat, θ), dat)
+@inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
 shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, true)
 @test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -(loglikk(reduce(vcat, θ), dat) - _ℓmax)
 @inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
@@ -392,7 +396,7 @@ x = getx.(xy)
 y = gety.(xy)
 r = 0.07
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
@@ -705,8 +709,10 @@ replace_profile!(prof, 1; min_steps=50)
 @test prof.splines[3] == _prof.splines[3]
 @test prof.confidence_intervals[3][1] == _prof.confidence_intervals[3][1]
 @test prof.confidence_intervals[3][2] == _prof.confidence_intervals[3][2]
-@test prof.likelihood_problem === _prof.likelihood_problem
-@test prof.likelihood_solution === _prof.likelihood_solution
+@test prof.likelihood_problem.log_likelihood_function.loglik === _prof.likelihood_problem.log_likelihood_function.loglik 
+@test prof.likelihood_problem.θ₀ == _prof.likelihood_problem.θ₀
+@test prof.likelihood_solution.mle == _prof.likelihood_solution.mle
+@test prof.likelihood_solution.maximum == _prof.likelihood_solution.maximum
 @test length(prof.parameter_values[1]) ≥ 49
 @test length(prof.profile_values[1]) ≥ 49
 @test length(prof.other_mles[1]) ≥ 49
