@@ -154,7 +154,7 @@ Maps the tuple `(i, j)` to the confidence region for that parameter pair's confi
 
 Maps the tuple `(i, j)` to an `OffsetMatrix` storing the solutions for the nuisance parameters at the corresponding grid values. 
 
-# Spline evaluation 
+# Interpolant evaluation 
 
 This struct is callable. We define the method 
 
