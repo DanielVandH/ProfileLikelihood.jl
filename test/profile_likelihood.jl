@@ -162,6 +162,25 @@ prof = profile(prob, sol, [1, 3])
 @test ProfileLikelihood.profiled_parameters(prof) == [1, 3]
 @test ProfileLikelihood.number_of_profiled_parameters(prof) == 2
 
+## Check that the parameter values are correct 
+xmin, xmax = extrema(get_parameter_values(prof, :σ))
+m = length(get_parameter_values(prof, :σ))
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(200 - 1)
+Δright = (xmax - sol[:σ])/(10 - 1) # reached min_steps
+left_grid = xmin:Δleft:sol[:σ]
+right_grid = sol[:σ]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :σ) ≈ full_grid
+
+xmin, xmax = extrema(get_parameter_values(prof, :β₁))
+m = length(get_parameter_values(prof, :β₁))
+Δleft = (sol[:β₁] - xmin)/(10 - 1)
+Δright = (xmax - sol[:β₁])/(10 - 1) # reached min_steps
+left_grid = xmin:Δleft:sol[:β₁]
+right_grid = sol[:β₁]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :β₁) ≈ full_grid
+
 ## Test that other_mles and parameter_values line up 
 for i in eachindex(prof.parameter_values[1])
     _σ = get_parameter_values(prof, :σ)[i]
@@ -202,7 +221,28 @@ prof_view = prof[i]
 
 ## Test that we can correctly call the profiles 
 x = prof.splines[i].itp.knots
-@test prof_view(x) == prof(x, i) == prof.splines[i](x)
+@test prof_view(x) == prof(x, i) == prof.splines[i](x) ≈ prof_view.parent.profile_values[i]
+
+## Test that resolution is being correctly applied
+prof = profile(prob, sol, [1, 3]; resolution = [50000, 18000, 75000, 5000, 5000], min_steps=0)
+
+xmin, xmax = extrema(get_parameter_values(prof, :σ))
+m = length(get_parameter_values(prof, :σ))
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(50000 - 1)
+Δright = (get_upper_bounds(prob)[1] - sol[:σ])/(50000 - 1) 
+left_grid = xmin:Δleft:sol[:σ]
+right_grid = sol[:σ]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :σ) ≈ full_grid
+
+xmin, xmax = extrema(get_parameter_values(prof, :β₁))
+m = length(get_parameter_values(prof, :β₁))
+Δleft = (sol[:β₁] - get_lower_bounds(prob)[3])/(75000 - 1)
+Δright = (get_upper_bounds(prob)[3] - sol[:β₁])/(75000 - 1) 
+left_grid = xmin:Δleft:sol[:β₁]
+right_grid = sol[:β₁]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :β₁) ≈ full_grid
 
 ## Threads 
 Random.seed!(98871)
