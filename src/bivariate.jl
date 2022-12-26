@@ -309,7 +309,12 @@ function _get_confidence_regions_contour!(confidence_regions, n, range_1, range_
     all_coords = reduce(vcat, [reduce(hcat, coordinates(xy)) for xy in Contour.lines(c)])
     region_x = all_coords[:, 1]
     region_y = all_coords[:, 2]
-    (ax, ay), (bx, by), (cx, cy) = Tuple(all_coords[1, :]), Tuple(all_coords[2, :]), (range_1[0], range_2[0])
+    ax = all_coords[1, 1]
+    bx = all_coords[2, 1]
+    cx = range_1[0]
+    ay = all_coords[1, 2]
+    by = all_coords[2, 2]
+    cy = range_2[0]
     countour_is_clockwise = (ax - cx) * (by - cy) - (ay - cy) * (bx - cx) < 0
     countour_is_clockwise && reverse!(region_x)
     countour_is_clockwise && reverse!(region_y)
