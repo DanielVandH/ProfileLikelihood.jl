@@ -32,7 +32,7 @@ LaTeXStrings.jl to access the function).
 - `conf_level::F=0.95`: The level to use for the [`ConfidenceInterval`](@ref)s.
 - `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also `get_confidence_intervals!`. The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
 - `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
-- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
+- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of `2resolution` points). - `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. 
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
 - `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
