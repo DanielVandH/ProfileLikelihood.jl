@@ -565,11 +565,13 @@ t0 = time()
 t1 = time()
 @test t1 - t0 < (_t1 - _t0) / 2
 @time results_int_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, parallel=true);
+@time results_near_par_tol = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
+@time results_near_par_sym = ProfileLikelihood.bivariate_profile(prob, sol, ((:λ, :K), (:u₀, :λ)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
 
 # Test the results
 for results in (results_mle, results_near, results_int, results_par, results_near_par, results_int_par,
     results_delaunay, results_near_delaunay, results_int_delaunay, results_par_delaunay, results_near_par_delaunay,
-    results_int_par_delaunay)
+    results_int_par_delaunay, results_near_par_tol, results_near_par_sym)
     @test ProfileLikelihood.get_parameter_values(results) == results.parameter_values
     @test ProfileLikelihood.get_parameter_values(results, 1, 2) == results.parameter_values[(1, 2)]
     @test ProfileLikelihood.get_parameter_values(results, :λ, :K) == results.parameter_values[(1, 2)]
@@ -636,6 +638,24 @@ for results in (results_mle, results_near, results_int, results_par, results_nea
     @test ProfileLikelihood.number_of_profiled_parameters(results) == 2
     @test ProfileLikelihood.number_of_layers(results, 1, 2) == 102
     @test ProfileLikelihood.number_of_layers(results, 3, 1) == 188
+    Δ1_right = (get_upper_bounds(prob)[1] - sol[1]) / 200
+    Δ1_left = (sol[1] - get_lower_bounds(prob)[1]) / 200
+    Δ2_right = (get_upper_bounds(prob)[2] - sol[2]) / 200
+    Δ2_left = (sol[2] - get_lower_bounds(prob)[2]) / 200
+    Δ3_right = (get_upper_bounds(prob)[3] - sol[3]) / 200
+    Δ3_left = (sol[3] - get_lower_bounds(prob)[3]) / 200
+    grid_12_1_left = reverse([sol[1] - j * Δ1_left for j in 1:102])
+    grid_12_1_right = [sol[1] + j * Δ1_right for j in 1:102]
+    grid_12_2_left = reverse([sol[2] - j * Δ2_left for j in 1:102])
+    grid_12_2_right = [sol[2] + j * Δ2_right for j in 1:102]
+    grid_31_1_left = reverse([sol[1] - j * Δ1_left for j in 1:188])
+    grid_31_1_right = [sol[1] + j * Δ1_right for j in 1:188]
+    grid_31_3_left = reverse([sol[3] - j * Δ3_left for j in 1:188])
+    grid_31_3_right = [sol[3] + j * Δ3_right for j in 1:188]
+    @test get_parameter_values(results, 1, 2, 1).parent ≈ [grid_12_1_left..., sol[1], grid_12_1_right...]
+    @test get_parameter_values(results, 1, 2, 2).parent ≈ [grid_12_2_left..., sol[2], grid_12_2_right...]
+    @test get_parameter_values(results, 3, 1, 1).parent ≈ [grid_31_3_left..., sol[3], grid_31_3_right...]
+    @test get_parameter_values(results, 3, 1, 2).parent ≈ [grid_31_1_left..., sol[1], grid_31_1_right...]
     bbox = ProfileLikelihood.get_bounding_box(results, 1, 2)
     @test all(.≈(bbox, (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195); rtol=1e-3))
     bbox = ProfileLikelihood.get_bounding_box(results, 3, 1)
@@ -775,6 +795,32 @@ for results in (results_mle, results_near, results_int, results_par, results_nea
     for (x, y) in zip(conf_x, conf_y)
         @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-2
         @test results(x, y, 3, 1) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-2
+    end
+
+    # Test that the other_mles value and the parameter values match with the reported profile_vals 
+    layer_1 = ProfileLikelihood.number_of_layers(results, 1, 2)
+    for i in -layer_1:layer_1
+        for j in -layer_1:layer_1
+            ω = ProfileLikelihood.get_other_mles(results, 1, 2, i, j)
+            ψ = get_parameter_values(results, 1, 2, 1, i)
+            ϕ = get_parameter_values(results, 1, 2, 2, j)
+            θ = [ψ, ϕ, ω[1]]
+            ℓ = results.likelihood_problem.log_likelihood_function(θ, results.likelihood_problem.data) - get_maximum(sol)
+            _ℓ = get_profile_values(results, 1, 2, i, j)
+            @test ℓ ≈ _ℓ
+        end
+    end
+    layer_1 = ProfileLikelihood.number_of_layers(results, 3, 1)
+    for i in -layer_1:layer_1
+        for j in -layer_1:layer_1
+            ω = ProfileLikelihood.get_other_mles(results, 3, 1, i, j)
+            ψ = get_parameter_values(results, 3, 1, 1, i)
+            ϕ = get_parameter_values(results, 3, 1, 2, j)
+            θ = [ϕ, ω[1], ψ]
+            ℓ = results.likelihood_problem.log_likelihood_function(θ, results.likelihood_problem.data) - get_maximum(sol)
+            _ℓ = get_profile_values(results, 3, 1, i, j)
+            @test ℓ ≈ _ℓ
+        end
     end
 end
 
@@ -1023,3 +1069,62 @@ for parallel in [Val(true), Val(false)]
     @code_warntype ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
     @inferred ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
 end
+
+## Test that the grid resolution is being correctly applied
+@time cresults_1 = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
+@time cresults_2 = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); resolution=[20, 30, 50], outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
+Δ1_right_c1 = (get_upper_bounds(prob)[1] - sol[1]) / 200
+Δ1_left_c1 = (sol[1] - get_lower_bounds(prob)[1]) / 200
+Δ2_right_c1 = (get_upper_bounds(prob)[2] - sol[2]) / 200
+Δ2_left_c1 = (sol[2] - get_lower_bounds(prob)[2]) / 200
+Δ3_right_c1 = (get_upper_bounds(prob)[3] - sol[3]) / 200
+Δ3_left_c1 = (sol[3] - get_lower_bounds(prob)[3]) / 200
+grid_12_1_left_c1 = reverse([sol[1] - j * Δ1_left_c1 for j in 1:102])
+grid_12_1_right_c1 = [sol[1] + j * Δ1_right_c1 for j in 1:102]
+grid_12_2_left_c1 = reverse([sol[2] - j * Δ2_left_c1 for j in 1:102])
+grid_12_2_right_c1 = [sol[2] + j * Δ2_right_c1 for j in 1:102]
+grid_31_1_left_c1 = reverse([sol[1] - j * Δ1_left_c1 for j in 1:188])
+grid_31_1_right_c1 = [sol[1] + j * Δ1_right_c1 for j in 1:188]
+grid_31_3_left_c1 = reverse([sol[3] - j * Δ3_left_c1 for j in 1:188])
+grid_31_3_right_c1 = [sol[3] + j * Δ3_right_c1 for j in 1:188]
+@test get_parameter_values(cresults_1, 1, 2, 1).parent ≈ [grid_12_1_left_c1..., sol[1], grid_12_1_right_c1...]
+@test get_parameter_values(cresults_1, 1, 2, 2).parent ≈ [grid_12_2_left_c1..., sol[2], grid_12_2_right_c1...]
+@test get_parameter_values(cresults_1, 3, 1, 1).parent ≈ [grid_31_3_left_c1..., sol[3], grid_31_3_right_c1...]
+@test get_parameter_values(cresults_1, 3, 1, 2).parent ≈ [grid_31_1_left_c1..., sol[1], grid_31_1_right_c1...]
+@test ProfileLikelihood.number_of_layers(cresults_2, 1, 2) == 23
+@test ProfileLikelihood.number_of_layers(cresults_2, 3, 1) == 50
+Δ1_right_c2 = (get_upper_bounds(prob)[1] - sol[1]) / 30
+Δ1_left_c2 = (sol[1] - get_lower_bounds(prob)[1]) / 30
+Δ2_right_c2 = (get_upper_bounds(prob)[2] - sol[2]) / 30
+Δ2_left_c2 = (sol[2] - get_lower_bounds(prob)[2]) / 30
+Δ3_right_c2 = (get_upper_bounds(prob)[3] - sol[3]) / 200
+Δ3_left_c2 = (sol[3] - get_lower_bounds(prob)[3]) / 200
+grid_12_1_left_c2 = reverse([sol[1] - j * (sol[1] - get_lower_bounds(prob)[1]) / 30 for j in 1:23])
+grid_12_1_right_c2 = [sol[1] + j * (get_upper_bounds(prob)[1] - sol[1]) / 30 for j in 1:23]
+grid_12_2_left_c2 = reverse([sol[2] - j * (sol[2] - get_lower_bounds(prob)[2]) / 30 for j in 1:23])
+grid_12_2_right_c2 = [sol[2] + j * (get_upper_bounds(prob)[2] - sol[2]) / 30 for j in 1:23]
+grid_31_1_left_c2 = reverse([sol[1] - j * (sol[1] - get_lower_bounds(prob)[1]) / 50 for j in 1:50])
+grid_31_1_right_c2 = [sol[1] + j * (get_upper_bounds(prob)[1] - sol[1]) / 50 for j in 1:50]
+grid_31_3_left_c2 = reverse([sol[3] - j * (sol[3] - get_lower_bounds(prob)[3]) / 50 for j in 1:50])
+grid_31_3_right_c2 = [sol[3] + j * (get_upper_bounds(prob)[3] - sol[3]) / 50 for j in 1:50]
+@test get_parameter_values(cresults_2, 1, 2, 1).parent ≈ [grid_12_1_left_c2..., sol[1], grid_12_1_right_c2...]
+@test get_parameter_values(cresults_2, 1, 2, 2).parent ≈ [grid_12_2_left_c2..., sol[2], grid_12_2_right_c2...]
+@test get_parameter_values(cresults_2, 3, 1, 1).parent ≈ [grid_31_3_left_c2..., sol[3], grid_31_3_right_c2...]
+@test get_parameter_values(cresults_2, 3, 1, 2).parent ≈ [grid_31_1_left_c2..., sol[1], grid_31_1_right_c2...]
+CR_12 = get_confidence_regions(cresults_1, 1, 2)
+CR_31 = get_confidence_regions(cresults_1, 3, 1)
+CR_12_2 = get_confidence_regions(cresults_2, 1, 2)
+CR_31_2 = get_confidence_regions(cresults_2, 3, 1)
+CR_12_x, CR_12_y = CR_12.x, CR_12.y
+CR_31_x, CR_31_y = CR_31.x, CR_31.y
+CR_12_2_x, CR_12_2_y = CR_12_2.x, CR_12_2.y
+CR_31_2_x, CR_31_2_y = CR_31_2.x, CR_31_2.y
+A_12 = DelaunayTriangulation.area([CR_12_x'; CR_12_y'])
+A_31 = DelaunayTriangulation.area([CR_31_x'; CR_31_y'])
+A_12_2 = DelaunayTriangulation.area([CR_12_2_x'; CR_12_2_y'])
+A_31_2 = DelaunayTriangulation.area([CR_31_2_x'; CR_31_2_y'])
+@test A_12 ≈ 0.23243592745692931 rtol = 1e-3
+@test A_12_2 ≈ 0.23243592745692931 rtol = 1e-2
+@test A_31 ≈ 0.09636388019922583 rtol = 1e-3
+@test A_31_2 ≈ 0.09636388019922583 rtol = 1e-2
+

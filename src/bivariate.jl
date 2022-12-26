@@ -13,7 +13,9 @@
         next_initial_estimate_method=Val(:nearest),
         kwargs...) where {M,F}
 
-Computes bivariates profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`.
+Computes bivariates profile likelihoods for the parameters from a likelihood problem `prob` with MLEs `sol`. You can also call 
+this function using `Symbols`, e.g. if `get_syms(prob) = [:λ, :K, :u₀]`, then calling `bivariate_profile(prob, sol, ((:λ, :K), (:K, u₀)))`
+is the same as calling `bivariate_profile(prob, sol, ((1, 2), (2, 3)))` (the integer coordinate representation is still used in the solution, though).
        
 For plotting, see the `plot_profiles` function (requires that you have loaded CairoMakie.jl and 
 LaTeXStrings.jl to access the function).
@@ -28,8 +30,8 @@ LaTeXStrings.jl to access the function).
 - `conf_level::F=0.95`: The level to use for the [`ConfidenceRegion`](@ref)s.
 - `confidence_region_method=:contour`: The method to use for computing the confidence regions. See also `get_confidence_regions!`. The default, `:contour`, using Contour.jl to compute the boundary of the confidence region. An alternative option is `:delaunay`, which uses DelaunayTriangulation.jl and triangulation contouring to find the boundary. This latter option is only available if you have already done `using DelaunayTriangulation`.
 - `threshold=get_chisq_threshold(conf_level, 2)`: The threshold to use for defining the confidence regions. 
-- `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
-- `grids=construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The grids to use fo reach parameter pair.
+- `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. When defining the grid between pairs of values, the maximum of the two resolutions is used (thus defining a square grid).
+- `grids=construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The grids to use for each parameter pair.
 - `min_layers=10`: The minimum number of layers to allow for the profile away from the MLE. If fewer than this number of layers are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
 - `outer_layers=0`: The number of layers to go out away from the bounding box of the confidence region.
 - `normalise=true`: Whether to optimise the normalised profile log-likelihood or not. 
@@ -85,6 +87,10 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     end
     results = BivariateProfileLikelihoodSolution(θ, prof, prob, sol, interpolants, confidence_regions, other_mles)
     return results
+end
+function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Symbol}}; kwargs...) where {M}
+    integer_n = ntuple(i -> (SciMLBase.sym_to_index(n[i][1], prob), SciMLBase.sym_to_index(n[i][2], prob)), M)
+    return bivariate_profile(prob, sol, integer_n; kwargs...)
 end
 
 function profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, n,
@@ -219,7 +225,7 @@ end
 end
 
 @inline function expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer::Val{N}, n, grid, restricted_prob, alg,
-    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel=Val(false), kwargs...) where {N}
+    ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel=Val(false); kwargs...) where {N}
     layer_iterator = LayerIterator(N)
     if parallel == Val(false) # Split this up into separate functions to help with inference
         _expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, N, n, grid, restricted_prob, alg,
@@ -303,8 +309,10 @@ function _get_confidence_regions_contour!(confidence_regions, n, range_1, range_
     all_coords = reduce(vcat, [reduce(hcat, coordinates(xy)) for xy in Contour.lines(c)])
     region_x = all_coords[:, 1]
     region_y = all_coords[:, 2]
-    reverse!(region_x)
-    reverse!(region_y)
+    (ax, ay), (bx, by), (cx, cy) = Tuple(all_coords[1, :]), Tuple(all_coords[2, :]), (range_1[0], range_2[0])
+    countour_is_clockwise = (ax - cx) * (by - cy) - (ay - cy) * (bx - cx) < 0
+    countour_is_clockwise && reverse!(region_x)
+    countour_is_clockwise && reverse!(region_y)
     if region_x[end] == region_x[begin]
         pop!(region_x)
         pop!(region_y) # contour keeps the last value as being the same as the first
