@@ -68,7 +68,7 @@ _θ, _prof, _other_mles, _splines, _confidence_intervals = ProfileLikelihood.pre
 
 ## Test that we can correctly normalise the objective function 
 shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, false)
-@test shifted_opt_prob.f.f.shift == 0.0 
+@test shifted_opt_prob.f.f.shift == 0.0
 @test shifted_opt_prob.f.f.original_f == _opt_prob.f
 @test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -loglikk(reduce(vcat, θ), dat)
 @inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
@@ -161,6 +161,24 @@ prof = profile(prob, sol, [1, 3])
 @test SciMLBase.sym_to_index(:β₃, prof) == 5
 @test ProfileLikelihood.profiled_parameters(prof) == [1, 3]
 @test ProfileLikelihood.number_of_profiled_parameters(prof) == 2
+
+## Test that other_mles and parameter_values line up 
+for i in eachindex(prof.parameter_values[1])
+    _σ = get_parameter_values(prof, :σ)[i]
+    b0, b1, b2, b3 = ProfileLikelihood.get_other_mles(prof, :σ)[i]
+    θ = [_σ, b0, b1, b2, b3]
+    ℓ = prob.log_likelihood_function(θ, prob.data) - get_maximum(sol)
+    @test ℓ ≈ get_profile_values(prof, :σ)[i]
+    @test ℓ ≈ prof[:σ](_σ) atol = 1e-12
+end
+for i in eachindex(prof.parameter_values[3])
+    _β₁ = get_parameter_values(prof, :β₁)[i]
+    s, b0, b2, b3 = ProfileLikelihood.get_other_mles(prof, :β₁)[i]
+    θ = [s, b0, _β₁, b2, b3]
+    ℓ = prob.log_likelihood_function(θ, prob.data) - get_maximum(sol)
+    @test ℓ ≈ get_profile_values(prof, :β₁)[i]
+    @test ℓ ≈ prof[:β₁](_β₁) atol = 1e-12
+end
 
 ## Test that views are working correctly on the ProfileLikelihoodSolution
 i = 1
@@ -709,7 +727,7 @@ replace_profile!(prof, 1; min_steps=50)
 @test prof.splines[3] == _prof.splines[3]
 @test prof.confidence_intervals[3][1] == _prof.confidence_intervals[3][1]
 @test prof.confidence_intervals[3][2] == _prof.confidence_intervals[3][2]
-@test prof.likelihood_problem.log_likelihood_function.loglik === _prof.likelihood_problem.log_likelihood_function.loglik 
+@test prof.likelihood_problem.log_likelihood_function.loglik === _prof.likelihood_problem.log_likelihood_function.loglik
 @test prof.likelihood_problem.θ₀ == _prof.likelihood_problem.θ₀
 @test prof.likelihood_solution.mle == _prof.likelihood_solution.mle
 @test prof.likelihood_solution.maximum == _prof.likelihood_solution.maximum
@@ -719,5 +737,5 @@ replace_profile!(prof, 1; min_steps=50)
 @test length(prof.splines[1]) ≥ 49
 @test prof.confidence_intervals[1][1] ≈ _prof.confidence_intervals[1][1] rtol = 1e-1
 @test prof.confidence_intervals[1][2] ≈ _prof.confidence_intervals[1][2] rtol = 1e-1
-@test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1] 
-@test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2] 
+@test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1]
+@test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2]
