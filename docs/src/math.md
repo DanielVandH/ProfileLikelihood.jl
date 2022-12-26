@@ -16,7 +16,7 @@ where $\Omega$ is the parameter space for $\boldsymbol \omega$, $\ell(\boldsymbo
 \ell(\boldsymbol\psi, \boldsymbol\omega^{\star}(\psi)) = \sup_{\boldsymbol \omega \in \Omega \mid \boldsymbol\psi} \left[\ell(\boldsymbol\psi, \boldsymbol\omega) - \ell^{\star}\right]. 
 ``` 
 
-To compute $\hat\ell_p(\boldsymbol\psi)$, then, requires a way to efficiently compute the $\omega^*(\psi)$, and requires knowing where to stop computing. Where we stop computing the profile likelihood is simply when $\hat\ell_p(\psi) < -\chi_{k,1-\alpha}^2/2$, where $\alpha$ is the significance level and $k=1$ if $\boldsymbol\psi = \psi$ and $k=2$ if $\boldsymbol\psi = (\psi,\varphi)$. This motivates a iterative algorithm, where we start at the MLE and expand outwards.
+To compute $\hat\ell_p(\boldsymbol\psi)$, then, requires a way to efficiently compute the $\omega^*(\boldsymbol\psi)$, and requires knowing where to stop computing. Where we stop computing the profile likelihood is simply when $\hat\ell_p(\psi) < -\chi_{k,1-\alpha}^2/2$, where $\alpha$ is the significance level and $k=1$ if $\boldsymbol\psi = \psi$ and $k=2$ if $\boldsymbol\psi = (\psi,\varphi)$. This motivates a iterative algorithm, where we start at the MLE and expand outwards.
 
 ### Univariate profile likelihoods 
 
