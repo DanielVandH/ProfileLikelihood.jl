@@ -34,7 +34,7 @@ LaTeXStrings.jl to access the function).
 - `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of 400 points).
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
-- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
 - `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
 - `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
