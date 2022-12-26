@@ -360,8 +360,8 @@ fixed_vals = zeros(2)
 fixed_vals = [grid[1, Id[1]], grid[2, Id[2]]]
 
 # :mle
-next_initial_estimate_method = :mle
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, n; next_initial_estimate_method=next_initial_estimate_method)
+next_initial_estimate_method = Val(:mle)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, n, next_initial_estimate_method)
 @test sub_cache == mles[[2, 4, 5]]
 @test other == _orig_other
 
@@ -438,7 +438,7 @@ Id = CartesianIndex.([
 ])
 J = ProfileLikelihood.nearest_node_to_layer.(Id, layer)
 for (I, J) in zip(Id, J)
-    ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, I, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:nearest)
+    ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, I, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:nearest))
     @test sub_cache == other[J]
 end
 @test other == _orig_other
@@ -525,55 +525,48 @@ range_2 = get_range(grid, 2, -1, 1)
 interp = extrapolate(interpolate((range_1, range_2), OffsetArray(other[-1:1, -1:1], -1:1, -1:1), Gridded(Linear())), Line())
 val = interp(fixed_vals...)
 Id = CartesianIndex((2, 2))
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ val
 fixed_vals = [-10.0, 99.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 fixed_vals = [0.01, 2902.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 fixed_vals = [0.12, 22.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 fixed_vals = [0.12, 89.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 fixed_vals = [0.01, 18880.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 fixed_vals = [0.12, 189.0]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n); next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, other, Id, fixed_vals, grid, layer, ProfileLikelihood.exclude_parameter(prob.problem, n), Val(:interp))
 @test sub_cache ≈ mles[[3]]
 
 # Get the results 
-@time results_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, confidence_region_method=:delaunay);
-@time results_near_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:nearest, confidence_region_method=:delaunay);
-@time results_int_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:interp, confidence_region_method=:delaunay);
-@time results_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, parallel=true, confidence_region_method=:delaunay);
-@time results_near_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:nearest, parallel=true, confidence_region_method=:delaunay);
-@time results_int_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:interp, parallel=true, confidence_region_method=:delaunay);
-@time results = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10);
-@time results_near = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:nearest);
-@time results_int = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:interp);
-@time results_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, parallel=true);
-@time results_near_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
-@time results_int_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
-    outer_layers=10, next_initial_estimate_method=:interp, parallel=true);
+@time results_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, confidence_region_method=:delaunay);
+@time results_near_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, confidence_region_method=:delaunay);
+@time results_int_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, confidence_region_method=:delaunay);
+@time results_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true, confidence_region_method=:delaunay);
+@time results_near_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true, confidence_region_method=:delaunay);
+@time results_int_par_delaunay = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, parallel=true, confidence_region_method=:delaunay);
+@time results_mle = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10);
+_t0 = time()
+@time results_near = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest);
+_t1 = time()
+@time results_int = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp);
+@time results_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, parallel=true);
+t0 = time()
+@time results_near_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:nearest, parallel=true);
+t1 = time()
+@test t1 - t0 < (_t1 - _t0) / 2
+@time results_int_par = ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1)); outer_layers=10, next_initial_estimate_method=:interp, parallel=true);
 
 # Test the results
-for results in (results, results_near, results_int, results_par, results_near_par, results_int_par,
+for results in (results_mle, results_near, results_int, results_par, results_near_par, results_int_par,
     results_delaunay, results_near_delaunay, results_int_delaunay, results_par_delaunay, results_near_par_delaunay,
     results_int_par_delaunay)
     @test ProfileLikelihood.get_parameter_values(results) == results.parameter_values
@@ -643,21 +636,21 @@ for results in (results, results_near, results_int, results_par, results_near_pa
     @test ProfileLikelihood.number_of_layers(results, 1, 2) == 102
     @test ProfileLikelihood.number_of_layers(results, 3, 1) == 188
     bbox = ProfileLikelihood.get_bounding_box(results, 1, 2)
-    @test all(bbox .≈ (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195))
+    @test all(.≈(bbox, (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195); rtol=1e-3))
     bbox = ProfileLikelihood.get_bounding_box(results, 3, 1)
-    @test all(bbox .≈ (0.8585793458749309, 22.24256937316934, 0.005641851160910081, 0.02088915793720584))
+    @test all(.≈(bbox, (0.8585793458749309, 22.24256937316934, 0.005641851160910081, 0.02088915793720584); rtol=1e-3))
     CR = ProfileLikelihood.get_confidence_regions(results, 1, 2)
     conf_x = CR.x
     conf_y = CR.y
     xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
     A = DelaunayTriangulation.area(xy)
-    @test A ≈ 0.23243592745692931
+    @test A ≈ 0.23243592745692931 rtol = 1e-3
     CR = ProfileLikelihood.get_confidence_regions(results, 3, 1)
     conf_x = CR.x
     conf_y = CR.y
     xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
     A = DelaunayTriangulation.area(xy)
-    @test A ≈ 0.09636388019922583
+    @test A ≈ 0.09636388019922583 rtol = 1e-3
     @test_throws BoundsError results[1, 3]
     @test length(results.parameter_values[(1, 2)][1]) == 205
     @test length(results.parameter_values[(1, 2)][2]) == 205
@@ -695,7 +688,7 @@ for results in (results, results_near, results_int, results_par, results_near_pa
     @test ProfileLikelihood.get_other_mles(prof, 0, -4) == results.other_mles[(1, 2)][0, -4]
     @test ProfileLikelihood.number_of_layers(prof) == 102
     bbox = ProfileLikelihood.get_bounding_box(prof)
-    @test all(bbox .≈ (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195))
+    @test all(.≈(bbox, (0.005641669055546597, 0.020890639625718074, 88.73495146230951, 112.50617436930195); rtol=1e-3))
 
     # Test the confidence intervals 
     λgrid = results.parameter_values[(1, 2)][1].parent
@@ -759,8 +752,8 @@ for results in (results, results_near, results_int, results_par, results_near_pa
     conf_x = results.confidence_regions[(1, 2)].x
     conf_y = results.confidence_regions[(1, 2)].y
     for (x, y) in zip(conf_x, conf_y)
-        @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
-        @test results(x, y, 1, 2) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+        @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-3
+        @test results(x, y, 1, 2) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-3
     end
 
     interp = ProfileLikelihood.get_interpolants(results, :u₀, :λ)
@@ -779,13 +772,13 @@ for results in (results, results_near, results_int, results_par, results_near_pa
     conf_x = results.confidence_regions[(3, 1)].x
     conf_y = results.confidence_regions[(3, 1)].y
     for (x, y) in zip(conf_x, conf_y)
-        @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
-        @test results(x, y, 3, 1) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2)
+        @test interp(x, y) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-2
+        @test results(x, y, 3, 1) ≈ ProfileLikelihood.get_chisq_threshold(0.95, 2) rtol = 1e-2
     end
 end
 
 # Test the parallelism 
-for (serial_res, parallel_res) in ((results, results_par), (results_near, results_near_par), (results_int, results_int_par))
+for (serial_res, parallel_res) in ((results_mle, results_par), (results_near, results_near_par), (results_int, results_int_par))
     CR = serial_res.confidence_regions
     interp = serial_res.interpolants
     prob = serial_res.likelihood_problem
@@ -824,26 +817,33 @@ end
 
 # Test the next_initial_estimate_method methods with the results
 for (n1, n2, n3) in ((1, 2, 3), (3, 1, 2))
-    n1, n2, n3 = 1, 2, 3
-    layers = ProfileLikelihood.number_of_layers(results, n1, n2)
+    layers = ProfileLikelihood.number_of_layers(results_mle, n1, n2)
     _prob = ProfileLikelihood.exclude_parameter(prob.problem, (n1, n2))
-    sub_cache1 = deepcopy(results.other_mles[(n1, n2)])
-    sub_cache2 = deepcopy(results.other_mles[(n1, n2)])
-    sub_cache3 = deepcopy(results.other_mles[(n1, n2)])
+    sub_cache1 = deepcopy(results_mle.other_mles[(n1, n2)])
+    sub_cache2 = deepcopy(results_mle.other_mles[(n1, n2)])
+    sub_cache3 = deepcopy(results_mle.other_mles[(n1, n2)])
     grids = ProfileLikelihood.construct_profile_grids(((1, 2), (3, 1)), sol, get_lower_bounds(prob), get_upper_bounds(prob), 200)
     for layer in 1:layers
         for I in ProfileLikelihood.LayerIterator(layer)
             fixed_vals = [grids[(n1, n2)][1, I[1]], grids[(n1, n2)][2, I[2]]]
-            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache1[I], results.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob; next_initial_estimate_method=:mle)
-            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache2[I], results.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob; next_initial_estimate_method=:nearest)
-            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache3[I], results.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob; next_initial_estimate_method=:interp)
+            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache1[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:mle))
+            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache2[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:nearest))
+            @views ProfileLikelihood.set_next_initial_estimate!(sub_cache3[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:interp))
+            if layer == 1 && I == CartesianIndex(-1, -1)
+                @code_warntype ProfileLikelihood.set_next_initial_estimate!(sub_cache1[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:mle))
+                @code_warntype ProfileLikelihood.set_next_initial_estimate!(sub_cache2[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:nearest))
+                @code_warntype ProfileLikelihood.set_next_initial_estimate!(sub_cache3[I], results_mle.other_mles[(n1, n2)], I, fixed_vals, grids[(n1, n2)], layer, _prob, Val(:interp))
+                @code_warntype ProfileLikelihood._set_next_initial_estimate_mle!(sub_cache1[I], results_mle.other_mles[(n1, n2)])
+                @code_warntype ProfileLikelihood._set_next_initial_estimate_nearest!(sub_cache2[I], results_mle.other_mles[(n1, n2)], I, layer)
+                @code_warntype ProfileLikelihood._set_next_initial_estimate_interp!(sub_cache3[I], results_mle.other_mles[(n1, n2)], fixed_vals, grids[(n1, n2)], layer, _prob)
+            end
             @test sub_cache1[I] == [mles[n3]]
             J = ProfileLikelihood.nearest_node_to_layer(I, layer)
-            @test sub_cache2[I] == results.other_mles[(n1, n2)][J] == ProfileLikelihood.get_other_mles(results[n1, n2], J[1], J[2])
+            @test sub_cache2[I] == results_mle.other_mles[(n1, n2)][J] == ProfileLikelihood.get_other_mles(results_mle[n1, n2], J[1], J[2])
             if layer > 1
                 range_1 = get_range(grids[(n1, n2)], 1, -layer + 1, layer - 1).parent
                 range_2 = get_range(grids[(n1, n2)], 2, -layer + 1, layer - 1).parent
-                interp = extrapolate(interpolate((range_1, range_2), results.other_mles[(n1, n2)][(-layer+1):(layer-1), (-layer+1):(layer-1)], Gridded(Linear())), Line())
+                interp = extrapolate(interpolate((range_1, range_2), results_mle.other_mles[(n1, n2)][(-layer+1):(layer-1), (-layer+1):(layer-1)], Gridded(Linear())), Line())
                 val = interp(fixed_vals...)
                 if (n1, n2) == (1, 2) && (val[1] < prob.problem.lb[3] || val[1] > prob.problem.ub[3])
                     @test sub_cache3[I] == [mles[3]]
@@ -857,26 +857,173 @@ for (n1, n2, n3) in ((1, 2, 3), (3, 1, 2))
             end
         end
     end
-    err1 = (sub_cache1 .- results.other_mles[(n1, n2)]) ./ results.other_mles[(n1, n2)]
+    err1 = (sub_cache1 .- results_mle.other_mles[(n1, n2)]) ./ results_mle.other_mles[(n1, n2)]
     err1 = getindex.(err1, 1).parent
-    _err1 = [(mles[n3] .- results.other_mles[(n1, n2)][i, j]) ./ results.other_mles[(n1, n2)][i, j] for i in -layers:layers, j in -layers:layers]
+    _err1 = [(mles[n3] .- results_mle.other_mles[(n1, n2)][i, j]) ./ results_mle.other_mles[(n1, n2)][i, j] for i in -layers:layers, j in -layers:layers]
     _err1 = getindex.(_err1, 1)
     @test err1 ≈ _err1
-    err2 = (sub_cache2 .- results.other_mles[(n1, n2)]) ./ results.other_mles[(n1, n2)]
+    err2 = (sub_cache2 .- results_mle.other_mles[(n1, n2)]) ./ results_mle.other_mles[(n1, n2)]
     err2 = getindex.(err2, 1).parent
     @test all(abs.(err2) .< 5)
     @test median(abs.(err2)) < 0.01
-    err3 = (sub_cache3 .- results.other_mles[(n1, n2)]) ./ results.other_mles[(n1, n2)]
+    err3 = (sub_cache3 .- results_mle.other_mles[(n1, n2)]) ./ results_mle.other_mles[(n1, n2)]
     err3 = getindex.(err3, 1).parent
     @test median(abs.(err3)) < 0.001
 end
 
-# Test the contour methods 
+## Look at the inference issues 
+for parallel in [Val(true), Val(false)]
+    @inferred ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+        outer_layers=10, next_initial_estimate_method=:nearest, parallel=true)
+    @inferred ProfileLikelihood.bivariate_profile(prob, sol, ((1, 2), (3, 1));
+        outer_layers=10, next_initial_estimate_method=:nearest, parallel=false)
+    n = ((1, 2), (3, 1))
+    alg = ProfileLikelihood.get_optimiser(sol)
+    conf_level = 0.95
+    confidence_region_method = Val(:contour)
+    threshold = ProfileLikelihood.get_chisq_threshold(conf_level, 2)
+    resolution = 200
+    grids = ProfileLikelihood.construct_profile_grids(n, sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)
+    min_layers = 10
+    outer_layers = 10
+    normalise = true
+    next_initial_estimate_method = Val(:nearest)
+    M = 2
 
+    # Call I 
+    opt_prob, mles, ℓmax = ProfileLikelihood.extract_problem_and_solution(prob, sol)
+    T = number_type(mles)
+    F = Float64
+    θ, prof, other_mles, interpolants, confidence_regions = ProfileLikelihood.prepare_bivariate_profile_results(M, T, F)
+    num_params = ProfileLikelihood.number_of_parameters(opt_prob)
+    shifted_opt_prob = ProfileLikelihood.normalise_objective_function(opt_prob, ℓmax, normalise)
+    @code_warntype ProfileLikelihood.extract_problem_and_solution(prob, sol)
+    @code_warntype number_type(mles)
+    @code_warntype ProfileLikelihood.prepare_bivariate_profile_results(M, T, F)
+    @code_warntype ProfileLikelihood.number_of_parameters(opt_prob)
+    @code_warntype ProfileLikelihood.normalise_objective_function(opt_prob, ℓmax, normalise)
+    @inferred ProfileLikelihood.extract_problem_and_solution(prob, sol)
+    @inferred number_type(mles)
+    @inferred ProfileLikelihood.prepare_bivariate_profile_results(M, T, F)
+    @inferred ProfileLikelihood.number_of_parameters(opt_prob)
+    @inferred ProfileLikelihood.normalise_objective_function(opt_prob, ℓmax, normalise)
 
+    # Call II 
+    _n = (1, 2)
+    @inferred ProfileLikelihood.profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
+        mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
+        conf_level, confidence_region_method, next_initial_estimate_method, parallel)
+    @code_warntype ProfileLikelihood.profile_single_pair!(θ, prof, other_mles, confidence_regions, interpolants, grids, _n,
+        mles, num_params, normalise, ℓmax, shifted_opt_prob, alg, threshold, outer_layers, min_layers,
+        conf_level, confidence_region_method, next_initial_estimate_method, parallel)
 
+    # Call III
+    n = _n
+    grid = grids[n]
+    res = grid.resolutions
+    profile_vals, other_mle, cache, sub_cache, fixed_vals, any_above_threshold = ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel)
+    restricted_prob = ProfileLikelihood.exclude_parameter(shifted_opt_prob, n)
+    if parallel == Val(true)
+        restricted_prob = [ProfileLikelihood.exclude_parameter(deepcopy(shifted_opt_prob), n) for _ in 1:Base.Threads.nthreads()]
+    end
+    @code_warntype ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel=parallel)
+    @inferred ProfileLikelihood.prepare_cache_vectors(n, mles, res, num_params, normalise, ℓmax; parallel)
+    @inferred ProfileLikelihood.exclude_parameter(shifted_opt_prob, n)
 
+    # Call IV 
+    layer = 1
+    final_layer = res
+    outer_layer = 0
+    @inferred ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+        grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
+    @code_warntype ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+        grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
 
+    # Call V 
+    layer_iterator = ProfileLikelihood.LayerIterator(layer)
+    I = first(layer_iterator)
+    if parallel == Val(true)
+        @code_warntype ProfileLikelihood.solve_at_layer_node!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache[1], alg, profile_vals, ℓmax, normalise, any_above_threshold[1], threshold, n)
+        @inferred ProfileLikelihood.solve_at_layer_node!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache[1], alg, profile_vals, ℓmax, normalise, any_above_threshold[1], threshold, n)
+    else
+        @code_warntype ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
+        @inferred ProfileLikelihood.solve_at_layer_node!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache, alg, profile_vals, ℓmax, normalise, any_above_threshold, threshold, n)
+    end
+    if parallel == Val(false)
+        any_above_threshold = ProfileLikelihood._expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+        @code_warntype ProfileLikelihood._expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+        @inferred ProfileLikelihood._expand_layer_serial!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+    else
+        any_above_threshold = ProfileLikelihood._expand_layer_parallel!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+        @code_warntype ProfileLikelihood._expand_layer_parallel!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+        @inferred ProfileLikelihood._expand_layer_parallel!(fixed_vals, profile_vals, other_mle, cache, layer, n, grid, restricted_prob,
+            alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator)
+    end
+
+    # Call VI 
+    if parallel == Val(false)
+        fixed_prob = ProfileLikelihood.setup_layer_node_problem!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
+            next_initial_estimate_method, cache, n)
+        @code_warntype ProfileLikelihood.setup_layer_node_problem!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
+            next_initial_estimate_method, cache, n)
+        @inferred ProfileLikelihood.setup_layer_node_problem!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
+            next_initial_estimate_method, cache, n)
+    else
+        fixed_prob = ProfileLikelihood.setup_layer_node_problem!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache[1], n)
+        @code_warntype ProfileLikelihood.setup_layer_node_problem!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache[1], n)
+        @inferred ProfileLikelihood.setup_layer_node_problem!(fixed_vals[1], grid, I, sub_cache[1], other_mle, layer, restricted_prob[1],
+            next_initial_estimate_method, cache[1], n)
+    end
+
+    # Call VII 
+    soln = solve(fixed_prob, alg)
+    @inbounds profile_vals[I] = -soln.objective - ℓmax * !normalise
+    @inbounds other_mle[I] = soln.u
+    ProfileLikelihood.compare_to_threshold(any_above_threshold[1], profile_vals, threshold, I)
+    @code_warntype ProfileLikelihood.compare_to_threshold(any_above_threshold[1], profile_vals, threshold, I)
+    @inferred ProfileLikelihood.compare_to_threshold(any_above_threshold[1], profile_vals, threshold, I)
+
+    # Call VIII 
+    for i in 1:res
+        any_above_threshold = ProfileLikelihood.expand_layer!(fixed_vals, profile_vals, other_mle, cache, layer, n,
+            grid, restricted_prob, alg, ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, parallel)
+        if !any(any_above_threshold)
+            final_layer = layer
+            outer_layer += 1
+            outer_layer ≥ outer_layers && layer ≥ min_layers && break
+        end
+        layer += 1
+    end
+    range_1 = get_range(grid, 1, -final_layer, final_layer)
+    range_2 = get_range(grid, 2, -final_layer, final_layer)
+    ProfileLikelihood.resize_results!(θ, prof, other_mles, n, final_layer, profile_vals, other_mle, range_1, range_2)
+    @inferred ProfileLikelihood.resize_results!(θ, prof, other_mles, n, final_layer, profile_vals, other_mle, range_1, range_2)
+    @code_warntype ProfileLikelihood.resize_results!(θ, prof, other_mles, n, final_layer, profile_vals, other_mle, range_1, range_2)
+
+    # Call IX 
+    ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
+    @inferred ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
+    @code_warntype ProfileLikelihood.get_confidence_regions!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer, confidence_region_method)
+    ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
+    @code_warntype ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
+    @inferred ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level)
+    @code_warntype ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
+    @inferred ProfileLikelihood._get_confidence_regions_contour!(confidence_regions, n, range_1, range_2, prof[n], threshold, conf_level, final_layer)
+    ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
+    @code_warntype ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
+    @inferred ProfileLikelihood.interpolate_profile!(interpolants, n, range_1, range_2, prof[n])
+end
 
 
 

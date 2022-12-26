@@ -56,6 +56,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
     parallel=false,
     next_initial_estimate_method=:prev,
     kwargs...) where {F}
+    parallel = Val(SciMLBase._unwrap_val(parallel))
     ## Extract the problem and solution 
     opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
 
@@ -69,7 +70,7 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
 
     ## Loop over each parameter 
     num_params = number_of_parameters(shifted_opt_prob)
-    if !parallel
+    if parallel == Val(false)
         for _n in n
             profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, mles,
@@ -126,11 +127,11 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
         threshold, resolution, param_ranges,
         min_steps, normalise, spline_alg, extrap,
         parallel, next_initial_estimate_method, kwargs...)
-    for _n in n 
+    for _n in n
         prof.parameter_values[_n] = _prof.parameter_values[_n]
         prof.profile_values[_n] = _prof.profile_values[_n]
-        prof.splines[_n] = _prof.splines[_n] 
-        prof.confidence_intervals[_n] = _prof.confidence_intervals[_n] 
+        prof.splines[_n] = _prof.splines[_n]
+        prof.confidence_intervals[_n] = _prof.confidence_intervals[_n]
         prof.other_mles[_n] = _prof.other_mles[_n]
     end
     return nothing
@@ -139,7 +140,7 @@ end
 function profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
     n, num_params, param_ranges, mles,
     shifted_opt_prob, alg, ℓmax, normalise, threshold, min_steps,
-    spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method=:prev, parallel=false, kwargs...)
+    spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method=:prev, parallel=Val(false), kwargs...)
     ## First, prepare all the cache vectors  
     _param_ranges = param_ranges[n]
     left_profile_vals, right_profile_vals,
@@ -155,7 +156,7 @@ function profile_single_parameter!(θ, prof, other_mles, splines, confidence_int
     restricted_prob_left.u0 .= sub_cache_left
     restricted_prob_right.u0 .= sub_cache_right
 
-    if !parallel
+    if parallel == Val(false)
         ## Get the left endpoint
         find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, _param_ranges[1],
             restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
@@ -245,8 +246,10 @@ function prepare_profile_results(N, T, F, spline_alg=FritschCarlsonMonotonicInte
     return θ, prof, other_mles, splines, confidence_intervals
 end
 
-function normalise_objective_function(opt_prob, ℓmax, normalise::Bool)
-    shifted_opt_prob = normalise ? shift_objective_function(opt_prob, -ℓmax) : opt_prob
+@inline function normalise_objective_function(opt_prob, ℓmax::T, normalise) where {T}
+    normalise = SciMLBase._unwrap_val(normalise)
+    shift = normalise ? -ℓmax : zero(T)
+    shifted_opt_prob = shift_objective_function(opt_prob, shift)
     return shifted_opt_prob
 end
 
