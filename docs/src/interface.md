@@ -12,7 +12,7 @@ LikelihoodProblem(loglik::Function, θ₀;
     f_kwargs=nothing, prob_kwargs=nothing)
 ```
 
-Here, `loglik` is a function for the log-likelihood, taking the form `ℓ(θ, p)`. The second argument, `θ₀`, is the initial estimate for the parameter values. You can provide symbolic names for the parameters via `syms`, so that e.g. `prob[:α]` (where `prob` is a `LikelihoodProblem` with `:α ∈ syms`) returns the initial estimate for `:α`. The argument `p` in the likelihood function can be used to pass data or other parameters into the argument, and the keyword argument `data` can be used for this. Lastly, `f_kwargs` and `prob_kwargs` are additional keyword arguments for the `OptimizationFunction` and `OptimizationProblem`, respectively; see the [Optimization.jl](https://github.com/SciML/Optimization.jl) documentation for more detail here.
+Here, `loglik` is a function for the log-likelihood, taking the form `ℓ(θ, p)`. The second argument, `θ₀`, is the initial estimate for the parameter values. You can provide symbolic names for the parameters via `syms`, so that e.g. `prob[:α]` (where `prob` is a `LikelihoodProblem` with `:α ∈ syms`) returns the initial estimate for `:α`. The argument `p` in the likelihood function can be used to pass data or other parameters into the argument, and the keyword argument `data` can be used for this. Lastly, `f_kwargs` and `prob_kwargs` are additional keyword arguments for the `OptimizationFunction` and `OptimizationProblem`, respectively; see the [Optimization.jl](https://github.com/SciML/Optimization.jl) documentation for more detail here. 
 
 We also provide a simple interface for defining a log-likelihood that requires the solution of a differential equation:
 
@@ -26,7 +26,9 @@ LikelihoodProblem(loglik::Function, θ₀,
 
 Importantly, `loglik` in this case is now a function of the form `ℓ(θ, p, integrator)`, where `integrator` is the same integrator as in the integrator interface from DifferentialEquations.jl; see the documentation at DifferentialEquations.jl for more detail on using the integrator. Furthermore, `ode_function` is the function for the ODE, `u₀` its initial condition, and `tspan` its time span. Additionally, the parameters for the `ode_function` (e.g. the `p` in `ode_function(du, u, p, t)` or `ode_function(u, p, t)`) can be passed using the keyword argument `ode_parameters`. The algorithm used to solve the differential equation is passed with `ode_alg`, and lastly any additional keyword arguments for solving the problem are to be passed through `ode_kwargs`. 
 
-The full docstrings for the three methods available are given in the sidebar.
+There is also a method that makes it easier to use automatic differentiation when considering ODE problems by using a `GeneralLazyBufferCache` from PreallocationTools.jl - see Example V.
+
+The full docstrings for the methods available are given in the sidebar.
 
 ## LikelihoodSolution: Obtaining an MLE
 
@@ -88,9 +90,11 @@ end
 
 The definitions are similar to the univariate case, although `parameter_values` now maps to `Tuple`s of grids, making use of `OffsetVector`s to define grids relative to an MLE. Similarly, we use `OffsetMatrix`s to define the grid of profile values, given in `profile_values`. You can also call the resulting struct, e.g. if `prof` is a `BivariateProfileLikelihoodSolution`, then `prof(0.3, 0.9, :λ, :K)` computes the bivariate profile between $\lambda$ and $K$ at $(\lambda,K)=(0.3,0.9)$. See `?ProfileLikelihood.BivariateProfileLikelihoodSolution` for more detail, or its docstring in the sidebar. 
 
+You can also index such a `prof` to look at only a specific parameter. For example, `prof[1, 2]` will return a `BivariateProfileLikelihoodSolutionView` for the profile between the first and second parameter. Similarly, `prof[:λ, :K]` is the profile between $\lambda$ and $K$.
+
 ## Propagating uncertainty: Prediction intervals 
 
-The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example below (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
+The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
 
 The full docstring for `get_prediction_intervals` is given in the sidebar.
 

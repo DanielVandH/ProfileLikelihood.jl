@@ -1,0 +1,253 @@
+# Example V: Lotka-Volterra ODE, automatic differentiation, and computing bivarate profile likelihoods
+
+This example comes from the second case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367). First, load the packages we'll be using:
+
+```julia
+using Random
+using Optimization
+using OrdinaryDiffEq
+using CairoMakie
+using LaTeXStrings
+using OptimizationNLopt
+using PreallocationTools
+using OptimizationOptimJL
+using LoopVectorization
+using ParameterHandling
+using AbbreviatedStackTraces
+```
+
+In this example, we will be considering the Lotka-Volterra ODE, and we will also demonstrate how the `GeneralLazyBufferCache` from PreallocationTools.jl can be used for supporting automatic differentiation for similar problems. In addition, we now also show how bivariate profiles can be computed, along with prediction intervals from a bivariate profile. We also show how ParameterHandling.jl can be useful for computing this prediction intervals when we have multiple quantities of interest.
+
+The Lotka-Volterra ODE is given by 
+
+```math 
+\begin{align*}
+\frac{\mathrm da(t)}{\mathrm dt} &= \alpha a(t) - a(t)b(t), \\
+\frac{\mathrm db(t)}{\mathrm dt} &= \beta a(t)b(t)-b(t),
+\end{align*}
+```
+
+and we suppose that $a(0) = a_0$ and $b(0) = b_0$. For this problem, we are interested in estimating $\boldsymbol = (\alpha,\beta,a_0,b_0)$. We suppose that we have measures of the prey and predicator populations, given respectively by $a(t)$ and $b(t)$, at times $t_i$, $i=1,\ldots,m$. Letting $a_i^
+o = a(t_i)$ and $b_i^o = b(t_i)$, $i=1,\ldots,m$, this means that we have the time series $\{(a_i^o, b_i^o)\}_{i=1}^m$. Moreover, just as we did in the logistic ODE example, we suppose that the data $(a_i^o, b_i^o)$ are normally distributed about the solution curve $\boldsymbol z(t; \boldsymbol\theta) = (a(t; \boldsymbol \theta), b(t; \boldsymbol \theta))$. In particular, letting $\boldsymbol z_i(\boldsymbol \theta)$ denote the value of $(a(t_i; \boldsymbol\theta), b(t_i; \boldsymbol \theta))$ at $t=t_i$, we are supposing that 
+
+```math 
+(a_i^o, b_i^o) \sim \mathcal N\left(\boldsymbol z_i(\boldsymbol \theta), \sigma^2 \boldsymbol I\right), \quad i=1,2,\ldots,m,
+```
+
+and this is what defines our likelihood ($\boldsymbol I$ is the $2$-square identity matrix).
+
+## Data generation and setting up the problem
+
+As usual, the first step in this example is generating the data.
+
+```julia
+using OrdinaryDiffEq, Random, Random 
+
+## Step 1: Generate the data and define the likelihood
+α = 0.9
+β = 1.1
+a₀ = 0.8
+b₀ = 0.3
+σ = 0.2
+t = LinRange(0, 10, 21)
+@inline function ode_fnc!(du, u, p, t) where {T}
+    α, β = p
+    a, b = u
+    du[1] = α * a - a * b
+    du[2] = β * a * b - b
+    return nothing
+end
+# Initial data is obtained by solving the ODE 
+tspan = extrema(t)
+p = [α, β]
+u₀ = [a₀, b₀]
+prob = ODEProblem(ode_fnc!, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2528)
+noise_vec = [σ * randn(2) for _ in eachindex(t)]
+uᵒ = sol.u .+ noise_vec
+```
+
+We now define the likelihood function. 
+
+```julia
+@inline function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
+    α, β, a₀, b₀ = θ
+    uᵒ, σ, u₀_cache, αβ_cache, n = data
+    u₀ = get_tmp(u₀_cache, θ)
+    integrator.p[1] = α
+    integrator.p[2] = β
+    u₀[1] = a₀
+    u₀[2] = b₀
+    reinit!(integrator, u₀)
+    solve!(integrator)
+    ℓ = zero(T)
+    for i in 1:n
+        âᵒ = integrator.sol.u[i][1]
+        b̂ᵒ = integrator.sol.u[i][2]
+        aᵒ = uᵒ[i][1]
+        bᵒ = uᵒ[i][2]
+        ℓ = ℓ - 0.5log(2π * σ^2) - 0.5(âᵒ - aᵒ)^2 / σ^2
+        ℓ = ℓ - 0.5log(2π * σ^2) - 0.5(b̂ᵒ - bᵒ)^2 / σ^2
+    end
+    return ℓ
+end
+```
+
+Now we define our problem, constraining the parameters so that $0.7 \leq \alpha \leq 1.2$, $0.7 \leq \beta \leq 1.4$, $0.5 \leq a_0 \leq 1.2$, and $0.1 \leq b_0 \leq 0.5$. We want to use forward differentiation for this. Let us start by showing a method that fails:
+
+```julia
+using AbbreviatedStackTraces, PreallocationTools, Optimization, OrdinaryDiffEq, OptimizationOptimJL
+lb = [0.7, 0.7, 0.5, 0.1]
+ub = [1.2, 1.4, 1.2, 0.5]
+θ₀ = [0.75, 1.23, 0.76, 0.292]
+syms = [:α, :β, :a₀, :b₀]
+u₀_cache = DiffCache(zeros(2), 12)
+αβ_cache = DiffCache(zeros(2), 12)
+n = findlast(t .≤ 7) # Using t ≤ 7 for estimation
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc!, u₀, tspan;
+    syms=syms,
+    data=(uᵒ, σ, u₀_cache, αβ_cache, n),
+    ode_parameters=[1.0, 1.0],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)
+mle(prob, Optim.LBFGS())
+```
+
+```julia
+julia> sol = mle(prob, Optim.LBFGS())
+ERROR: MethodError: no method matching Float64(::ForwardDiff.Dual{ForwardDiff.Tag{Optimization.var"#89#106"{OptimizationFunction{true, Optimization.AutoForwardDiff{nothing}, …}, Tuple{Vector{Vector{Float64}}, Float64, …}}, Float64}, Float64, …})
+Closest candidates are:
+  (::Type{T})(::Real, ::RoundingMode) where T<:AbstractFloat at rounding.jl:200
+  (::Type{T})(::T) where T<:Number at boot.jl:772
+  (::Type{T})(::VectorizationBase.Double{T}) where T<:Union{Float16, Float32, Float64, VectorizationBase.Vec{<:Any, <:Union{Float16, Float32, Float64}}, VectorizationBase.VecUnroll{var"#s36", var"#s35", var"#s34", V} where {var"#s36", var"#s35", var"#s34"<:Union{Float16, Float32, Float64}, V<:Union{Bool, Float16, Float32, Float64, Int16, Int32, Int64, Int8, UInt16, UInt32, UInt64, UInt8, SIMDTypes.Bit, VectorizationBase.AbstractSIMD{var"#s35", var"#s34"}}}} at C:\Users\licer\.julia\packages\VectorizationBase\e4FnQ\src\special\double.jl:100
+  ...
+Stacktrace:
+  [1-22] ⋮ internal
+       @ Base, Optimization, ForwardDiff, OptimizationOptimJL, NLSolversBase, Optim, Unknown
+    [23] #mle#39
+       @ c:\Users\licer\.julia\dev\ProfileLikelihood\src\mle.jl:15 [inlined]
+    [24] mle(::LikelihoodProblem{4, OptimizationProblem{true, OptimizationFunction{true, Optimization.AutoForwardDiff{nothing}, …}, …}, …}, ::LBFGS{Nothing, LineSearches.InitialStatic{Float64}, 
+…})
+       @ ProfileLikelihood c:\Users\licer\.julia\dev\ProfileLikelihood\src\mle.jl:13
+    [25] ⋮ internal
+       @ Unknown
+Use `err` to retrieve the full stack trace.
+```
+
+The error here comes from trying to use dual numbers when we modify `integrator.p` with the new values for the parameters. We cannot so simply use `DiffCache` to get around this, we would need to somehow assign the appropriate tags when constructing the integrator (see e.g. [here](https://discourse.julialang.org/t/declaring-forwarddiff-tag-directly-with-a-differentialequations-integrator-nested-function/83766) for some more discussion). Note also that this is not just a Optim.jl issue. With NLopt.jl, we do not error, but the optimiser does not go anywhere:
+
+```julia
+using OptimizationNLopt 
+```
+
+```julia
+julia> mle(_prob, NLopt.LD_LBFGS())
+LikelihoodSolution. retcode: Failure
+Maximum likelihood: -0.0
+Maximum likelihood estimates: 4-element Vector{Float64}
+     α: 0.75
+     β: 1.23
+     a₀: 0.76
+     b₀: 0.292
+```
+
+ To get around this, we can use `GeneralLazyBufferCache` from PreallocationTools.jl. This is a cache that wraps around a function, creating the cache when the function is called (and reused if the same function method is used). This does make things a bit slower (in fact, automatic differentiation is slower than using finite differences or e.g. Nelder-Mead for this problem -- this is just a demonstration) since the dynamic dispatch slows things down. We provide a method for constructing a `LikelihoodProblem` using this cache. The method requires that we first define a function that maps the arguments that would be used for constructing an integrator into a `GeneralLazyBufferCache`. For this problem, this function is as follows:
+
+ ```julia
+ lbc = @inline (f, u, p, tspan, ode_alg; kwargs...) -> GeneralLazyBufferCache(
+    @inline function ((cache, α, β),) # Needs to be a 1-argument function
+        αβ = get_tmp(cache, α)
+        αβ[1] = α
+        αβ[2] = β
+        int = construct_integrator(f, u₀, tspan, αβ, ode_alg; kwargs...)
+        return int
+    end
+)
+```
+
+This `cache` argument in the inner function is why we need `αβ_cache` in our likelihood function. The second thing we need is a method that takes `(θ, p)` into the appropriate set of arguments for our `GeneralLazyBufferCache`. For this problem, we want to put `α` and `β` into the cache, and we should also put `αβ_cache` into it. This corresponds to forwarding `θ[1]`, `θ[2]`, and `p[4]` into the function, so we define 
+
+```julia 
+lbc_index = @inline (θ, p) -> (p[4], θ[1], θ[2])
+```
+
+With these ingredients, we can now define our `LikelihoodProblem`. The constructor is the same as usual for an ODE problem, except with these two functions at the end of the arguments:
+
+```julia 
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc!, u₀, tspan, lbc, lbc_index;
+    syms=syms,
+    data=(uᵒ, σ, u₀_cache, αβ_cache, n),
+    ode_parameters=[1.0, 1.0],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)
+```
+```julia
+LikelihoodProblem. In-place: true
+θ₀: 4-element Vector{Float64}
+     α: 0.75
+     β: 1.23
+     a₀: 0.76
+     b₀: 0.292
+```
+
+## Parameter estimation
+
+Let us now proceed as usual, computing the MLEs and obtaining the profiles. 
+
+```julia
+julia> @time sol = mle(prob, NLopt.LD_LBFGS())
+  0.157597 seconds (1.34 M allocations: 57.224 MiB)
+LikelihoodSolution. retcode: Failure
+Maximum likelihood: 5.0672221211843596
+Maximum likelihood estimates: 4-element Vector{Float64}
+     α: 0.9732121347334136
+     β: 1.0887773087403383
+     a₀: 0.7775811746213865
+     b₀: 0.34360331260182864
+```
+
+```julia
+julia> @time prof = profile(prob, sol; parallel=true)
+ 30.587001 seconds (413.50 M allocations: 17.053 GiB, 13.68% gc time)
+ProfileLikelihoodSolution. MLE retcode: Failure
+Confidence intervals: 
+     95.0% CI for α: (0.8559769794708246, 1.08492137675284)
+     95.0% CI for β: (0.9878542591871937, 1.2123035437369885)
+     95.0% CI for a₀: (0.6582428835810638, 0.9116011408658178)
+     95.0% CI for b₀: (0.24674957441638262, 0.45056076118992644)
+```
+
+Now plotting the profiles:
+
+```julia 
+fig = plot_profiles(prof;
+    latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
+    show_mles=true,
+    shade_ci=true,
+    nrow=2,
+    ncol=2,
+    true_vals=[α, β, a₀, b₀])
+```
+
+![Lotka profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lotka_example_profiles.png?raw=true)
+
+## Bivariate profiles 
+
+In all the examples thus far, we have only considered univariate profiles. We also provide a method for computing bivariate profiles through the `bivariate_profile` function. In this function instead of providing a set of integers for the parameters to profile, we provide tuples of integers (or symbols). Let's compute the bivariate profiles for all pairs. In the code below, `resolution=25` means we define 25 layers between the MLE and the bounds for each parameter (see the implementation details section in the sidebar for a definition of a layer). Setting `outer_layers=10` means that we go out 10 layers even after finding the complete confidence region.
+
+```julia 
+pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
+    (:β, :a₀), (:β, :b₀),
+    (:a₀, :b₀)) # Same as pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
+@time prof_2 = bivariate_profile(prob, sol, pairs; parallel=true, resolution=25, outer_layers=10) 
+# Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
+```
