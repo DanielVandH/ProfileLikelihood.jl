@@ -92,8 +92,6 @@ The definitions are similar to the univariate case, although `parameter_values` 
 
 The confidence intervals obtained from profiling can be used to obtain approximate prediction intervals via *profile-wise profile likelihoods*, as defined e.g. in [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367), for a prediction function $\boldsymbol q(\boldsymbol\theta)$. These intervals can be based on varying a single parameter, or by taking the union of individual prediction intervals. The main function for this is `get_prediction_intervals`. Rather than explain in full detail here, please refer to the second example below (the logistic ODE example), where we reproduce the first case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
 
-The interface we use in `get_prediction_intervals` is not too refined currently, and is most subject to change. It works for now, but I will probably make it be more generally about predictions of vector quantities, assuming a function that returns a tuple of quantities, rather than having to deal with the case of scalar vs vector vs whatever else quantities. Ideally the interface should more easily support multithreading, and the code is not the cleanest to read either. Suggestions for this interface are especially welcome.
-
 The full docstring for `get_prediction_intervals` is given in the sidebar.
 
 ## Plotting 

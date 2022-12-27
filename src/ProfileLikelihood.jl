@@ -9,8 +9,8 @@ using SimpleNonlinearSolve
 using Interpolations
 using Requires
 using Printf
-using ChunkSplitters
 using OffsetArrays
+using PolygonInbounds
 using Contour
 
 include("utils.jl")
@@ -50,7 +50,6 @@ export get_y
 export get_parameter_values
 export get_profile_values
 export get_range
-export eval_prediction_function
 export replace_profile!
 export construct_profile_grids
 export bivariate_profile

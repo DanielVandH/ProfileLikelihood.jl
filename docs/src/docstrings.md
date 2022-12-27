@@ -40,7 +40,6 @@ ProfileLikelihood.set_next_initial_estimate!(::Any, ::Any, ::CartesianIndex, ::A
 
 ```@docs 
 get_prediction_intervals 
-eval_prediction_function 
 ```
 
 ## Plotting 
