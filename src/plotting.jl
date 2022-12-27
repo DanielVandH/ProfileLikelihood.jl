@@ -63,29 +63,38 @@ function plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
     return nothing
 end
 function plot_profile!(prof::BivariateProfileLikelihoodSolutionView, fig, ℓ, (k, r), i, j,
-    true_vals, interpolation=false, smooth_confidence_boundary=false, mle_val=nothing, (name_1, name_2)=(LaTeXStrings.L"\psi", LaTeXStrings.L"\varphi"), close_contour=true; axis_kwargs=nothing)
+    true_vals, interpolation=false, smooth_confidence_boundary=false, mle_val=nothing, (name_1, name_2)=(LaTeXStrings.L"\psi", LaTeXStrings.L"\varphi"), close_contour=true,
+    xlim_tuple=nothing, ylim_tuple=nothing; axis_kwargs=nothing)
     if !interpolation
         grid_1 = get_parameter_values(prof, 1).parent
         grid_2 = get_parameter_values(prof, 2).parent
         prof_vals = get_profile_values(prof).parent
     else
-        grid_1 = get_parameter_values(prof, 1).parent
-        grid_2 = get_parameter_values(prof, 2).parent
-        grid_1 = LinRange(extrema(grid_1)..., 12length(grid_1))
-        grid_2 = LinRange(extrema(grid_2)..., 12length(grid_2))
-        prof_vals = [prof(x, y) for x in grid_1, y in grid_2]
+        if isnothing(xlim_tuple) && isnothing(ylim_tuple)
+            grid_1 = get_parameter_values(prof, 1).parent
+            grid_2 = get_parameter_values(prof, 2).parent
+            grid_1 = LinRange(extrema(grid_1)..., 12length(grid_1))
+            grid_2 = LinRange(extrema(grid_2)..., 12length(grid_2))
+            prof_vals = [prof(x, y) for x in grid_1, y in grid_2]
+        else
+            grid_1 = get_parameter_values(prof, 1).parent
+            grid_2 = get_parameter_values(prof, 2).parent
+            grid_1 = LinRange(xlim_tuple[1], xlim_tuple[2], 12length(grid_1))
+            grid_2 = LinRange(ylim_tuple[1], ylim_tuple[2], 12length(grid_2))
+            prof_vals = [prof(x, y) for x in grid_1, y in grid_2]
+        end
     end
     if axis_kwargs !== nothing
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=LaTeXStrings.L"%$(name_1)",
             ylabel=LaTeXStrings.L"%$(name_2)",
-            title=LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$",
+            title=name_1 isa Symbol ? LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : LaTeXStrings.L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
             titlealign=:left; axis_kwargs...)
     else
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=LaTeXStrings.L"%$(name_1)",
             ylabel=LaTeXStrings.L"%$(name_2)",
-            title=LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$",
+            title=name_1 isa Symbol ? LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : LaTeXStrings.L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
             titlealign=:left)
     end
     conf = get_confidence_regions(prof)
@@ -115,6 +124,8 @@ function plot_profile!(prof::BivariateProfileLikelihoodSolutionView, fig, ℓ, (
     if !isnothing(mle_val)
         CairoMakie.scatter!(ax, [mle_val[1]], [mle_val[2]], color=:red, markersize=12)
     end
+    !isnothing(xlim_tuple) && CairoMakie.xlims!(ax, xlim_tuple[1], xlim_tuple[2])
+    !isnothing(ylim_tuple) && CairoMakie.ylims!(ax, ylim_tuple[1], ylim_tuple[2])
     return nothing
 end
 
@@ -211,6 +222,8 @@ Plot results from a bivariate profile likelihood solution `prof`.
 - `smooth_confidence_boundary=false`: Whether to smooth the confidence region boundary when plotting (`true`) or not (`false`). The smoothing is done with a spline.
 - `close_contour=true`: Whether to connect the last part of the confidence region boundary to the beginning (`true`) or not (`false`).
 - `latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))`: LaTeX names to use for the parameters. Defaults to the `syms` names.
+- `xlim_tuples=nothing`: `xlims` to use for each plot. `nothing` if the `xlims` should be set automatically.
+- `ylim_tuples=nothing`: `ylims` to use for each plot. `nothing` if the `ylims` should be set automatically.
 
 # Output 
 The `Figure()` is returned.
@@ -225,7 +238,10 @@ function plot_profiles(prof::BivariateProfileLikelihoodSolution, vars=profiled_p
     interpolation=false,
     smooth_confidence_boundary=false,
     close_contour=true,
-    latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))
+    latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)),
+    xlim_tuples=nothing,
+    ylim_tuples=nothing)
+    vars = convert_symbol_tuples(vars, prof)
     num_plots = (vars isa NTuple{2,Symbol} || vars isa NTuple{2,Int64}) ? 1 : length(vars)
     nr, nc, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
@@ -237,11 +253,16 @@ function plot_profiles(prof::BivariateProfileLikelihoodSolution, vars=profiled_p
     for (ℓ, (k, r)) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            __plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary, show_mles ? (get_likelihood_solution(prof)[k], get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]), close_contour; axis_kwargs)
+            plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
+                show_mles ? (get_likelihood_solution(prof)[k], get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]),
+                close_contour, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ];
+                axis_kwargs)
         else
-            __plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary, show_mles ? (get_likelihood_solution(prof)[k], get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]), close_contour)
+            plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
+                show_mles ? (get_likelihood_solution(prof)[k], get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]),
+                close_contour, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ])
         end
     end
-    Colorbar(fig[1:nr, nc+1], colorrange=(-16, 0), colormap=:viridis, label=LaTeXStrings.L"Normalised profile $ $", ticks=(-16:4:0))
+    CairoMakie.Colorbar(fig[1:nr, nc+1], colorrange=(-16, 0), colormap=:viridis, label=LaTeXStrings.L"Normalised profile $ $", ticks=(-16:4:0))
     return fig
 end
