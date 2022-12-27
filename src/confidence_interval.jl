@@ -73,5 +73,32 @@ Base.eltype(::Type{ConfidenceRegion{T,F}}) where {T,F} = NTuple{2,number_type(T)
 @inline Base.iterate(CI::ConfidenceRegion) = iterate(zip(get_x(CI), get_y(CI)))
 @inline Base.iterate(CI::ConfidenceRegion, state) = iterate(zip(get_x(CI), get_y(CI)), state)
 
-# Base.in(x, CI::ConfidenceInterval) = get_lower(CI) ≤ x ≤ get_upper(CI)
+function get_nodes_and_edges(x, y)
+    if x[end] ≠ x[1] || y[end] ≠ y[1]
+        nodes = [x y]
+        edges = zeros(Int64, length(x), 2)
+        edges[:, 1] .= 1:length(x)
+        edges[1:end-1, 2] .= 2:length(x)
+        edges[end, 2] = 1
+    else
+        nodes = [x[1:end-1] y[1:end-1]]
+        edges = zeros(Int64, length(x) - 1, 2)
+        edges[:, 1] .= 1:length(x)-1
+        edges[1:end-1, 2] .= 2:length(x)-1
+        edges[end, 2] = 1
+    end
+    return nodes, edges
+end
 
+function Base.in(x, CR::ConfidenceRegion)
+    conf_x = get_x(CR)
+    conf_y = get_y(CR)
+    nodes, edges = get_nodes_and_edges(conf_x, conf_y)
+    if typeof(x) <: AbstractVector
+        res = inpoly2(x, nodes, edges)
+        return res[:, 1]
+    else
+        res = inpoly2([x], nodes, edges)
+        return res[1, 1]
+    end
+end

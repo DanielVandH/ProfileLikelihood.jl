@@ -34,3 +34,40 @@ CR = ProfileLikelihood.ConfidenceRegion(x,y,0.95)
 @test eltype(CR) == NTuple{2,Float64}
 cr_xy = collect(CR)
 @test cr_xy == [(x, y) for (x, y) in zip(x, y)]
+
+θ = LinRange(0, 2π-1e-12, 500)
+x = @. cos(θ)
+y = @. sin(θ)
+CR = ProfileLikelihood.ConfidenceRegion(x,y,0.95)
+nodes, edges = ProfileLikelihood.get_nodes_and_edges(x,y)
+@test all([(0.0, 0.0)] ∈ CR)
+@test (0.0,0.0) ∈ CR 
+@test (5.0, 0.) ∉ CR 
+@test (0.3,0.3) ∈ CR 
+ϕ = 2π * sqrt.(rand(1000))
+r = rand(1000)
+pts = [r .* cos.(ϕ) r .* sin.(ϕ)]
+@test all(pts ∈ CR)
+pts = [(0.5,1.8), (2.2, 3.0), (0.0, 0.0)]
+res = pts ∈ CR
+@test res == [false,false,true]
+
+θ = LinRange(0, 2π, 500)
+x = @. cos(θ)
+y = @. sin(θ)
+x[end] = x[1] 
+y[end] = y[1]
+CR = ProfileLikelihood.ConfidenceRegion(x,y,0.95)
+nodes, edges = ProfileLikelihood.get_nodes_and_edges(x,y)
+@test all([(0.0, 0.0)] ∈ CR)
+@test (0.0,0.0) ∈ CR 
+@test (5.0, 0.) ∉ CR 
+@test (0.3,0.3) ∈ CR 
+ϕ = 2π * sqrt.(rand(1000))
+r = rand(1000)
+pts = [r .* cos.(ϕ) r .* sin.(ϕ)]
+@test all(pts ∈ CR)
+pts = [(0.5,1.8), (2.2, 3.0), (0.0, 0.0)]
+res = pts ∈ CR
+@test res == [false,false,true]
+
