@@ -33,6 +33,7 @@ number_of_parameters(::AbstractLikelihoodProblem{N, L}) where {N, L} = N
 
 Base.getindex(prob::AbstractLikelihoodProblem, i::Integer) = get_θ₀(prob, i)
 SciMLBase.sym_to_index(sym, prob::AbstractLikelihoodProblem) = SciMLBase.sym_to_index(sym, get_syms(prob))
+SciMLBase.sym_to_index(i::Integer, ::AbstractLikelihoodProblem) = i
 function Base.getindex(prob::AbstractLikelihoodProblem, sym)
     if SciMLBase.issymbollike(sym)
         i = SciMLBase.sym_to_index(sym, prob)

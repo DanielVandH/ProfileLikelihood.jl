@@ -213,6 +213,8 @@ syms = [:a, :b]
 prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
 @test SciMLBase.sym_to_index(:a, prob) == 1
 @test SciMLBase.sym_to_index(:b, prob) == 2
+@test SciMLBase.sym_to_index(1, prob) == 1
+@test SciMLBase.sym_to_index(5, prob) == 5
 @test prob[1] == 5.0
 @test prob[2] == 2.0
 @test prob[:a] == 5.0
