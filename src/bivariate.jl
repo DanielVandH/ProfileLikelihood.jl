@@ -88,8 +88,9 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     results = BivariateProfileLikelihoodSolution(θ, prof, prob, sol, interpolants, confidence_regions, other_mles)
     return results
 end
+
 function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Symbol}}; kwargs...) where {M}
-    integer_n = ntuple(i -> (SciMLBase.sym_to_index(n[i][1], prob), SciMLBase.sym_to_index(n[i][2], prob)), M)
+    integer_n = convert_symbol_tuples(n, prob)
     return bivariate_profile(prob, sol, integer_n; kwargs...)
 end
 
