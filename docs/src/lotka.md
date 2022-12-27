@@ -12,12 +12,10 @@ using OptimizationNLopt
 using PreallocationTools
 using OptimizationOptimJL
 using LoopVectorization
-using ParameterHandling
 using AbbreviatedStackTraces
 ```
 
-In this example, we will be considering the Lotka-Volterra ODE, and we will also demonstrate how the `GeneralLazyBufferCache` from PreallocationTools.jl can be used for supporting automatic differentiation for similar problems. In addition, we now also show how bivariate profiles can be computed, along with prediction intervals from a bivariate profile. We also show how ParameterHandling.jl can be useful for computing this prediction intervals when we have multiple quantities of interest.
-
+In this example, we will be considering the Lotka-Volterra ODE, and we will also demonstrate how the `GeneralLazyBufferCache` from PreallocationTools.jl can be used for supporting automatic differentiation for similar problems. In addition, we now also show how bivariate profiles can be computed, along with prediction intervals from a bivariate profile. 
 The Lotka-Volterra ODE is given by 
 
 ```math 
@@ -301,3 +299,94 @@ fig_3 = plot_profiles(prof_2, pairs;
 ```
 
 ![Smooth Lotka bivariate profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_bivariate_profiles_smoothed_quality.png?raw=true)
+
+## Prediction intervals
+
+Let's now proceed with finding prediction intervals. We first find the prediction intervals using our univariate results. We use the in-place version of a prediction function:
+
+```julia
+function prediction_function!(q, θ::AbstractVector{T}, data) where {T}
+    α, β, a₀, b₀ = θ
+    t, a_idx, b_idx = data
+    prob = ODEProblem(ODEFunction(ode_fnc!, syms=(:a, :b)), [a₀, b₀], extrema(t), (α, β))
+    sol = solve(prob, Rosenbrock23(), saveat=t)
+    q[a_idx] .= sol[:a]
+    q[b_idx] .= sol[:b]
+    return nothing
+end
+t_many_pts = LinRange(extrema(t)..., 1000)
+a_idx = 1:1000
+b_idx = 1001:2000
+pred_data = (t_many_pts, a_idx, b_idx)
+q_prototype = zeros(2000)
+individual_intervals, union_intervals, q_vals, param_ranges =
+    get_prediction_intervals(prediction_function!, prof, pred_data; parallel=true,
+        q_prototype)
+```
+
+Now we plot these results, plotting the individual intervals as well as the union intervals. As in Example II, we also look at the intervals from the full likelihood.
+
+```julia 
+# Evaluate the exact and MLE solutions
+exact_soln = zeros(2000)
+mle_soln = zeros(2000)
+prediction_function!(exact_soln, [α, β, a₀, b₀], pred_data)
+prediction_function!(mle_soln, get_mle(sol), pred_data)
+
+# Plot the parameter-wise intervals 
+fig = Figure(fontsize=38, resolution=(2935.488f0, 1392.64404f0))
+alp = [['a', 'b', 'e', 'f'], ['c', 'd', 'g', 'h']]
+latex_names = [L"\alpha", L"\beta", L"a_0", L"b_0"]
+for (k, idx) in enumerate((a_idx, b_idx))
+    for i in 1:4
+        row_idx = mod1(i, 2)
+        ax = Axis(fig[i < 3 ? 1 : 2, mod1(i, 2)+(k==2)*2], title=L"(%$(alp[k][i])): Profile-wise PI for %$(latex_names[i])",
+            titlealign=:left, width=600, height=300, xlabel=L"t", ylabel=k == 1 ? L"a(t)" : L"b(t)")
+        vlines!(ax, [7.0], color=:purple, linestyle=:dash, linewidth=2)
+        lines!(ax, t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+        lines!(ax, t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[i], 1)[idx], color=:black, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[i], 2)[idx], color=:black, linewidth=3)
+        band!(ax, t_many_pts, getindex.(individual_intervals[i], 1)[idx], getindex.(individual_intervals[i], 2)[idx], color=(:grey, 0.35))
+    end
+end
+a_ax = Axis(fig[3, 1:2], title=L"(i):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"a(t)")
+b_ax = Axis(fig[3, 3:4], title=L"(j):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"b(t)")
+_ax = (a_ax, b_ax)
+for (k, idx) in enumerate((a_idx, b_idx))
+    band!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], getindex.(union_intervals, 2)[idx], color=(:grey, 0.35))
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 2)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+    lines!(_ax[k], t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+    vlines!(_ax[k], [7.0], color=:purple, linestyle=:dash, linewidth=2)
+end
+
+# Compare to the results obtained from the full likelihood
+lb = get_lower_bounds(prob)
+ub = get_upper_bounds(prob)
+N = 1e5
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:4]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(prob, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(sol) # normalised 
+feasible_idx = findall(lik_vals .> ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+full_q_vals = zeros(2000, size(parameter_evals, 2))
+@views [prediction_function!(full_q_vals[:, j], parameter_evals[:, j], pred_data) for j in axes(parameter_evals, 2)]
+q_lwr = minimum(full_q_vals; dims=2) |> vec
+q_upr = maximum(full_q_vals; dims=2) |> vec
+for (k, idx) in enumerate((a_idx, b_idx))
+    lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
+    lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
+end
+```
+
+![Lotka univariate predictions](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_univariate_predictions.png?raw=true)
+
+We see that the uncertainty around our predictions increases significantly for $t > 7$, as expected since we only use data in $0 \leq t \leq 7$ for estmiating the parameters. Moreover, the union intervals are good approximations to the intervals from the full likelihood.
+
+Now let us extend these results, instead computing prediction intervals from our bivariate profiles.
