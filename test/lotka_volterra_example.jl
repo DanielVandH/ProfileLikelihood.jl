@@ -137,27 +137,27 @@ fig = plot_profiles(prof;
 SAVE_FIGURE && save("figures/lokta_example_profiles.png", fig)
 
 ## Step 6: Obtain the bivariate profiles 
-pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
+param_pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
     (:β, :a₀), (:β, :b₀),
-    (:a₀, :b₀)) # Same as pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
-integer_n = ntuple(i -> (SciMLBase.sym_to_index(pairs[i][1], prob), SciMLBase.sym_to_index(pairs[i][2], prob)), 6)
-@test integer_n == ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(pairs, prob)
+    (:a₀, :b₀)) # Same as param_pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
+integer_n = ntuple(i -> (SciMLBase.sym_to_index(param_pairs[i][1], prob), SciMLBase.sym_to_index(param_pairs[i][2], prob)), 6)
+@test integer_n == ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(param_pairs, prob)
 @test ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)), prob)
 @test (1, 2) == ProfileLikelihood.convert_symbol_tuples((1, 2), prob)
 @test (1, 2) == ProfileLikelihood.convert_symbol_tuples((:α, :β), prob)
 @test (2, 4) == ProfileLikelihood.convert_symbol_tuples((:β, :b₀), prob)
 @test (2, 4) == ProfileLikelihood.convert_symbol_tuples((:β, :b₀), prof)
-@test integer_n == ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(pairs, prof)
+@test integer_n == ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(param_pairs, prof)
 @test ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)), prof)
 @test (1, 2) == ProfileLikelihood.convert_symbol_tuples((1, 2), prof)
 @test (1, 2) == ProfileLikelihood.convert_symbol_tuples((:α, :β), prof)
 @test (2, 4) == ProfileLikelihood.convert_symbol_tuples((:β, :b₀), prof)
 
-@time prof_2 = bivariate_profile(prob, sol, pairs; parallel=true, resolution=25, outer_layers=10) # Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
-@time _prof_2 = bivariate_profile(_prob, _sol, pairs; parallel=true, resolution=25, outer_layers=10)
+@time prof_2 = bivariate_profile(prob, sol, param_pairs; parallel=true, resolution=25, outer_layers=10) # Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
+@time _prof_2 = bivariate_profile(_prob, _sol, param_pairs; parallel=true, resolution=25, outer_layers=10)
 
-@test all(collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) == collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) for (i, j) in pairs)
-for (i, j) in pairs
+@test all(collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) == collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) for (i, j) in param_pairs)
+for (i, j) in param_pairs
     CR_1 = get_confidence_regions(prof_2, i, j)
     CR_2 = get_confidence_regions(_prof_2, i, j)
     A_1 = DelaunayTriangulation.area([[x, y] for (x, y) in CR_1])
@@ -165,7 +165,7 @@ for (i, j) in pairs
     @test A_1 ≈ A_2 rtol = 1e-2
 end
 
-fig_2 = plot_profiles(prof_2, pairs; # pairs not needed, but this ensures we get the same order as above
+fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this ensures we get the same order as above
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
     show_mles=true,
     nrow=3,
@@ -176,7 +176,7 @@ fig_2 = plot_profiles(prof_2, pairs; # pairs not needed, but this ensures we get
     fig_kwargs=(fontsize=24,))
 SAVE_FIGURE && save("figures/lokta_example_bivariate_profiles_low_quality.png", fig_2)
 
-fig_3 = plot_profiles(prof_2, pairs;
+fig_3 = plot_profiles(prof_2, param_pairs;
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
     show_mles=true,
     nrow=3,
@@ -219,7 +219,6 @@ alp = [['a', 'b', 'e', 'f'], ['c', 'd', 'g', 'h']]
 latex_names = [L"\alpha", L"\beta", L"a_0", L"b_0"]
 for (k, idx) in enumerate((a_idx, b_idx))
     for i in 1:4
-        row_idx = mod1(i, 2)
         ax = Axis(fig[i < 3 ? 1 : 2, mod1(i, 2)+(k==2)*2], title=L"(%$(alp[k][i])): Profile-wise PI for %$(latex_names[i])",
             titlealign=:left, width=600, height=300, xlabel=L"t", ylabel=k == 1 ? L"a(t)" : L"b(t)")
         vlines!(ax, [7.0], color=:purple, linestyle=:dash, linewidth=2)
@@ -230,6 +229,8 @@ for (k, idx) in enumerate((a_idx, b_idx))
         band!(ax, t_many_pts, getindex.(individual_intervals[i], 1)[idx], getindex.(individual_intervals[i], 2)[idx], color=(:grey, 0.35))
     end
 end
+
+# Plot the union intervals
 a_ax = Axis(fig[3, 1:2], title=L"(i):$ $ Union of all intervals",
     titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"a(t)")
 b_ax = Axis(fig[3, 3:4], title=L"(j):$ $ Union of all intervals",
@@ -264,3 +265,43 @@ for (k, idx) in enumerate((a_idx, b_idx))
     lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
 end
 SAVE_FIGURE && save("figures/lokta_example_univariate_predictions.png", fig)
+
+## Bivariate prediction intervals 
+individual_intervals, union_intervals, q_vals, param_ranges =
+    get_prediction_intervals(prediction_function!, prof_2, pred_data; parallel=true,
+        q_prototype)
+
+# Plot the intervals 
+fig = Figure(fontsize=38, resolution=(2935.488f0, 1854.64404f0))
+integer_param_pairs = ProfileLikelihood.convert_symbol_tuples(param_pairs, prof_2) # converts to the integer representation
+alp = [['a', 'b', 'e', 'f', 'i', 'j'], ['c', 'd', 'g', 'h', 'k', 'l']]
+for (k, idx) in enumerate((a_idx, b_idx))
+    for (i, (u, v)) in enumerate(integer_param_pairs)
+        ax = Axis(fig[i < 3 ? 1 : (i < 5 ? 2 : 3), mod1(i, 2)+(k==2)*2], title=L"(%$(alp[k][i])): Profile-wise PI for (%$(latex_names[u]), %$(latex_names[v]))",
+            titlealign=:left, width=600, height=300, xlabel=L"t", ylabel=k == 1 ? L"a(t)" : L"b(t)")
+        vlines!(ax, [7.0], color=:purple, linestyle=:dash, linewidth=2)
+        lines!(ax, t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+        lines!(ax, t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 1)[idx], color=:black, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 2)[idx], color=:black, linewidth=3)
+        band!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 1)[idx], getindex.(individual_intervals[(u, v)], 2)[idx], color=(:grey, 0.35))
+    end
+end
+a_ax = Axis(fig[4, 1:2], title=L"(i):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"a(t)")
+b_ax = Axis(fig[4, 3:4], title=L"(j):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"b(t)")
+_ax = (a_ax, b_ax)
+for (k, idx) in enumerate((a_idx, b_idx))
+    band!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], getindex.(union_intervals, 2)[idx], color=(:grey, 0.35))
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 2)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+    lines!(_ax[k], t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+    vlines!(_ax[k], [7.0], color=:purple, linestyle=:dash, linewidth=2)
+end
+for (k, idx) in enumerate((a_idx, b_idx))
+    lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
+    lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
+end
+SAVE_FIGURE && save("figures/lokta_example_bivariate_predictions.png", fig)

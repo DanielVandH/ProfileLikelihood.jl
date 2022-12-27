@@ -243,10 +243,10 @@ fig = plot_profiles(prof;
 In all the examples thus far, we have only considered univariate profiles. We also provide a method for computing bivariate profiles through the `bivariate_profile` function. In this function instead of providing a set of integers for the parameters to profile, we provide tuples of integers (or symbols). Let's compute the bivariate profiles for all pairs. In the code below, `resolution=25` means we define 25 layers between the MLE and the bounds for each parameter (see the implementation details section in the sidebar for a definition of a layer). Setting `outer_layers=10` means that we go out 10 layers even after finding the complete confidence region.
 
 ```julia 
-pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
+param_pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
     (:β, :a₀), (:β, :b₀),
-    (:a₀, :b₀)) # Same as pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
-@time prof_2 = bivariate_profile(prob, sol, pairs; parallel=true, resolution=25, outer_layers=10) 
+    (:a₀, :b₀)) # Same as param_pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
+@time prof_2 = bivariate_profile(prob, sol, param_pairs; parallel=true, resolution=25, outer_layers=10) 
 # Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
 ```
 
@@ -265,7 +265,7 @@ Profile info:
 To plot these profiles, we can use `plot_profiles`. These plots usually take a bit more work than the univariate case. Let's first show a poor plot. We specify `xlims` and `ylims` to match [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
 
 ```julia
-fig_2 = plot_profiles(prof_2, pairs; # pairs not needed, but this ensures we get the correct order
+fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this ensures we get the correct order
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
     show_mles=true,
     nrow=3,
@@ -286,7 +286,7 @@ In these plots, the red boundaries mark the confidence region's boundary, the re
 These two issues can be resolved using the interpolant defined from the original data. Setting `interpolant = true` resolves these two problems. (If we also had a poor quality confidence region, you could also set `smooth_confidence_boundary = true`.)
 
 ```julia
-fig_3 = plot_profiles(prof_2, pairs;
+fig_3 = plot_profiles(prof_2, param_pairs;
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
     show_mles=true,
     nrow=3,
@@ -339,7 +339,6 @@ alp = [['a', 'b', 'e', 'f'], ['c', 'd', 'g', 'h']]
 latex_names = [L"\alpha", L"\beta", L"a_0", L"b_0"]
 for (k, idx) in enumerate((a_idx, b_idx))
     for i in 1:4
-        row_idx = mod1(i, 2)
         ax = Axis(fig[i < 3 ? 1 : 2, mod1(i, 2)+(k==2)*2], title=L"(%$(alp[k][i])): Profile-wise PI for %$(latex_names[i])",
             titlealign=:left, width=600, height=300, xlabel=L"t", ylabel=k == 1 ? L"a(t)" : L"b(t)")
         vlines!(ax, [7.0], color=:purple, linestyle=:dash, linewidth=2)
@@ -350,6 +349,8 @@ for (k, idx) in enumerate((a_idx, b_idx))
         band!(ax, t_many_pts, getindex.(individual_intervals[i], 1)[idx], getindex.(individual_intervals[i], 2)[idx], color=(:grey, 0.35))
     end
 end
+
+# Plot the union intervals
 a_ax = Axis(fig[3, 1:2], title=L"(i):$ $ Union of all intervals",
     titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"a(t)")
 b_ax = Axis(fig[3, 3:4], title=L"(j):$ $ Union of all intervals",
@@ -389,4 +390,47 @@ end
 
 We see that the uncertainty around our predictions increases significantly for $t > 7$, as expected since we only use data in $0 \leq t \leq 7$ for estmiating the parameters. Moreover, the union intervals are good approximations to the intervals from the full likelihood.
 
-Now let us extend these results, instead computing prediction intervals from our bivariate profiles.
+Now let us extend these results, instead computing prediction intervals from our bivariate profiles. The exact same function can be used for this.
+
+```julia
+# Bivariate prediction intervals 
+individual_intervals, union_intervals, q_vals, param_ranges =
+    get_prediction_intervals(prediction_function!, prof_2, pred_data; parallel=true,
+        q_prototype)
+
+# Plot the intervals 
+fig = Figure(fontsize=38, resolution=(2935.488f0, 1854.64404f0))
+integer_param_pairs = ProfileLikelihood.convert_symbol_tuples(param_pairs, prof_2) # converts to the integer representation
+alp = [['a', 'b', 'e', 'f', 'i', 'j'], ['c', 'd', 'g', 'h', 'k', 'l']]
+for (k, idx) in enumerate((a_idx, b_idx))
+    for (i, (u, v)) in enumerate(integer_param_pairs)
+        ax = Axis(fig[i < 3 ? 1 : (i < 5 ? 2 : 3), mod1(i, 2)+(k==2)*2], title=L"(%$(alp[k][i])): Profile-wise PI for (%$(latex_names[u]), %$(latex_names[v]))",
+            titlealign=:left, width=600, height=300, xlabel=L"t", ylabel=k == 1 ? L"a(t)" : L"b(t)")
+        vlines!(ax, [7.0], color=:purple, linestyle=:dash, linewidth=2)
+        lines!(ax, t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+        lines!(ax, t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 1)[idx], color=:black, linewidth=3)
+        lines!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 2)[idx], color=:black, linewidth=3)
+        band!(ax, t_many_pts, getindex.(individual_intervals[(u, v)], 1)[idx], getindex.(individual_intervals[(u, v)], 2)[idx], color=(:grey, 0.35))
+    end
+end
+a_ax = Axis(fig[4, 1:2], title=L"(i):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"a(t)")
+b_ax = Axis(fig[4, 3:4], title=L"(j):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300, xlabel=L"t", ylabel=L"b(t)")
+_ax = (a_ax, b_ax)
+for (k, idx) in enumerate((a_idx, b_idx))
+    band!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], getindex.(union_intervals, 2)[idx], color=(:grey, 0.35))
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 1)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, getindex.(union_intervals, 2)[idx], color=:black, linewidth=3)
+    lines!(_ax[k], t_many_pts, exact_soln[idx], color=:red, linewidth=3)
+    lines!(_ax[k], t_many_pts, mle_soln[idx], color=:blue, linestyle=:dash, linewidth=3)
+    vlines!(_ax[k], [7.0], color=:purple, linestyle=:dash, linewidth=2)
+end
+for (k, idx) in enumerate((a_idx, b_idx))
+    lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
+    lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
+end
+```
+
+![Lotka bivariate predictions](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_bivariate_predictions.png?raw=true)
