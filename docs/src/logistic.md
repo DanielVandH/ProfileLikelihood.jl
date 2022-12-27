@@ -144,7 +144,7 @@ Note that the second argument `data` allows for extra parameters to be passed. T
 t_many_pts = LinRange(extrema(t)..., 1000)
 parameter_wise, union_intervals, all_curves, param_range =
     get_prediction_intervals(prediction_function, prof,
-        t_many_pts; q_type=Vector{Float64})
+        t_many_pts, parallel=true)
 # t_many_pts is the `data` argument, it doesn't have to be time for other problems
 ```
 
@@ -182,7 +182,7 @@ latex_names = [L"\lambda", L"K", L"u_0"]
 for i in 1:3
     ax = Axis(fig[i < 3 ? 1 : 2, i < 3 ? i : 1], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
         titlealign=:left, width=600, height=300)
-    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
     lines!(ax, t_many_pts, exact_soln, color=:red)
     lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
     lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black, linewidth=3)

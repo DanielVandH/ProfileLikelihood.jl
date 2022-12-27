@@ -1,11 +1,11 @@
-using Random 
+using Random
 using ..ProfileLikelihood
-using Optimization 
+using Optimization
 using OrdinaryDiffEq
-using CairoMakie 
+using CairoMakie
 using LaTeXStrings
 using OptimizationNLopt
-const SAVE_FIGURE = false 
+const SAVE_FIGURE = true
 
 ######################################################
 ## Example II: Logistic ODE
@@ -118,7 +118,7 @@ fig = plot_profiles(prof;
     true_vals=[λ, K, u₀],
     fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
-SAVE_FIGURE && save("figures/logistic_example.png", fig)
+SAVE_FIGURE && save("test/figures/logistic_example.png", fig)
 
 ## Step 5: Get prediction intervals, compare to evaluating at many points 
 function prediction_function(θ, data)
@@ -131,7 +131,8 @@ end
 t_many_pts = LinRange(extrema(t)..., 1000)
 parameter_wise, union_intervals, all_curves, param_range =
     get_prediction_intervals(prediction_function, prof,
-        t_many_pts; q_type=Vector{Float64})
+        t_many_pts, parallel=true)
+
 # t_many_pts is the `data` argument, it doesn't have to be time for other problems
 
 # Get the exact solution and MLE solutions first for comparison 
@@ -145,7 +146,7 @@ latex_names = [L"\lambda", L"K", L"u_0"]
 for i in 1:3
     ax = Axis(fig[i < 3 ? 1 : 2, i < 3 ? i : 1], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
         titlealign=:left, width=600, height=300)
-    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
     lines!(ax, t_many_pts, exact_soln, color=:red)
     lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
     lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black, linewidth=3)
@@ -177,4 +178,4 @@ q_upr = maximum(q_mat; dims=2) |> vec
 lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
 lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)
 
-SAVE_FIGURE && save("figures/logistic_example_prediction.png", fig)
+SAVE_FIGURE && save("test/figures/logistic_example_prediction.png", fig)

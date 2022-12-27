@@ -12,6 +12,7 @@ using Printf
 using OffsetArrays
 using PolygonInbounds
 using Contour
+using ChunkSplitters
 
 include("utils.jl")
 include("problem_updates.jl")
