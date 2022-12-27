@@ -248,6 +248,9 @@ function Base.getindex(prof::BivariateProfileLikelihoodSolution, sym1, sym2)
         prof[i, j]
     end
 end
+function Base.getindex(prof::BivariateProfileLikelihoodSolution, ij::NTuple{2})
+    return prof[ij[1], ij[2]]
+end
 
 get_parent(prof::BivariateProfileLikelihoodSolutionView) = prof.parent
 get_index(::BivariateProfileLikelihoodSolutionView{N,M,PLS}) where {N,M,PLS} = (N, M)

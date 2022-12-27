@@ -768,6 +768,9 @@ for results in (results_mle, results_near, results_int, results_par, results_nea
             @test results(λval, Kval, 1, 2) ≈ results.profile_values[(1, 2)][i, j]
             @test results(λval, Kval, :λ, :K) ≈ results.profile_values[(1, 2)][i, j]
             @test results[:λ, :K](λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+            @test results[(:λ, :K)](λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+            @test results[(1, 2)](λval, Kval) ≈ results.profile_values[(1, 2)][i, j]
+
         end
     end
     conf_x = results.confidence_regions[(1, 2)].x
