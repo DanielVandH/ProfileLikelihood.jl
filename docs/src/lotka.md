@@ -34,7 +34,7 @@ o = a(t_i)$ and $b_i^o = b(t_i)$, $i=1,\ldots,m$, this means that we have the ti
 (a_i^o, b_i^o) \sim \mathcal N\left(\boldsymbol z_i(\boldsymbol \theta), \sigma^2 \boldsymbol I\right), \quad i=1,2,\ldots,m,
 ```
 
-and this is what defines our likelihood ($\boldsymbol I$ is the $2$-square identity matrix).
+and this is what defines our likelihood ($\boldsymbol I$ is the $2$-square identity matrix). We use values $0 \leq t \leq 7$ for estimation, and predict on $0 \leq t \leq 10$.
 
 ## Data generation and setting up the problem
 
@@ -251,3 +251,53 @@ pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
 @time prof_2 = bivariate_profile(prob, sol, pairs; parallel=true, resolution=25, outer_layers=10) 
 # Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
 ```
+
+```julia
+303.152134 seconds (6.19 G allocations: 248.989 GiB, 19.71% gc time)
+BivariateProfileLikelihoodSolution. MLE retcode: Failure
+Profile info: 
+     (β, b₀): 25 layers. Bbox for 95.0% CR: [0.9651436140629203, 1.247290653464279] × [0.22398105279668468, 0.47820878016805074]
+     (α, β): 25 layers. Bbox for 95.0% CR: [0.8255352964428667, 1.1123497609332378] × [0.9652918919016166, 1.247309583537848]
+     (α, a₀): 25 layers. Bbox for 95.0% CR: [0.8257283233039527, 1.1124082018183483] × [0.6310218313830878, 0.9474704551651254]
+     (a₀, b₀): 25 layers. Bbox for 95.0% CR: [0.6309957786415554, 0.9473859257363246] × [0.22405539515039705, 0.47825405211860755]
+     (α, b₀): 25 layers. Bbox for 95.0% CR: [0.82594429486772, 1.1123826052893557] × [0.22424659978529984, 0.47806214015711407]
+     (β, a₀): 23 layers. Bbox for 95.0% CR: [0.965430158032343, 1.2470957980475892] × [0.6310333834567258, 0.9478656372614495]
+```
+
+To plot these profiles, we can use `plot_profiles`. These plots usually take a bit more work than the univariate case. Let's first show a poor plot. We specify `xlims` and `ylims` to match [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367).
+
+```julia
+fig_2 = plot_profiles(prof_2, pairs; # pairs not needed, but this ensures we get the correct order
+    latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
+    show_mles=true,
+    nrow=3,
+    ncol=2,
+    true_vals=[α, β, a₀, b₀],
+    xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
+    ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
+    fig_kwargs=(fontsize=24,))
+```
+
+![Poor Lotka bivariate profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_bivariate_profiles_low_quality.png?raw=true)
+
+In these plots, the red boundaries mark the confidence region's boundary, the red dot shows the MLE, and the black dots are the true values. There are wo issues with these plots:
+
+1. The plots are quite pixelated due to the low resolution.
+2. The plots don't fill out the entire axis.
+
+These two issues can be resolved using the interpolant defined from the original data. Setting `interpolant = true` resolves these two problems. (If we also had a poor quality confidence region, you could also set `smooth_confidence_boundary = true`.)
+
+```julia
+fig_3 = plot_profiles(prof_2, pairs;
+    latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
+    show_mles=true,
+    nrow=3,
+    ncol=2,
+    true_vals=[α, β, a₀, b₀],
+    interpolation=true,
+    xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
+    ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
+    fig_kwargs=(fontsize=24,))
+```
+
+![Smooth Lotka bivariate profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_bivariate_profiles_smoothed_quality.png?raw=true)
