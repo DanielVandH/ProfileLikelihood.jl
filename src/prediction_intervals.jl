@@ -7,7 +7,7 @@
     get_prediction_intervals(q, prof::ProfileLikelihoodSolution, data;
         q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data), resolution=250)
 
-Obtain prediction intervals for the output of the prediction function `q`.
+Obtain prediction intervals for the output of the prediction function `q`, assuming `q` returns (or operates in-place on) a vector.
 
 # Arguments 
 - `q`: The prediction function, taking either the form `(θ, data)` or `(cache, θ, data)`. The former version is an out-of-place version, returning the full vector, while the latter version is an in-place version, with the output being placed into `cache`. The argument `θ` is the same as the parameters used in the likelihood problem (from `prof`), and the `data` argument is the same `data` as in this function. 
@@ -16,7 +16,7 @@ Obtain prediction intervals for the output of the prediction function `q`.
 
 # Keyword Arguments 
 - `q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data)`: A prototype for the result of `q`. If you are using the `q(θ, data)` version of `q`, this can be inferred from `build_q_prototype`, but if you are using the in-place version then a `build_q_prototype` is needed. For example, if `q` returns a vector with eltype `Float64` and has length 27, `q_prototype` could be `zeros(27)`.
-- `resolution=250`: The amount of curves to evaluate for each parameter.
+- `resolution::Integer=250`: The amount of curves to evaluate for each parameter. This will be the same for each parameter.
 - `parallel=false`: Whether to use multithreading. Multithreading is used when building `q_vals` below.
 
 # Outputs 
@@ -29,7 +29,7 @@ Four values are returned. In order:
 """
 function get_prediction_intervals(q, prof::ProfileLikelihoodSolution, data;
     q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data),
-    resolution=250,
+    resolution::Integer=250,
     parallel=false)
     ## Test if q is inplace or not
     iip = isinplace(q, 3)::Bool
