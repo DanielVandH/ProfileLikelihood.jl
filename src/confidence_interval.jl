@@ -90,15 +90,14 @@ function get_nodes_and_edges(x, y)
     return nodes, edges
 end
 
-function Base.in(x, CR::ConfidenceRegion)
+function Base.in(x::AbstractVector, CR::ConfidenceRegion)
     conf_x = get_x(CR)
     conf_y = get_y(CR)
     nodes, edges = get_nodes_and_edges(conf_x, conf_y)
-    if typeof(x) <: AbstractVector
-        res = inpoly2(x, nodes, edges)
-        return res[:, 1]
-    else
-        res = inpoly2([x], nodes, edges)
-        return res[1, 1]
-    end
+    res = inpoly2(x, nodes, edges)::BitMatrix
+    return res[:, 1]::BitVector
+end 
+function Base.in(x, CR::ConfidenceRegion)
+    res = [x] ∈ CR 
+    return res[1]::Bool
 end
