@@ -458,7 +458,7 @@ t_many_pts = LinRange(prob.initial_time, prob.final_time, 250)
 jac = FiniteVolumeMethod.jacobian_sparsity(prob)
 prediction_data = (c=c, prob=prob, t=t_many_pts, alg=alg, jac=jac)
 parameter_wise, union_intervals, all_curves, param_range =
-    get_prediction_intervals(compute_mass_function, prof, prediction_data; q_type=Vector{Float64})
+    get_prediction_intervals(compute_mass_function, prof, prediction_data; parallel=true)
 ```
 
 Now we can visualise the curves. We will also show the mass curve from the exact parameter values, as well as from the MLE. 
@@ -472,7 +472,7 @@ latex_names = [L"k", L"u_0"]
 for i in 1:2
     ax = Axis(fig[1, i], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
         titlealign=:left, width=600, height=300)
-    [lines!(ax, t_many_pts, all_curves[i][j], color=:grey) for j in eachindex(param_range[1])]
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
     lines!(ax, t_many_pts, exact_soln, color=:red)
     lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
     lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black)
