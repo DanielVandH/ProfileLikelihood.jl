@@ -1,6 +1,6 @@
 name = "ProfileLikelihood"
 uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
-authors = ["DanielVandH <danj.vandenheuvel@gmail.com>"]
+authors = ["Daniel VandenHeuvel <danj.vandenheuvel@gmail.com>"]
 version = "0.2.0"
 
 [deps]
