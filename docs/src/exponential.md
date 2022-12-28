@@ -166,3 +166,85 @@ fig = plot_profiles(prof; nrow=1, ncol=3,
 ```
 
 ![Linear exponential profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/linear_exponential_example.png?raw=true)
+
+## Just the code
+
+Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
+
+```julia 
+## Step 1: Generate some data for the problem and define the likelihood
+using OrdinaryDiffEq, Random, Distributions, LoopVectorization, MuladdMacro
+Random.seed!(2992999)
+λ = -0.5
+y₀ = 15.0
+σ = 0.5
+T = 5.0
+n = 450
+Δt = T / n
+t = [j * Δt for j in 0:n]
+y = y₀ * exp.(λ * t)
+yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
+@inline function ode_fnc(u, p, t)
+    local λ
+    λ = p
+    du = λ * u
+    return du
+end
+@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
+    local yᵒ, n, λ, σ, u0
+    yᵒ, n = data
+    λ, σ, u0 = θ
+    integrator.p = λ
+    ## Now solve the problem 
+    reinit!(integrator, u0)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ℓ = -0.5(n + 1) * log(2π * σ^2)
+    s = zero(T)
+    @turbo @muladd for i in eachindex(yᵒ, integrator.sol.u)
+        s = s + (yᵒ[i] - integrator.sol.u[i]) * (yᵒ[i] - integrator.sol.u[i])
+    end
+    ℓ = ℓ - 0.5s / σ^2
+end
+
+## Step 2: Define the problem
+using Optimization
+θ₀ = [-1.0, 0.5, 19.73] # will be replaced anyway
+lb = [-10.0, 1e-6, 0.5]
+ub = [10.0, 10.0, 25.0]
+syms = [:λ, :σ, :y₀]
+prob = LikelihoodProblem(
+    _loglik_fnc, θ₀, ode_fnc, y₀, (0.0, T);
+    syms=syms,
+    data=(yᵒ, n),
+    ode_parameters=1.0, # temp value for λ
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Tsit5()
+)
+
+## Step 3: Grid search
+regular_grid = RegularGrid(lb, ub, 50) # resolution can also be given as a vector for each parameter
+gs = grid_search(prob, regular_grid)
+
+## Step 4: Compute the MLE, starting at the grid search solution 
+using OptimizationOptimJL
+prob = ProfileLikelihood.update_initial_estimate(prob, gs)
+sol = mle(prob, Optim.LBFGS())
+
+## Step 5: Profile 
+using OptimizationNLopt
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
+
+
+## Step 6: Visualise 
+using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L"\lambda", L"\sigma", L"y_0"],
+    true_vals=[λ, σ, y₀],
+    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    axis_kwargs=(width=600, height=300))
+```
