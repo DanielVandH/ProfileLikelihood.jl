@@ -199,3 +199,74 @@ plot_profiles(prof, [:σ, :β₁, :β₃]) # can use symbols
 plot_profiles(prof, 1) # can just provide an integer 
 plot_profiles(prof, :β₂) # symbols work
 ```
+
+## Just the code
+
+Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
+
+```julia 
+## Step 1: Generate some data for the problem and define the likelihood
+Random.seed!(98871)
+n = 600
+β = [-1.0, 1.0, 0.5, 3.0]
+σ = 0.05
+x₁ = rand(Uniform(-1, 1), n)
+x₂ = rand(Normal(1.0, 0.5), n)
+X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
+ε = rand(Normal(0.0, σ), n)
+y = X * β + ε
+sse = DiffCache(zeros(n))
+β_cache = DiffCache(similar(β), 10)
+dat = (y, X, sse, n, β_cache)
+@inline function loglik_fnc(θ, data)
+    σ, β₀, β₁, β₂, β₃ = θ
+    y, X, sse, n, β = data
+    _sse = get_tmp(sse, θ)
+    _β = get_tmp(β, θ)
+    _β[1] = β₀
+    _β[2] = β₁
+    _β[3] = β₂
+    _β[4] = β₃
+    ℓℓ = -0.5n * log(2π * σ^2)
+    mul!(_sse, X, _β)
+    for i in eachindex(y)
+        ℓℓ = ℓℓ - 0.5 / σ^2 * (y[i] - _sse[i])^2
+    end
+    return ℓℓ
+end
+
+## Step 2: Define the problem 
+θ₀ = ones(5)
+prob = LikelihoodProblem(loglik_fnc, θ₀;
+    data=dat,
+    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
+    prob_kwargs=(
+        lb=[0.0, -Inf, -Inf, -Inf, -Inf],
+        ub=Inf * ones(5)
+    ),
+    syms=[:σ, :β₀, :β₁, :β₂, :β₃]
+)
+
+## Step 3: Compute the MLE
+sol = mle(prob, Optim.LBFGS())
+
+## Step 4: Profile 
+lb = [1e-12, -5.0, -5.0, -5.0, -5.0]
+ub = [15.0, 15.0, 15.0, 15.0, 15.0]
+resolutions = [600, 200, 200, 200, 200] # use many points for σ
+param_ranges = construct_profile_ranges(sol, lb, ub, resolutions)
+prof = profile(prob, sol; param_ranges, parallel=true)
+
+## Step 5: Visualise 
+using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof;
+    latex_names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"], # default names would be of the form θᵢ
+    show_mles=true,
+    shade_ci=true,
+    true_vals=[σ, β...],
+    fig_kwargs=(fontsize=30, resolution=(2134.0f0, 906.0f0)),
+    axis_kwargs=(width=600, height=300))
+xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
+xlims!(fig.content[2], -1.025, -0.975)
+xlims!(fig.content[4], 0.475, 0.525)
+```

@@ -236,7 +236,7 @@ fig = plot_profiles(prof;
     true_vals=[α, β, a₀, b₀])
 ```
 
-![Lotka profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lotka_example_profiles.png?raw=true)
+![Lotka profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/lokta_example_profiles.png?raw=true)
 
 ## Bivariate profiles 
 
