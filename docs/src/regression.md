@@ -205,6 +205,7 @@ plot_profiles(prof, :β₂) # symbols work
 Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
 
 ```julia 
+using Random, Distributions, PreallocationTools, LinearAlgebra
 ## Step 1: Generate some data for the problem and define the likelihood
 Random.seed!(98871)
 n = 600
@@ -236,6 +237,7 @@ dat = (y, X, sse, n, β_cache)
 end
 
 ## Step 2: Define the problem 
+using Optimization
 θ₀ = ones(5)
 prob = LikelihoodProblem(loglik_fnc, θ₀;
     data=dat,
@@ -248,6 +250,7 @@ prob = LikelihoodProblem(loglik_fnc, θ₀;
 )
 
 ## Step 3: Compute the MLE
+using OptimizationOptimJL
 sol = mle(prob, Optim.LBFGS())
 
 ## Step 4: Profile 
