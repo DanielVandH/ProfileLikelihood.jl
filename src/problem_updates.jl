@@ -16,7 +16,7 @@ function replace_objective_function(prob::OptimizationProblem{iip,FF,uType,P,B,L
 end
 
 # fix the objective function's nth parameter at θₙ
-function construct_fixed_optimisation_function(prob::OptimizationProblem, n, θₙ, cache)
+function construct_fixed_optimisation_function(prob::OptimizationProblem, n::Integer, θₙ, cache)
     original_f = prob.f
     new_f = @inline (θ, p) -> begin
         cache2 = get_tmp(cache, θ)
@@ -34,12 +34,50 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n, θ�
     return replace_objective_function(prob, new_f)
 end
 
+# fix the objective function's (n1, n2) parameters at (θn1, θn2)
+function construct_fixed_optimisation_function(prob::OptimizationProblem, n::NTuple{2,Integer}, θₙ, cache)
+    n₁, n₂ = n
+    θₙ₁, θₙ₂ = θₙ
+    if n₁ > n₂
+        n₁, n₂ = n₂, n₁
+        θₙ₁, θₙ₂ = θₙ₂, θₙ₁
+    end
+    original_f = prob.f
+    new_f = @inline (θ, p) -> begin
+        cache2 = get_tmp(cache, θ)
+        @inbounds for i in eachindex(cache2)
+            if i < n₁
+                cache2[i] = θ[i]
+            elseif i == n₁
+                cache2[i] = θₙ₁
+            elseif n₁ < i < n₂
+                cache2[i] = θ[i-1]
+            elseif i == n₂
+                cache2[i] = θₙ₂
+            elseif i > n₂
+                cache2[i] = θ[i-2]
+            end
+        end
+        return original_f(cache2, p)
+    end
+    return replace_objective_function(prob, new_f)
+end
+
 # remove lower bounds, upper bounds, and also remove the nth value from the initial estimate
 function exclude_parameter(prob::OptimizationProblem, n::Integer)
     !has_bounds(prob) && return update_initial_estimate(prob, prob.u0[Not(n)])
     lb₋ₙ = get_lower_bounds(prob, Not(n))
     ub₋ₙ = get_upper_bounds(prob, Not(n))
     new_prob = remake(prob; lb=lb₋ₙ, ub=ub₋ₙ, u0=prob.u0[Not(n)])
+    return new_prob
+end
+
+# remove lower bounds, upper bounds, and also remove the (n1,n2) value from the initial estimate
+function exclude_parameter(prob::OptimizationProblem, n::NTuple{2,Integer})
+    !has_bounds(prob) && return update_initial_estimate(prob, prob.u0[Not(n[1], n[2])])
+    lb₋ₙ = get_lower_bounds(prob, Not(n[1], n[2]))
+    ub₋ₙ = get_upper_bounds(prob, Not(n[1], n[2]))
+    new_prob = remake(prob; lb=lb₋ₙ, ub=ub₋ₙ, u0=prob.u0[Not(n[1], n[2])])
     return new_prob
 end
 

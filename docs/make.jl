@@ -11,6 +11,7 @@ pages = [
     "Example II: Logistic ordinary differential equation" => "logistic.md"
     "Example III: Linear exponential ODE and grid searching" => "exponential.md"
     "Example IV: Diffusion equation on a square plate" => "heat.md"
+    "Example V: Lotka-Volterra ODE, GeneralLazyBufferCache, and computing bivarate profile likelihoods" => "lotka.md"
     "Mathematical and Implementation Details" => "math.md"
 ])
 

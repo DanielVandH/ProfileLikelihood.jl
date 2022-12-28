@@ -24,14 +24,22 @@ ProfileLikelihood.ProfileLikelihoodSolution
 ProfileLikelihood.ConfidenceInterval
 profile 
 replace_profile!
-ProfileLikelihood.set_next_initial_estimate!
+ProfileLikelihood.set_next_initial_estimate!(::Any, ::Any, ::Any, ::Any, ::Any)
+```
+
+## BivariateProfileLikelihoodSolution 
+
+```@docs 
+ProfileLikelihood.BivariateProfileLikelihoodSolution 
+ProfileLikelihood.ConfidenceRegion 
+bivariate_profile
+ProfileLikelihood.set_next_initial_estimate!(::Any, ::Any, ::CartesianIndex, ::Any, ::Any, ::Any, ::Any, ::Val{M}) where M
 ```
 
 ## Prediction intervals 
 
 ```@docs 
 get_prediction_intervals 
-eval_prediction_function 
 ```
 
 ## Plotting 
@@ -47,6 +55,7 @@ plot_profiles
 ```@docs 
 ProfileLikelihood.AbstractGrid 
 ProfileLikelihood.RegularGrid 
+ProfileLikelihood.FusedRegularGrid
 ProfileLikelihood.IrregularGrid 
 ```
 

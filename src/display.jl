@@ -13,6 +13,7 @@ function Base.show(io::IO, ::MIME"text/plain", prob::T) where {T<:AbstractLikeli
             no_color, "     $(sym_param_names[i]): $(prob[i])")
     end
 end
+
 function Base.summary(io::IO, prob::T) where {T<:AbstractLikelihoodProblem}
     type_color, no_color = SciMLBase.get_colorizers(io)
     print(io,
@@ -21,6 +22,7 @@ function Base.summary(io::IO, prob::T) where {T<:AbstractLikelihoodProblem}
         type_color, isinplace(prob.prob),
         no_color)
 end
+
 function Base.show(io::IO, mime::MIME"text/plain", sol::T) where {T<:AbstractLikelihoodSolution}
     type_color, no_color = SciMLBase.get_colorizers(io)
     println(io,
@@ -40,6 +42,7 @@ function Base.show(io::IO, mime::MIME"text/plain", sol::T) where {T<:AbstractLik
             no_color, "     $(sym_param_names[i]): $(sol[i])")
     end
 end
+
 function Base.summary(io::IO, sol::T) where {T<:AbstractLikelihoodSolution}
     type_color, no_color = SciMLBase.get_colorizers(io)
     print(io,
@@ -48,6 +51,7 @@ function Base.summary(io::IO, sol::T) where {T<:AbstractLikelihoodSolution}
         type_color, get_retcode(sol),
         no_color)
 end
+
 function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:ProfileLikelihoodSolution}
     type_color, no_color = SciMLBase.get_colorizers(io)
     println(io,
@@ -64,7 +68,8 @@ function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:ProfileLikelih
             no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))")
     end
 end
-function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionView{N,PLS})  where {N,PLS}
+
+function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionView{N,PLS}) where {N,PLS}
     type_color, no_color = SciMLBase.get_colorizers(io)
     param_name = get_syms(prof)
     CIs = get_confidence_intervals(prof)
@@ -79,3 +84,40 @@ function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionVi
     print(io,
         no_color, "$(100get_level(CIs))% CI for $(param_name): ($(get_lower(CIs)), $(get_upper(CIs)))")
 end
+
+function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:BivariateProfileLikelihoodSolution}
+    type_color, no_color = SciMLBase.get_colorizers(io)
+    println(io,
+        type_color, nameof(typeof(prof)),
+        no_color, ". MLE retcode: ",
+        type_color, get_retcode(get_likelihood_solution(prof)))
+    println(io,
+        no_color, "Profile info: ")
+    pairs = profiled_parameters(prof)
+    sym_param_names = get_syms(prof)
+    for (i, j) in pairs
+        a, b, c, d = get_bounding_box(prof, i, j)
+        num_layers = number_of_layers(prof, i, j)
+        region_level = 100get_level(get_confidence_regions(prof, i, j))
+        (i, j) ≠ last(pairs) ? println(io,
+            no_color, "     ($(sym_param_names[i]), $(sym_param_names[j])): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]") : print(io,
+            no_color, "     ($(sym_param_names[i]), $(sym_param_names[j])): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]")
+    end
+end
+function Base.show(io::IO, ::MIME"text/plain", prof::BivariateProfileLikelihoodSolutionView{N,M,PLS}) where {N,M,PLS}
+    type_color, no_color = SciMLBase.get_colorizers(io)
+    param_name = get_syms(prof)
+    CR = get_confidence_regions(prof)
+    println(io,
+        type_color, "Bivariate profile likelihood",
+        no_color, " for parameters",
+        type_color, " $param_name",
+        no_color, ". MLE retcode: ",
+        type_color, get_retcode(get_likelihood_solution(prof)))
+    println(io,
+        no_color, "MLEs: ($(get_likelihood_solution(prof)[N]), $(get_likelihood_solution(prof)[M]))")
+    a, b, c, d = get_bounding_box(prof)
+    print(io,
+        no_color, "$(100get_level(CR))% bounding box for $param_name: [$a, $b] × [$c, $d]")
+end
+

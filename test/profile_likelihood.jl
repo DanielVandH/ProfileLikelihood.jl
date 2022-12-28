@@ -9,6 +9,7 @@ using Optimization
 using OptimizationOptimJL
 using OptimizationNLopt
 using FiniteVolumeMethod
+using InteractiveUtils
 using DelaunayTriangulation
 include("templates.jl")
 
@@ -67,7 +68,10 @@ _θ, _prof, _other_mles, _splines, _confidence_intervals = ProfileLikelihood.pre
 
 ## Test that we can correctly normalise the objective function 
 shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, false)
-@test shifted_opt_prob === _opt_prob
+@test shifted_opt_prob.f.f.shift == 0.0
+@test shifted_opt_prob.f.f.original_f == _opt_prob.f
+@test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -loglikk(reduce(vcat, θ), dat)
+@inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
 shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, true)
 @test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -(loglikk(reduce(vcat, θ), dat) - _ℓmax)
 @inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
@@ -158,6 +162,43 @@ prof = profile(prob, sol, [1, 3])
 @test ProfileLikelihood.profiled_parameters(prof) == [1, 3]
 @test ProfileLikelihood.number_of_profiled_parameters(prof) == 2
 
+## Check that the parameter values are correct 
+xmin, xmax = extrema(get_parameter_values(prof, :σ))
+m = length(get_parameter_values(prof, :σ))
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(200 - 1)
+Δright = (xmax - sol[:σ])/(10 - 1) # reached min_steps
+left_grid = xmin:Δleft:sol[:σ]
+right_grid = sol[:σ]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :σ) ≈ full_grid
+
+xmin, xmax = extrema(get_parameter_values(prof, :β₁))
+m = length(get_parameter_values(prof, :β₁))
+Δleft = (sol[:β₁] - xmin)/(10 - 1)
+Δright = (xmax - sol[:β₁])/(10 - 1) # reached min_steps
+left_grid = xmin:Δleft:sol[:β₁]
+right_grid = sol[:β₁]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :β₁) ≈ full_grid
+
+## Test that other_mles and parameter_values line up 
+for i in eachindex(prof.parameter_values[1])
+    _σ = get_parameter_values(prof, :σ)[i]
+    b0, b1, b2, b3 = ProfileLikelihood.get_other_mles(prof, :σ)[i]
+    θ = [_σ, b0, b1, b2, b3]
+    ℓ = prob.log_likelihood_function(θ, prob.data) - get_maximum(sol)
+    @test ℓ ≈ get_profile_values(prof, :σ)[i]
+    @test ℓ ≈ prof[:σ](_σ) atol = 1e-12
+end
+for i in eachindex(prof.parameter_values[3])
+    _β₁ = get_parameter_values(prof, :β₁)[i]
+    s, b0, b2, b3 = ProfileLikelihood.get_other_mles(prof, :β₁)[i]
+    θ = [s, b0, _β₁, b2, b3]
+    ℓ = prob.log_likelihood_function(θ, prob.data) - get_maximum(sol)
+    @test ℓ ≈ get_profile_values(prof, :β₁)[i]
+    @test ℓ ≈ prof[:β₁](_β₁) atol = 1e-12
+end
+
 ## Test that views are working correctly on the ProfileLikelihoodSolution
 i = 1
 prof_view = prof[i]
@@ -180,7 +221,28 @@ prof_view = prof[i]
 
 ## Test that we can correctly call the profiles 
 x = prof.splines[i].itp.knots
-@test prof_view(x) == prof(x, i) == prof.splines[i](x)
+@test prof_view(x) == prof(x, i) == prof.splines[i](x) ≈ prof_view.parent.profile_values[i]
+
+## Test that resolution is being correctly applied
+prof = profile(prob, sol, [1, 3]; resolution = [50000, 18000, 75000, 5000, 5000], min_steps=0)
+
+xmin, xmax = extrema(get_parameter_values(prof, :σ))
+m = length(get_parameter_values(prof, :σ))
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(50000 - 1)
+Δright = (get_upper_bounds(prob)[1] - sol[:σ])/(50000 - 1) 
+left_grid = xmin:Δleft:sol[:σ]
+right_grid = sol[:σ]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :σ) ≈ full_grid
+
+xmin, xmax = extrema(get_parameter_values(prof, :β₁))
+m = length(get_parameter_values(prof, :β₁))
+Δleft = (sol[:β₁] - get_lower_bounds(prob)[3])/(75000 - 1)
+Δright = (get_upper_bounds(prob)[3] - sol[:β₁])/(75000 - 1) 
+left_grid = xmin:Δleft:sol[:β₁]
+right_grid = sol[:β₁]:Δright:xmax 
+full_grid = [left_grid..., right_grid[2:end]...]
+@test get_parameter_values(prof, :β₁) ≈ full_grid
 
 ## Threads 
 Random.seed!(98871)
@@ -392,7 +454,7 @@ x = getx.(xy)
 y = gety.(xy)
 r = 0.07
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-T, adj, adj2v, DG, points, BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
@@ -705,13 +767,15 @@ replace_profile!(prof, 1; min_steps=50)
 @test prof.splines[3] == _prof.splines[3]
 @test prof.confidence_intervals[3][1] == _prof.confidence_intervals[3][1]
 @test prof.confidence_intervals[3][2] == _prof.confidence_intervals[3][2]
-@test prof.likelihood_problem === _prof.likelihood_problem
-@test prof.likelihood_solution === _prof.likelihood_solution
+@test prof.likelihood_problem.log_likelihood_function.loglik === _prof.likelihood_problem.log_likelihood_function.loglik
+@test prof.likelihood_problem.θ₀ == _prof.likelihood_problem.θ₀
+@test prof.likelihood_solution.mle == _prof.likelihood_solution.mle
+@test prof.likelihood_solution.maximum == _prof.likelihood_solution.maximum
 @test length(prof.parameter_values[1]) ≥ 49
 @test length(prof.profile_values[1]) ≥ 49
 @test length(prof.other_mles[1]) ≥ 49
 @test length(prof.splines[1]) ≥ 49
 @test prof.confidence_intervals[1][1] ≈ _prof.confidence_intervals[1][1] rtol = 1e-1
 @test prof.confidence_intervals[1][2] ≈ _prof.confidence_intervals[1][2] rtol = 1e-1
-@test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1] 
-@test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2] 
+@test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1]
+@test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2]

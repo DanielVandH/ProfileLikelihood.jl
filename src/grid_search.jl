@@ -74,6 +74,131 @@ function get_parameters(grid::RegularGrid{N,B,R,S,T}, I) where {N,B,R,S,T}
 end
 
 ######################################################
+## FusedRegularGrid 
+######################################################
+"""
+    struct FusedRegularGrid{N,B,R,S,T,C,OR} <: AbstractGrid{N,B,T}
+
+Struct representing the fusing of two grids.
+
+# Fields 
+- `positive_grid::RegularGrid{N,B,R,S,T}`
+
+This is the first part of the grid, indexed into by positive integers. 
+- `negative_grid::RegularGrid{N,B,R,S,T}`
+
+This is the second part of the grid, indexed into by negative integers.
+- `centre::C`
+
+The two grids meet at a common centre, and this is that `centre`. 
+
+- `resolutions::R`
+
+This is the vector of resolutions provided (e.g. if `store_original_resolutions=true` in the constructor below), or the transformed 
+version from `get_resolution_tuples`.
+
+# Constructor 
+You can construct a `FusedRegularGrid` using the method
+
+    FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,R,C}
+
+For example, the following code creates `fused` as the fusion of `grid_1` and `grid_2`:
+
+```jula-repl
+lb = [2.0, 3.0, 1.0, 5.0]
+ub = [15.0, 13.0, 27.0, 10.0]
+centre = [7.3, 8.3, 2.3, 7.5]
+grid_1 = RegularGrid(centre .+ (ub .- centre) / 173, ub, 173)
+grid_2 = RegularGrid(centre .- (centre .- lb) / 173, lb, 173)
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, 173)
+```
+
+There are `173` points to the left and right of `centre` in this case. To use a varying 
+number of points, use e.g.
+
+```julia-repl 
+lb = [2.0, 3.0, 1.0, 5.0, 4.0]
+ub = [15.0, 13.0, 27.0, 10.0, 13.0]
+centre = [7.3, 8.3, 2.3, 7.5, 10.0]
+res = [(2, 11), (23, 25), (19, 21), (50, 51), (17, 99)]
+grid_1 = RegularGrid(centre .+ (ub .- centre) ./ [2, 23, 19, 50, 17], ub, [2, 23, 19, 50, 17])
+grid_2 = RegularGrid(centre .- (centre .- lb) ./ [11, 25, 21, 51, 99], lb, [11, 25, 21, 51, 99])
+fused = ProfileLikelihood.FusedRegularGrid(lb, ub, centre, res) # fused grid_1 and grid_2
+```
+"""
+Base.@kwdef struct FusedRegularGrid{N,B,R,S,T,C,OR} <: AbstractGrid{N,B,T}
+    positive_grid::RegularGrid{N,B,R,S,T}
+    negative_grid::RegularGrid{N,B,R,S,T}
+    centre::C
+    resolutions::OR
+    function FusedRegularGrid(lower_bounds::B, upper_bounds::B, centre::C, resolutions::R; store_original_resolutions=false) where {B,C,R}
+        res = get_resolution_tuples(resolutions, length(centre))
+        grid_1 = RegularGrid(centre .+ (upper_bounds .- centre) ./ getindex.(res, 1), upper_bounds, getindex.(res, 1))
+        grid_2 = RegularGrid(centre .+ (lower_bounds .- centre) ./ getindex.(res, 2), lower_bounds, getindex.(res, 2))
+        stored_res = store_original_resolutions ? resolutions : res 
+        N = number_of_parameters(grid_1)
+        S = typeof(get_step_sizes(grid_1)) 
+        R_type = typeof(stored_res)
+        T = number_type(lower_bounds)
+        return new{N,B,typeof(getindex.(res,1)),S,T,C,R_type}(grid_1,grid_2,centre,stored_res)
+    end
+end
+
+function get_resolution_tuples(resolutions, N)
+    if typeof(resolutions) <: Number
+        return [(resolutions, resolutions) for _ in 1:N]
+    elseif typeof(resolutions) <: Base.AbstractVecOrTuple
+        res = Vector{NTuple{2,Int64}}(undef, N)
+        for i in 1:N
+            if typeof(resolutions[i]) <: Number
+                res[i] = (resolutions[i], resolutions[i])
+            else
+                res[i] = (resolutions[i][1], resolutions[i][2])
+            end
+        end
+        return res
+    elseif typeof(resolutions) <: Tuple
+        res = [(resolutions[1], resolutions[2]) for _ in 1:N]
+        return res
+    end
+    throw("Invalid resolution specified.")
+end
+
+get_positive_grid(grid::FusedRegularGrid) = grid.positive_grid
+get_negative_grid(grid::FusedRegularGrid) = grid.negative_grid
+get_centre(grid::FusedRegularGrid) = grid.centre
+get_centre(grid::FusedRegularGrid, i) = get_centre(grid)[i]
+
+@inline get_lower_bounds(grid::FusedRegularGrid) = get_upper_bounds(get_negative_grid(grid))
+@inline get_upper_bounds(grid::FusedRegularGrid) = get_upper_bounds(get_positive_grid(grid))
+
+@inline Base.@propagate_inbounds function Base.getindex(grid::FusedRegularGrid, i::Integer, j::Integer)
+    if j > 0
+        return get_positive_grid(grid)[i, j]
+    elseif j < 0
+        return get_negative_grid(grid)[i, -j]
+    else
+        return get_centre(grid, i)
+    end
+end
+function get_range(grid::FusedRegularGrid, i, lower = -get_resolutions(get_negative_grid(grid), i), upper = get_resolutions(get_positive_grid(grid), i))
+    rng = lower:upper
+    return OffsetVector([grid[i, j] for j in rng], rng)
+end
+
+function get_parameters!(θ, grid::FusedRegularGrid{N,B,R,S,T,C}, I) where {N,B,R,S,T,C}
+    for d in 1:N
+        θ[d] = grid[d, I[d]]
+    end
+    return nothing
+end
+function get_parameters(grid::FusedRegularGrid{N,B,R,S,T,C}, I) where {N,B,R,S,T,C}
+    θ = zeros(T, N)
+    get_parameters!(θ, grid, I)
+    return θ
+end
+
+######################################################
 ## IrregularGrid
 ######################################################
 """
@@ -191,7 +316,7 @@ end
 function grid_search_parallel(prob, save_vals, minimise)
     nt = Base.Threads.nthreads()
     prob_copies, f_opt, x_argopt, cur_x, grid_iterator_collect, chunked_grid, f_res = setup_grid_search_parallel(prob; save_vals, minimise)
-    Base.Threads.@threads for (cart_idx_range, id) in chunked_grid   
+    Base.Threads.@threads for (cart_idx_range, id) in chunked_grid
         for linear_idx in cart_idx_range
             I = @inbounds grid_iterator_collect[linear_idx]
             @inbounds @views f_opt[id] = step_grid_search!(prob_copies[id], I, cur_x[id], x_argopt[id], f_opt[id], f_res; save_vals, minimise)

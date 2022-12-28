@@ -1,137 +1,229 @@
 """
-    get_prediction_intervals(q, prof::ProfileLikelihoodSolution, data;
-        q_type=get_q_type(q, prof, data), resolution=250)
+    get_prediction_intervals(q, prof::(Bivariate)ProfileLikelihoodSolution, data;
+        q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data), resolution=250)
 
-Given a prediction of the form `q(θ, data)`, where `θ` has the same size as the `θ` used in 
-the profile likelihood solution `prof`, and `data` is the argument `data`, computes the prediction 
-intervals for `q` (possibly at each point if it outputs a vector) using the confidence intervals from `prof`.
-You can set the output of the prediction function using `q_type`, and the grid resolution when evaluating the prediction 
-function for each parameter via `resolution`.
+Obtain prediction intervals for the output of the prediction function `q`, assuming `q` returns (or operates in-place on) a vector.
 
-Two results are produced:
+# Arguments 
+- `q`: The prediction function, taking either the form `(θ, data)` or `(cache, θ, data)`. The former version is an out-of-place version, returning the full vector, while the latter version is an in-place version, with the output being placed into `cache`. The argument `θ` is the same as the parameters used in the likelihood problem (from `prof`), and the `data` argument is the same `data` as in this function. 
+- `prof::(Bivariate)ProfileLikelihoodSolution`: The profile likelihood results. 
+- `data`: The argument `data` in `q`.
 
-- `parameterwise_cis`: This is a `Dict` mapping parameter indices to a a vector of confidence intervals from each output of `q` for the corresponding parameter. 
-- `union_cis`: This gives the union of the intervals from `parameterwise_cis` (just taking the extrema over each interal) at each output of `q`.
+# Keyword Arguments 
+- `q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data)`: A prototype for the result of `q`. If you are using the `q(θ, data)` version of `q`, this can be inferred from `build_q_prototype`, but if you are using the in-place version then a `build_q_prototype` is needed. For example, if `q` returns a vector with eltype `Float64` and has length 27, `q_prototype` could be `zeros(27)`.
+- `resolution::Integer=250`: The amount of curves to evaluate for each parameter. This will be the same for each parameter. If `prof isa BivariateProfileLikelihoodSolution`, then `resolution^2` points are defined inside a bounding box for the confidence region, and then we throw away all points outside of the actual confidence region.
+- `parallel=false`: Whether to use multithreading. Multithreading is used when building `q_vals` below.
 
-We also return `all_curves`, a `Dict` mapping parameter indices to the vector of `q` values for each parameter, 
-and these parameter ranges are given in `param_ranges`. So, the final output looks like:
+# Outputs 
+Four values are returned. In order: 
 
-`(parameterwise_cis, union_cis, all_curves, param_ranges)`.
+- `individual_intervals`: Prediction intervals for the output of `q`, relative to each parameter. 
+- `union_intervals`: The union of the individual prediction intervals from `individual_intervals`.
+- `q_vals`: Values of `q` at each parameter considered. The output is a `Dict`, where the parameter index is mapped to a matrix where each column is an output from `q`, with the `j`th column corresponding to the parameter value at `param_ranges[j]`.
+- `param_ranges`: Parameter values used for each prediction interval. 
 """
-function get_prediction_intervals(q, prof::ProfileLikelihoodSolution, data;
-    q_type=get_q_type(q, prof, data),
-    resolution=250)
-    ## Evaluate the family of curves
+function get_prediction_intervals(q, prof::Union{ProfileLikelihoodSolution,BivariateProfileLikelihoodSolution}, data;
+    q_prototype=isinplace(q, 3) ? nothing : build_q_prototype(q, prof, data),
+    resolution::Integer=250,
+    parallel=false)
+    ## Test if q is inplace or not
+    iip = isinplace(q, 3)::Bool
+    (iip && isnothing(q_prototype)) && throw("If the prediction function is inplace, then you must provide a cache for the function's first argument in q_prototype.")
+
+    ## Setup
+    prof_idx, param_ranges, splines, resolution = prepare_prediction_grid(prof, resolution)
+    θ, q_vals, q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds = prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(parallel))
+
+    ## Evaluate the prediction function
+    evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
+
+    ## Get all the bounds 
+    update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
+
+    ## Convert the results into ConfidenceIntervals 
+    level = prof isa ProfileLikelihoodSolution ? get_level(get_confidence_intervals(prof[first(prof_idx)])) : get_level(get_confidence_regions(prof[first(prof_idx)]))
+    individual_intervals, union_intervals = get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
+        q_union_lower_bounds, q_union_upper_bounds, level)
+
+    ## Done
+    return individual_intervals, union_intervals, q_vals, param_ranges
+end
+
+@inline function prepare_prediction_grid(prof::ProfileLikelihoodSolution, resolution)
     prof_idx = profiled_parameters(prof)
-    param_ranges = Dict(prof_idx .=> [LinRange(get_confidence_intervals(prof[i])..., 250) for i in prof_idx])
-    all_curves = eval_prediction_function(q, prof, data; param_ranges, q_type)
-    q_type_num = number_type(all_curves[first(prof_idx)]) # assuming q_type is same for each parameter
-    all_curves_matrix = Dict(prof_idx .=> [Matrix(reduce(hcat, all_curves[i])') for i in prof_idx]) # transpose to make following memory access contiguous 
-    q_length = size(all_curves_matrix[first(prof_idx)], 2) # assuming length of each q is the same
-    ## Prepare the bound caches
-    lower_bounds = Dict(prof_idx .=> [typemax(q_type_num) .* ones(q_type_num, q_length) for _ in prof_idx])
-    upper_bounds = Dict(prof_idx .=> [typemin(q_type_num) .* ones(q_type_num, q_length) for _ in prof_idx])
-    union_lower_bounds = typemax(q_type_num) .* ones(q_type_num, q_length)
-    union_upper_bounds = typemin(q_type_num) .* ones(q_type_num, q_length)
-    for k in prof_idx
-        for j in 1:q_length
-            for i in 1:resolution
-                if all_curves_matrix[k][i, j] < lower_bounds[k][j]
-                    lower_bounds[k][j] = all_curves_matrix[k][i, j]
-                    if lower_bounds[k][j] < union_lower_bounds[j]
-                        union_lower_bounds[j] = lower_bounds[k][j]
-                    end
-                end # keeps the Ifs disjoint so that the initial lb/ub get replaced
-                if all_curves_matrix[k][i, j] > upper_bounds[k][j]
-                    upper_bounds[k][j] = all_curves_matrix[k][i, j]
-                    if upper_bounds[k][j] > union_upper_bounds[j]
-                        union_upper_bounds[j] = upper_bounds[k][j]
-                    end
-                end
-            end
+    param_ranges = Dict{Int64,LinRange{Float64,Int64}}(prof_idx .=> [LinRange(get_confidence_intervals(prof[i])..., resolution) for i in prof_idx])
+    splines = spline_other_mles(prof)
+    return prof_idx, param_ranges, splines, resolution
+end
+@inline function prepare_prediction_grid(prof::BivariateProfileLikelihoodSolution, resolution)
+    prof_idx = profiled_parameters(prof)
+    param_ranges = Dict{NTuple{2,Integer},Vector{NTuple{2,Float64}}}()
+    # Get the grids
+    new_res = resolution^2
+    for (n, m) in prof_idx
+        a, b, c, d = get_bounding_box(prof[n, m])
+        grid_1 = LinRange(a, b, resolution)
+        grid_2 = LinRange(c, d, resolution)
+        full_grid = vec([(x, y) for x in grid_1, y in grid_2])
+        points_in_cr = full_grid ∈ get_confidence_regions(prof[(n, m)])
+        reduced_grid = full_grid[points_in_cr]
+        param_ranges[(n, m)] = reduced_grid
+        new_res = length(reduced_grid) < new_res ? length(reduced_grid) : new_res
+    end
+    # Now trim the grids so that they all have the same size
+    for (n, m) in prof_idx
+        grid = param_ranges[(n, m)]
+        while length(grid) > new_res
+            i = rand(eachindex(grid))
+            deleteat!(grid, i)
         end
     end
-    ## Build the prediction intervals 
-    level = get_level(get_confidence_intervals(prof[first(prof_idx)]))
-    parameterwise_cis = Dict(prof_idx .=> [[ConfidenceInterval(a, b, level) for (a, b) in zip(lower_bounds[i], upper_bounds[i])] for i in prof_idx])
-    union_cis = [ConfidenceInterval(a, b, level) for (a, b) in zip(union_lower_bounds, union_upper_bounds)]
-    return parameterwise_cis, union_cis, all_curves, param_ranges
-end
-
-"""
-    eval_prediction_function(q, prof::ProfileLikelihoodSolution, data;
-        resolution=250,
-        param_ranges=Dict(profiled_parameters(prof) .=> [LinRange(get_confidence_intervals(prof[i])..., resolution) for i in profiled_parameters(prof)]),
-        q_type=get_q_type(q, prof, data))
-
-Given a prediction of the form `q(θ, data)`, where `θ` has the same size as the `θ` used in 
-the profile likelihood solution `prof`, and `data` is the argument `data`, and for each parameter index
-`i`: Evaluates `q((ψ, ωˢ(ψ)), data)`, where `ψ` ranges over `param_ranges[i]` and `ωˢ(ψ)` are the parameter values 
-that lead to the value of the profile likelihood function where `θ[i] = ψ`. 
-
-You can set the type of the output from the prediction function `q` using `q_type`.
-
-The output is a `Dict` mapping the profiled parameter indices (from `profiled_parameters`) to the outputs from `q` at each 
-corresponding parameter in `param_ranges`.
-"""
-function eval_prediction_function(q, prof::ProfileLikelihoodSolution, data;
-    resolution=250,
-    param_ranges=Dict(profiled_parameters(prof) .=> [LinRange(get_confidence_intervals(prof[i])..., resolution) for i in profiled_parameters(prof)]),
-    q_type=get_q_type(q, prof, data))
-    prof_idx = profiled_parameters(prof)
-    q_vals = Dict{Int64,Vector{q_type}}()
-    for i in prof_idx
-        q_vals[i] = eval_prediction_function(q, prof[i], param_ranges[i], data; q_type)
-    end
-    return q_vals
-end
-
-function eval_prediction_function(q, prof::ProfileLikelihoodSolutionView{N,PLS}, ψ, data;
-    q_type=get_q_type(q, prof, data)) where {N,PLS}
     splines = spline_other_mles(prof)
-    θ = zeros(number_of_parameters(get_parent(prof).likelihood_problem))
-    q_vals = Vector{q_type}(undef, length(ψ))
-    for (i, ψ) in pairs(ψ)
-        build_θ!(θ, N, splines, ψ)
-        q_vals[i] = q(θ, data)
-    end
-    return q_vals
+    return prof_idx, param_ranges, splines, new_res
 end
 
-function spline_other_mles(prof::ProfileLikelihoodSolutionView{N,PLS}) where {N,PLS}
-    data = get_parameter_values(prof)
-    other_mles = reduce(hcat, get_other_mles(prof))
-    splines = Vector{Interpolations.GriddedInterpolation{Float64,1,Vector{Float64},Gridded{Linear{Throw{OnGrid}}},Tuple{Vector{Float64}}}}(undef, size(other_mles, 1))
-    for i in axes(other_mles, 1)
-        parameter_vals = other_mles[i, :]
-        itp = interpolate((data,), parameter_vals, Gridded(Linear()))
-        splines[i] = itp
+function prepare_prediction_cache(prof::Union{ProfileLikelihoodSolution,BivariateProfileLikelihoodSolution}, prof_idx::AbstractVector{I}, q_prototype::AbstractArray{T}, resolution, parallel::Val{B}) where {T,B,I}
+    if !B
+        θ = zeros(number_of_parameters(get_likelihood_problem(prof)))
+    else
+        θ = Dict{I,Vector{Vector{T}}}(prof_idx .=> [[zeros(T, number_of_parameters(get_likelihood_problem(prof))) for _ in 1:Base.Threads.nthreads()] for _ in prof_idx])
     end
-    return splines
-end
-function spline_other_mles(prof::ProfileLikelihoodSolution)
-    param_idx = profiled_parameters(prof)
-    other_mle_splines = Dict(param_idx .=> [spline_other_mles(prof[i]) for i in param_idx])
-    return other_mle_splines
+    q_length = length(q_prototype)
+    q_vals = Dict{I,Matrix{T}}(prof_idx .=> [zeros(T, q_length, resolution) for _ in prof_idx])
+    q_lower_bounds = Dict{I,Vector{T}}(prof_idx .=> [typemax(T) * ones(T, q_length) for _ in prof_idx])
+    q_upper_bounds = Dict{I,Vector{T}}(prof_idx .=> [typemin(T) * ones(T, q_length) for _ in prof_idx])
+    q_union_lower_bounds = typemax(T) * ones(T, q_length)
+    q_union_upper_bounds = typemin(T) * ones(T, q_length)
+    return θ, q_vals, q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds
 end
 
-function eval_other_mles_spline!(other_mles, splines::AbstractVector, ψ)
-    @inbounds for j in eachindex(splines)
-        other_mles[j] = splines[j](ψ)
+@inline function evaluate_prediction_function!(q_n, range, spline, θ::AbstractVector{T}, n, q, data, iip::Val{B}=Val(isinplace(q, 3)), parallel::Val{false}=Val(false)) where {B,T<:Number}
+    for (j, ψ) in pairs(range)
+        build_θ!(θ, n, spline, ψ)
+        if B
+            @views q(q_n[:, j], θ, data)
+        else
+            @views q_n[:, j] .= q(θ, data)
+        end
+    end
+    return nothing
+end
+@inline function evaluate_prediction_function!(q_n, range, spline, θ::AbstractVector{T}, n, q, data, iip::Val{B}=Val(isinplace(q, 3)), parallel::Val{true}=Val(true)) where {B,T<:AbstractVector}
+    Base.Threads.@threads for j in eachindex(range)
+        id = Base.Threads.threadid()
+        ψ = range[j]
+        build_θ!(θ[id], n, spline, ψ)
+        if B
+            @views q(q_n[:, j], θ[id], data)
+        else
+            @views q_n[:, j] .= q(θ[id], data)
+        end
+    end
+    return nothing
+end
+function evaluate_prediction_function!(q_vals, ranges, splines, θ::AbstractVector{T}, prof_idx::Vector, q, data, iip::Val{B}=Val(isinplace(q, 3)), parallel::Val{false}=Val(false)) where {B,T<:Number}
+    for n in prof_idx
+        q_n = q_vals[n]
+        range = ranges[n]
+        spline = splines[n]
+        evaluate_prediction_function!(q_n, range, spline, θ, n, q, data, iip)
+    end
+    return nothing
+end
+function evaluate_prediction_function!(q_vals, ranges, splines, θ::Dict, prof_idx::Vector, q, data, iip::Val{B}=Val(isinplace(q, 3)), parallel::Val{true}=Val(true)) where {B}
+    @sync for n in prof_idx
+        Base.Threads.@spawn evaluate_prediction_function!(q_vals[n], ranges[n], splines[n], θ[n], n, q, data, iip)
     end
     return nothing
 end
 
-function build_θ!(θ, n, splines::AbstractVector, ψ)
-    @views eval_other_mles_spline!(θ[Not(n)], splines, ψ)
+function update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_n, i, j)
+    q_n_ij = q_n[i, j]
+    q_lb_i = q_lower_bounds[i]
+    q_ub_i = q_upper_bounds[i]
+    q_union_lb_i = q_union_lower_bounds[i]
+    q_union_ub_i = q_union_upper_bounds[i]
+    update_lower_bounds!(q_lower_bounds, q_union_lower_bounds, q_n_ij, q_lb_i, q_union_lb_i, i)
+    update_upper_bounds!(q_upper_bounds, q_union_upper_bounds, q_n_ij, q_ub_i, q_union_ub_i, i)
+    return nothing
+end
+function update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_n)
+    for j in axes(q_n, 2)
+        for i in axes(q_n, 1)
+            update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_n, i, j)
+        end
+    end
+    return nothing
+end
+function update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
+    for n in prof_idx
+        q_n = q_vals[n]
+        q_lb = q_lower_bounds[n]
+        q_ub = q_upper_bounds[n]
+        update_interval_bounds!(q_lb, q_ub, q_union_lower_bounds, q_union_upper_bounds, q_n)
+    end
+    return nothing
+end
+
+@inline function build_q_prototype(q, prof::Union{ProfileLikelihoodSolution,BivariateProfileLikelihoodSolution}, data)
+    pred = q(get_mle(get_likelihood_solution(prof)), data)
+    return zero(pred)
+end
+@inline function build_q_prototype(q, prof::Union{ProfileLikelihoodSolutionView,BivariateProfileLikelihoodSolutionView}, data)
+    return build_q_prototype(q, get_parent(prof), data)
+end
+
+@inline function spline_other_mles(prof::ProfileLikelihoodSolutionView)
+    data = get_parameter_values(prof)
+    other_mles = get_other_mles(prof)
+    spline = interpolate((data,), other_mles, Gridded(Linear()))
+    return spline
+end
+@inline function spline_other_mles(prof::BivariateProfileLikelihoodSolutionView)
+    grid_1 = get_parameter_values(prof, 1)
+    grid_2 = get_parameter_values(prof, 2)
+    other_mles = get_other_mles(prof)
+    spline = interpolate((grid_1, grid_2), other_mles, Gridded(Linear()))
+    return spline
+end
+@inline function spline_other_mles(prof::Union{ProfileLikelihoodSolution,BivariateProfileLikelihoodSolution})
+    param_idx = profiled_parameters(prof)
+    splines = Dict(param_idx .=> [spline_other_mles(prof[i]) for i in param_idx])
+    return splines
+end
+
+@inline function build_θ!(θ, n::Integer, spline, ψ)
+    @views θ[Not(n)] .= spline(ψ)
     θ[n] = ψ
     return nothing
 end
-
-function get_q_type(q, prof::ProfileLikelihoodSolution, data)
-    q_type = typeof(q(prof.likelihood_solution.mle, data))
-    return q_type
+@inline function build_θ!(θ, (n, m), spline, (ψ, ϕ))
+    @views θ[Not(n, m)] .= spline(ψ, ϕ)
+    θ[n] = ψ
+    θ[m] = ϕ
+    return nothing
 end
-function get_q_type(q, prof::ProfileLikelihoodSolutionView{N,PLS}, data) where {N,PLS}
-    return get_q_type(q, get_parent(prof), data)
+
+@inline function update_lower_bounds!(q_lower_bounds, q_union_lower_bounds, q, lb, union_lb, i)
+    if q < lb
+        q_lower_bounds[i] = q
+        if q < union_lb
+            q_union_lower_bounds[i] = q
+        end
+    end
+end
+@inline function update_upper_bounds!(q_upper_bounds, q_union_upper_bounds, q, ub, union_ub, i)
+    if q > ub
+        q_upper_bounds[i] = q
+        if q > union_ub
+            q_union_upper_bounds[i] = q
+        end
+    end
+end
+
+@inline function get_prediction_intervals(prof_idx::AbstractVector{T}, q_lower_bounds, q_upper_bounds,
+    q_union_lower_bounds::AbstractArray{F}, q_union_upper_bounds, level::L) where {T,F,L}
+    individual_intervals = Dict{T,Vector{ConfidenceInterval{F,L}}}(prof_idx .=> [[ConfidenceInterval{F,L}(a, b, level) for (a, b) in zip(q_lower_bounds[i], q_upper_bounds[i])] for i in prof_idx])
+    union_intervals = [ConfidenceInterval{F,L}(a, b, level) for (a, b) in zip(q_union_lower_bounds, q_union_upper_bounds)]
+    return individual_intervals, union_intervals
 end
