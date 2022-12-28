@@ -511,3 +511,262 @@ lines!(ax, t_many_pts, q_upr, color=:magenta)
 ![Prediction intervals for the mass](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/heat_pde_example_mass.png?raw=true)
 
 The exact curve has been recovered by our profile likelihood results, and the uncertainty is extremely small. Moreover, the intervals are indeed close to the interval obtained the full profile likelihood as we would hope.
+
+## Just the code
+
+Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
+
+```julia 
+## Step 1: Define the problem. See FiniteVolumeMethod.jl
+using DelaunayTriangulation, FiniteVolumeMethod
+a, b, c, d = 0.0, 2.0, 0.0, 2.0
+n = 500
+x₁ = LinRange(a, b, n)
+x₂ = LinRange(b, b, n)
+x₃ = LinRange(b, a, n)
+x₄ = LinRange(a, a, n)
+y₁ = LinRange(c, c, n)
+y₂ = LinRange(c, d, n)
+y₃ = LinRange(d, d, n)
+y₄ = LinRange(d, c, n)
+x = reduce(vcat, [x₁, x₂, x₃, x₄])
+y = reduce(vcat, [y₁, y₂, y₃, y₄])
+xy = [[x[i], y[i]] for i in eachindex(x)]
+unique!(xy)
+x = getx.(xy)
+y = gety.(xy)
+r = 0.022
+GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
+(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
+type = :D
+BCs = BoundaryConditions(mesh, bc, type, BN)
+c = 1.0
+u₀ = 50.0
+f = (x, y) -> y ≤ c ? u₀ : 0.0
+D = (x, y, t, u, p) -> p[1]
+flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
+R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+initc = @views f.(points[1, :], points[2, :])
+iip_flux = true
+final_time = 0.1
+k = [9.0]
+prob = FVMProblem(mesh, BCs; iip_flux,
+    flux_function=flux, reaction_function=R,
+    initial_condition=initc, final_time,
+    flux_parameters=deepcopy(k))
+
+## Step 2: Generate some data.
+using LinearSolve, OrdinaryDiffEq
+alg = TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false))
+sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)    
+
+## Step 3: Let us compute the mass at each time and then add some noise to it
+using Random
+function compute_mass!(M::AbstractVector{T}, αβγ, sol, prob) where {T}
+    mesh_area = prob.mesh.mesh_information.total_area
+    fill!(M, zero(T))
+    for i in eachindex(M)
+        for V in FiniteVolumeMethod.get_elements(prob)
+            element = FiniteVolumeMethod.get_element_information(prob.mesh, V)
+            cx, cy = FiniteVolumeMethod.get_centroid(element)
+            element_area = FiniteVolumeMethod.get_area(element)
+            interpolant_val = eval_interpolant!(αβγ, prob, cx, cy, V, sol.u[i])
+            M[i] += (element_area / mesh_area) * interpolant_val
+        end
+    end
+    return nothing
+end
+M = zeros(length(sol.t))
+αβγ = zeros(3)
+compute_mass!(M, αβγ, sol, prob)
+true_M = deepcopy(M)
+Random.seed!(29922881)
+σ = 0.1
+true_M .+= σ * randn(length(M))
+
+## Step 4: We need to now construct the integrator. Here's a method for converting an FVMProblem into an integrator. 
+function ProfileLikelihood.construct_integrator(prob::FVMProblem, alg; ode_problem_kwargs, kwargs...)
+    ode_problem = ODEProblem(prob; no_saveat=false, ode_problem_kwargs...)
+    return ProfileLikelihood.construct_integrator(ode_problem, alg; kwargs...)
+end
+jac = float.(FiniteVolumeMethod.jacobian_sparsity(prob))
+fvm_integrator = construct_integrator(prob, alg; ode_problem_kwargs=(jac_prototype=jac, saveat=0.01, parallel=true))
+
+## Step 5: Now define the likelihood problem 
+using Optimization
+@inline function loglik_fvm(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _c, _u₀ = θ
+    ## Update and solve
+    (; prob) = param
+    prob.flux_parameters[1] = _k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ _c ? _u₀ : zero(T)
+    end
+    reinit!(integrator, prob.initial_condition)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(T)
+    end
+    ## Compute the mass
+    (; mass_data, mass_cache, shape_cache, sigma) = param
+    compute_mass!(mass_cache, shape_cache, integrator.sol, prob)
+    if any(isnan, mass_cache)
+        return typemin(T)
+    end
+    ## Done 
+    ℓ = @views gaussian_loglikelihood(mass_data, mass_cache, sigma, length(mass_data))
+    @show ℓ
+    return ℓ
+end
+likprob = LikelihoodProblem(
+    loglik_fvm,
+    [8.54, 0.98, 29.83],
+    fvm_integrator;
+    syms=[:k, :c, :u₀],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3), sigma=σ),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0, 0.0],
+        ub=[15.0, 2.0, 250.0])
+)
+
+## Step 6: Find the MLEs 
+using OptimizationNLopt 
+mle_sol = mle(likprob, (NLopt.GN_DIRECT_L_RAND(), NLopt.LN_BOBYQA); ftol_abs=1e-8, ftol_rel=1e-8, xtol_abs=1e-8, xtol_rel=1e-8) # global, and then refine with a local algorithm
+
+## Step 7: Profile 
+prof = profile(likprob, mle_sol; alg=NLopt.LN_BOBYQA,
+    ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=60)
+
+## Step 8: Visualise 
+using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L"k", L"c", L"u_0"],
+    true_vals=[k[1], c, u₀],
+    fig_kwargs=(fontsize=38, resolution=(2109.644f0, 444.242f0)),
+    axis_kwargs=(width=600, height=300))
+scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
+scatter!(fig.content[2], get_parameter_values(prof, :c), get_profile_values(prof, :c), color=:black, markersize=9)
+scatter!(fig.content[3], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
+xlims!(fig.content[1], 7.0, 9.5)
+
+### Now consider profiling only two parameters
+## Step 9: Define the problem 
+using StaticArraysCore
+@inline function loglik_fvm_2(θ::AbstractVector{T}, param, integrator) where {T}
+    _k, _u₀, = θ
+    (; c) = param
+    new_θ = SVector{3,T}((_k, c, _u₀))
+    return loglik_fvm(new_θ, param, integrator)
+
+end
+likprob_2 = LikelihoodProblem(
+    loglik_fvm_2,
+    [8.54, 29.83],
+    fvm_integrator;
+    syms=[:k, :u₀],
+    data=(prob=prob, mass_data=true_M, mass_cache=zeros(length(true_M)), shape_cache=zeros(3), sigma=σ, c=c),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=[3.0, 0.0],
+        ub=[15.0, 250.0])
+)
+
+## Step 10: Grid search 
+grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 50)
+gs, lik_vals = grid_search(likprob_2, grid; save_vals=Val(true), parallel=Val(true));
+
+## Step 11: Visualise 
+fig = Figure(fontsize=38)
+k_grid = get_range(grid, 1)
+u₀_grid = get_range(grid, 2)
+ax = Axis(fig[1, 1],
+    xlabel=L"k", ylabel=L"u_0",
+    xticks=0:3:15,
+    yticks=0:50:250)
+co = heatmap!(ax, k_grid, u₀_grid, lik_vals, colormap=Reverse(:matter))
+contour!(ax, k_grid, u₀_grid, lik_vals, levels=40, color=:black, linewidth=1 / 4)
+scatter!(ax, [k[1]], [u₀], color=:white, markersize=14)
+scatter!(ax, [gs[:k]], [gs[:u₀]], color=:blue, markersize=14)
+clb = Colorbar(fig[1, 2], co, label=L"\ell(k, u_0)", vertical=true)
+
+## Step 12: Find the MLEs and profile 
+likprob_2 = update_initial_estimate(likprob_2, gs)
+mle_sol = mle(likprob_2, NLopt.LN_BOBYQA; ftol_abs=1e-8, ftol_rel=1e-8, xtol_abs=1e-8, xtol_rel=1e-8)
+prof = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4, parallel=true)
+
+## Step 13: Visualise the profile 
+fig = plot_profiles(prof; nrow=1, ncol=3,
+    latex_names=[L"k", L"u_0"],
+    true_vals=[k[1], u₀],
+    fig_kwargs=(fontsize=38, resolution=(1441.9216f0, 470.17322f0)),
+    axis_kwargs=(width=600, height=300))
+scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
+scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
+
+## Step 14: Compute prediction intervals for the mass
+@inline function compute_mass_function(θ::AbstractVector{T}, data) where {T}
+    k, u₀ = θ
+    (; c, prob, t, alg, jac) = data
+    prob.flux_parameters[1] = k
+    pts = FiniteVolumeMethod.get_points(prob)
+    for i in axes(pts, 2)
+        pt = get_point(pts, i)
+        prob.initial_condition[i] = gety(pt) ≤ c ? u₀ : zero(T)
+    end
+    sol = solve(prob, alg; saveat=t, parallel=true, jac_prototype=jac)
+    shape_cache = zeros(T, 3)
+    mass_cache = zeros(T, length(sol.u))
+    compute_mass!(mass_cache, shape_cache, sol, prob)
+    return mass_cache
+end
+t_many_pts = LinRange(prob.initial_time, prob.final_time, 250)
+jac = FiniteVolumeMethod.jacobian_sparsity(prob)
+prediction_data = (c=c, prob=prob, t=t_many_pts, alg=alg, jac=jac)
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(compute_mass_function, prof, prediction_data; parallel=true)
+
+## Step 15: Visualise the prediction intervals
+exact_soln = compute_mass_function([k[1], u₀], prediction_data)
+mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
+
+fig = Figure(fontsize=38, resolution=(1360.512f0, 848.64404f0))
+alp = join('a':'z')
+latex_names = [L"k", L"u_0"]
+for i in 1:2
+    ax = Axis(fig[1, i], title=L"(%$(alp[i])): Profile-wise PI for %$(latex_names[i])",
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black)
+end
+ax = Axis(fig[2, 1:2], title=L"(c):$ $ Union of all intervals",
+    titlealign=:left, width=1200, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+
+lb = [8.0, 45.0]
+ub = [11.0, 50.0]
+N = 1e4
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:2]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(likprob_2, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(mle_sol) # normalised 
+feasible_idx = findall(lik_vals .> ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [compute_mass_function(θ, prediction_data) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |> vec
+q_upr = maximum(q_mat; dims=2) |> vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta)
+lines!(ax, t_many_pts, q_upr, color=:magenta)
+```

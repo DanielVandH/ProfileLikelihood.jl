@@ -288,7 +288,7 @@ t_many_pts = LinRange(prob.initial_time, prob.final_time, 250)
 jac = FiniteVolumeMethod.jacobian_sparsity(prob)
 prediction_data = (c=c, prob=prob, t=t_many_pts, alg=alg, jac=jac)
 parameter_wise, union_intervals, all_curves, param_range =
-    get_prediction_intervals(compute_mass_function, prof, prediction_data, parallel=true)
+    get_prediction_intervals(compute_mass_function, prof, prediction_data; parallel=true)
 
 exact_soln = compute_mass_function([k[1], u₀], prediction_data)
 mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
