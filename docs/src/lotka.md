@@ -8,6 +8,7 @@ using Optimization
 using OrdinaryDiffEq
 using CairoMakie
 using LaTeXStrings
+using ProfileLikelihood
 using OptimizationNLopt
 using PreallocationTools
 using OptimizationOptimJL
