@@ -1,4 +1,4 @@
-# Example V: Lotka-Volterra ODE, automatic differentiation, and computing bivarate profile likelihoods
+# Example V: Lotka-Volterra ODE, GeneralLazyBufferCache, and computing bivarate profile likelihoods
 
 This example comes from the second case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367). First, load the packages we'll be using:
 
