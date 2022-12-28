@@ -710,7 +710,7 @@ rss = sum(resids .^ 2)
 @test get_confidence_intervals(prof_serial_interp, :σ).lower ≈ σ_CI_exact[1] atol = 1e-3
 @test ProfileLikelihood.get_upper(get_confidence_intervals(prof_serial_interp, :σ)) ≈ σ_CI_exact[2] atol = 1e-3
 
-## Refining a solution 
+## Replacing a solution 
 λ = 0.01
 K = 100.0
 u₀ = 10.0
