@@ -189,24 +189,27 @@ function refine_profile!(prof::ProfileLikelihoodSolution, n;
     profile_values = get_profile_values(prof)
     other_mles = get_other_mles(prof)
     for _n in n
-        restricted_prob = exclude_parameter(shifted_opt_prob, _n)
-        _param_vals = get_parameter_values(prof[_n])
-        if length(_param_vals) < target_number
-            _profile_vals = get_profile_values(prof[_n])
-            _other_mles = get_other_mles(prof[_n])
-            _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
-            sort_idx = sortperm(_param_vals)
-            permute!(_param_vals, sort_idx)
-            permute!(_profile_vals, sort_idx)
-            permute!(_other_mles, sort_idx)
-            idx = unique(i -> _param_vals[i], eachindex(_param_vals))
-            keepat!(_param_vals, idx)
-            keepat!(_profile_vals, idx)
-            keepat!(_other_mles, idx)
-            get_results!(parameter_values, profile_values, other_mles, splines, confidence_intervals, _n,
-                _param_vals, _profile_vals, _other_mles,
-                spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
-        end
+        _refine_single_parameter!(prof, parameter_values, profile_values, other_mles, splines, confidence_intervals,
+            _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
+            confidence_interval_method, threshold, mles, conf_level; kwargs...)
+    end
+    return nothing
+end
+
+function _refine_single_parameter!(prof::ProfileLikelihoodSolution, parameter_values, profile_values, other_mles, splines, confidence_intervals,
+    _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
+    confidence_interval_method, threshold, mles, conf_level; kwargs...)
+    restricted_prob = exclude_parameter(shifted_opt_prob, _n)
+    _param_vals = get_parameter_values(prof[_n])
+    if length(_param_vals) < target_number
+        _profile_vals = get_profile_values(prof[_n])
+        _other_mles = get_other_mles(prof[_n])
+        _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        _sort_results!(_profile_vals, _param_vals, _other_mles)
+        _cleanup_duplicates!(_profile_vals, _param_vals, _other_mles)
+        get_results!(parameter_values, profile_values, other_mles, splines, confidence_intervals, _n,
+            _param_vals, _profile_vals, _other_mles,
+            spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
     end
     return nothing
 end
@@ -587,26 +590,42 @@ function prepare_cache_vectors(n, num_params, param_ranges, mles::AbstractVector
     cache, sub_cache
 end
 
+function _combine_results!(left_profile_vals, right_profile_vals,
+    left_param_vals, right_param_vals,
+    left_other_mles, right_other_mles,
+    combined_profiles, combined_param_vals, combined_other_mles)
+    append!(combined_profiles, left_profile_vals, right_profile_vals)
+    append!(combined_param_vals, left_param_vals, right_param_vals)
+    append!(combined_other_mles, left_other_mles, right_other_mles)
+    return nothing
+end
+
+function _sort_results!(profiles, param_vals, other_mles)
+    sort_idx = sortperm(param_vals)
+    permute!(param_vals, sort_idx)
+    permute!(profiles, sort_idx)
+    permute!(other_mles, sort_idx)
+    return nothing
+end
+
+function _cleanup_duplicates!(profiles, param_vals, other_mles)
+    idx = unique(i -> param_vals[i], eachindex(param_vals))
+    keepat!(param_vals, idx)
+    keepat!(profiles, idx)
+    keepat!(other_mles, idx)
+    return nothing
+end
+
 function combine_and_clean_results!(left_profile_vals, right_profile_vals,
     left_param_vals, right_param_vals,
     left_other_mles, right_other_mles,
     combined_profiles, combined_param_vals, combined_other_mles)
-    ## Combine the results 
-    append!(combined_profiles, left_profile_vals, right_profile_vals)
-    append!(combined_param_vals, left_param_vals, right_param_vals)
-    append!(combined_other_mles, left_other_mles, right_other_mles)
-
-    ## Make sure the results are sorted 
-    sort_idx = sortperm(combined_param_vals)
-    permute!(combined_param_vals, sort_idx)
-    permute!(combined_profiles, sort_idx)
-    permute!(combined_other_mles, sort_idx)
-
-    ## Cleanup some duplicate values
-    idx = unique(i -> combined_param_vals[i], eachindex(combined_param_vals))
-    keepat!(combined_param_vals, idx)
-    keepat!(combined_profiles, idx)
-    keepat!(combined_other_mles, idx)
+    _combine_results!(left_profile_vals, right_profile_vals,
+        left_param_vals, right_param_vals,
+        left_other_mles, right_other_mles,
+        combined_profiles, combined_param_vals, combined_other_mles)
+    _sort_results!(combined_profiles, combined_param_vals, combined_other_mles)
+    _cleanup_duplicates!(combined_profiles, combined_param_vals, combined_other_mles)
     return nothing
 end
 

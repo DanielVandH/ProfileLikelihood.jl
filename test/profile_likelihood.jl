@@ -963,7 +963,7 @@ prof = profile(prob, sol;
     alg=NLopt.LN_NELDERMEAD, min_steps=25, resolution=15,
     min_steps_fallback=:replace)
 _prof = deepcopy(prof)
-refine_profile!(prof, 1; target_number=250)
+@time refine_profile!(prof, 1; target_number=250)
 
 F1 = plot_profiles(prof; show_points=true, spline=true)
 
