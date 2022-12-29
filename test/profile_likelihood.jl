@@ -452,7 +452,7 @@ xy = [[x[i], y[i]] for i in eachindex(x)]
 unique!(xy)
 x = getx.(xy)
 y = gety.(xy)
-r = 0.07
+r = 0.2
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
 (T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
@@ -585,7 +585,29 @@ b2 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol
 @test prof1.splines[4].itp.knots ≈ prof2.splines[4].itp.knots
 
 @time prof1 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
-    resolution=50, parallel=true)
+    resolution=50, parallel=false, next_initial_estimate_method=:interp)
+@time prof2 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=50, parallel=true, next_initial_estimate_method=:interp)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[4].lower ≈ prof2.confidence_intervals[4].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test prof1.confidence_intervals[4].upper ≈ prof2.confidence_intervals[4].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof1.parameter_values[4])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test issorted(prof2.parameter_values[4])
+
+@time prof1 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
+    resolution=50, parallel=false)
 @time prof2 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
     resolution=50, parallel=true, next_initial_estimate_method=:interp)
 
@@ -653,29 +675,29 @@ other_mles = [[(lb[2] + ub[2]) / 2, (lb[3] + ub[3]) / 2, (lb[4] + ub[4]) / 2, (l
     [4.7, 4.3, 1.0, 5.0], [2.3, 3.3, 3.3, 4.9]]
 _prob = ProfileLikelihood.exclude_parameter(prob.problem, 1)
 θₙ = 4.4
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:prev)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:prev))
 @test sub_cache ≈ [2.3, 3.3, 3.3, 4.9]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 @test sub_cache ≠ other_mles[end]
 @test sum((sub_cache .- other_mles[end]) / (θₙ - param_vals[end]) .- (other_mles[end-1] .- other_mles[end]) / (param_vals[end-1] - param_vals[end])) ≈ 0.0 atol = 1e-12
-@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 other_mles = [[(lb[2] + ub[2]) / 2, (lb[3] + ub[3]) / 2, (lb[4] + ub[4]) / 2, (lb[5] + ub[5]) / 2],
     [4.7, 4.3, 1.0, 15.0], [2.3, 3.3, 3.3, 15.9]]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 @test sub_cache ≈ [2.3, 3.3, 3.3, 15.9]
-@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 param_vals = [2.0]
 other_mles = [[(lb[2] + ub[2]) / 2, (lb[3] + ub[3]) / 2, (lb[4] + ub[4]) / 2, (lb[5] + ub[5]) / 2]]
-ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 @test sub_cache ≈ other_mles[1]
-@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=:interp)
+@inferred ProfileLikelihood.set_next_initial_estimate!(sub_cache, param_vals, other_mles, _prob, θₙ; next_initial_estimate_method=Val(:interp))
 
 # Compare solutions
-prof_serial_interp = profile(prob, sol; next_initial_estimate_method=:interp)
-prof_parallel_interp = profile(prob, sol; parallel=true, next_initial_estimate_method=:interp)
+prof_serial_interp = profile(prob, sol; next_initial_estimate_method=Val(:interp))
+prof_parallel_interp = profile(prob, sol; parallel=true, next_initial_estimate_method=Val(:interp))
 prof_serial = profile(prob, sol)
 prof_parallel = profile(prob, sol; parallel=true)
-@test_throws "Invalid initial estimate method provided" profile(prob, sol; parallel=true, next_initial_estimate_method=:linear)
+@test_throws "Invalid initial estimate method provided" profile(prob, sol; parallel=true, next_initial_estimate_method=Val(:linear))
 @test prof_serial_interp.other_mles ≠ prof_serial.other_mles
 @test all(i -> abs((prof_parallel.confidence_intervals[i].lower - prof_parallel_interp.confidence_intervals[i].lower) / prof_serial.confidence_intervals[i].lower) < 1e-2, 1:5)
 @test all(i -> abs((prof_parallel.confidence_intervals[i].upper - prof_parallel_interp.confidence_intervals[i].upper) / prof_serial.confidence_intervals[i].upper) < 1e-2, 1:5)
