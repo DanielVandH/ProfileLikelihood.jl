@@ -840,8 +840,8 @@ other_mle_noise = [[param_vals[i]^2, param_vals[i]^(5 / 2) + 4] for i in 1:32]
 profile_vals = collect(noise_dat)
 other_mles = collect(other_mle_noise)
 reduced_mles = reduce(hcat, other_mles)
-itp1 = interpolate(reduced_mles[1,:], BSpline(Cubic(Line(OnGrid()))))
-itp2 = interpolate(reduced_mles[2,:], BSpline(Cubic(Line(OnGrid()))))
+itp1 = interpolate(reduced_mles[1, :], BSpline(Cubic(Line(OnGrid()))))
+itp2 = interpolate(reduced_mles[2, :], BSpline(Cubic(Line(OnGrid()))))
 spl1 = Interpolations.scale(itp1, param_vals)
 spl2 = Interpolations.scale(itp2, param_vals)
 param_vals = collect(param_vals)
@@ -861,8 +861,8 @@ other_mle_noise = [[param_vals[i]^2, param_vals[i]^(5 / 2) + 4] for i in 1:32]
 profile_vals = collect(noise_dat)
 other_mles = collect(other_mle_noise)
 reduced_mles = reduce(hcat, other_mles)
-itp1 = interpolate(reverse(reduced_mles[1,:]), BSpline(Cubic(Line(OnGrid()))))
-itp2 = interpolate(reverse(reduced_mles[2,:]), BSpline(Cubic(Line(OnGrid()))))
+itp1 = interpolate(reverse(reduced_mles[1, :]), BSpline(Cubic(Line(OnGrid()))))
+itp2 = interpolate(reverse(reduced_mles[2, :]), BSpline(Cubic(Line(OnGrid()))))
 spl1 = Interpolations.scale(itp1, reverse(param_vals))
 spl2 = Interpolations.scale(itp2, reverse(param_vals))
 param_vals = collect(param_vals)
@@ -882,12 +882,12 @@ profile_vals = rand(4)
 min_steps = 10
 ProfileLikelihood.resize_profile_data!(param_vals, profile_vals, other_mles, min_steps) # this used to segfault
 
-# Profile
+# Profile refinement during algorithm
 λ = 0.01
 K = 100.0
 u₀ = 10.0
 t = 0:100:1000
-σ = 17.0
+σ = 10.0
 @inline function ode_fnc(u, p, t)
     λ, K = p
     du = λ * u * (1 - u / K)
@@ -932,6 +932,83 @@ sol = mle(prob, NLopt.LD_LBFGS)
 @time __prof = profile(prob, sol;
     alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=0, resolution=30,
     min_steps_fallback=:refine)
-F1=plot_profiles(prof; show_points=true, spline=false)
-F2=plot_profiles(_prof; show_points=true, spline=false)
-F3=plot_profiles(__prof; show_points=true, spline=false)
+F1 = plot_profiles(prof; show_points=true, spline=false)
+F2 = plot_profiles(_prof; show_points=true, spline=false)
+F3 = plot_profiles(__prof; show_points=true, spline=false)
+
+prof1 = prof
+prof2 = _prof
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test length(get_parameter_values(prof1[1])) == 79
+@test length(get_parameter_values(prof1[2])) == 79
+@test length(get_parameter_values(prof1[3])) == 79
+@test length(get_parameter_values(prof2[1])) == 76
+@test length(get_parameter_values(prof2[2])) == 79
+@test length(get_parameter_values(prof2[3])) == 73
+
+# refine_profile
+prof = profile(prob, sol;
+    alg=NLopt.LN_NELDERMEAD, min_steps=25, resolution=15,
+    min_steps_fallback=:replace)
+_prof = deepcopy(prof)
+refine_profile!(prof, 1; target_number=250)
+
+F1 = plot_profiles(prof; show_points=true, spline=true)
+
+prof1 = prof 
+prof2 = _prof 
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test length(get_parameter_values(prof1[1])) == 250
+@test length(get_parameter_values(prof1[2])) < 250
+@test length(get_parameter_values(prof1[3])) < 250
+@test prof1.parameter_values[2] == prof2.parameter_values[2]
+@test prof1.parameter_values[3] == prof2.parameter_values[3]
+@test prof1.profile_values[2] == prof2.profile_values[2]
+@test prof1.profile_values[3] == prof2.profile_values[3]
+@test prof1.other_mles[2] == prof2.other_mles[2]
+@test prof1.other_mles[3] == prof2.other_mles[3]
+
+refine_profile!(prof, [1, 2, 3]; target_number=250)
+
+F1 = plot_profiles(prof; show_points=true, spline=true)
+
+prof1 = prof 
+prof2 = _prof 
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test length(get_parameter_values(prof1[1])) == 250
+@test length(get_parameter_values(prof1[2])) == 250
+@test length(get_parameter_values(prof1[3])) == 250

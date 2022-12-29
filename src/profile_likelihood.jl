@@ -147,6 +147,70 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     return nothing
 end
 
+"""
+    refine_profile!(prof::ProfileLikelihoodSolution, n;
+        alg=get_optimiser(prof.likelihood_solution),
+        conf_level::F=0.95,
+        confidence_interval_method=:spline,
+        threshold=get_chisq_threshold(conf_level),
+        target_number=10,
+        normalise::Bool=true,
+        spline_alg=FritschCarlsonMonotonicInterpolation,
+        extrap=Line,
+        parallel=false,
+        kwargs...) where {F}
+
+Given an existing `prof::ProfileLikelihoodSolution`, refines the profile results for the parameters in `n` by re-profiling. The keyword 
+arguments are the same as for [`profile`](@ref).
+"""
+function refine_profile!(prof::ProfileLikelihoodSolution, n;
+    alg=get_optimiser(prof.likelihood_solution),
+    conf_level::F=0.95,
+    confidence_interval_method=:spline,
+    threshold=get_chisq_threshold(conf_level),
+    target_number=10,
+    normalise::Bool=true,
+    spline_alg=FritschCarlsonMonotonicInterpolation,
+    extrap=Line,
+    parallel=false,
+    kwargs...) where {F}
+    parallel = _Val(parallel)
+    confidence_interval_method = _Val(confidence_interval_method)
+    spline_alg = _Val(spline_alg)
+    prob = get_likelihood_problem(prof)
+    sol = get_likelihood_solution(prof)
+    opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
+    shifted_opt_prob = normalise_objective_function(opt_prob, ℓmax, normalise)
+    num_params = number_of_parameters(shifted_opt_prob)
+    cache = DiffCache(zeros(number_type(mles), num_params))
+    splines = get_splines(prof)
+    confidence_intervals = get_confidence_intervals(prof)
+    parameter_values = get_parameter_values(prof)
+    profile_values = get_profile_values(prof)
+    other_mles = get_other_mles(prof)
+    for _n in n
+        restricted_prob = exclude_parameter(shifted_opt_prob, _n)
+        _param_vals = get_parameter_values(prof[_n])
+        if length(_param_vals) < target_number
+            _profile_vals = get_profile_values(prof[_n])
+            _other_mles = get_other_mles(prof[_n])
+            _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+            sort_idx = sortperm(_param_vals)
+            permute!(_param_vals, sort_idx)
+            permute!(_profile_vals, sort_idx)
+            permute!(_other_mles, sort_idx)
+            idx = unique(i -> _param_vals[i], eachindex(_param_vals))
+            keepat!(_param_vals, idx)
+            keepat!(_profile_vals, idx)
+            keepat!(_other_mles, idx)
+            get_results!(parameter_values, profile_values, other_mles, splines, confidence_intervals, _n,
+                _param_vals, _profile_vals, _other_mles,
+                spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
+        end
+    end
+    return nothing
+end
+
 @inline function exclude_parameter(shifted_opt_prob, n, sub_cache_left, sub_cache_right)
     restricted_prob_left = exclude_parameter(deepcopy(shifted_opt_prob), n)
     restricted_prob_right = exclude_parameter(deepcopy(shifted_opt_prob), n)
@@ -278,19 +342,6 @@ function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θ�
     if next_initial_estimate_method == Val(:prev)
         _set_next_initial_estimate_mle!(sub_cache, other_mles)
     elseif next_initial_estimate_method == Val(:interp)
-        #=
-        if length(other_mles) == 1
-            set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
-            return nothing
-        else
-            linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
-            if !parameter_is_inbounds(prob, sub_cache)
-                set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
-                return nothing
-            end
-            return nothing
-        end
-        =#
         _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, prob, θₙ)
     else
         throw("Invalid initial estimate method provided, $next_initial_estimate_method. The available options are :prev and :interp.")
@@ -437,9 +488,7 @@ function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
     elseif min_steps_fallback == Val(:refine)
-        _reach_min_steps_refine!(param_vals, profile_vals, other_mles, param_range,
-            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-            threshold, min_steps, mles; kwargs...)
+        _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
     elseif min_steps_fallback == Val(:parallel_refine)
 
     else
@@ -485,11 +534,6 @@ end
 
 function resize_profile_data!(param_vals, profile_vals, other_mles, m)
     n = length(param_vals)
-    #if param_vals[begin] > param_vals[end] # knot-vectors must be unique and sorted in increasing order - this is for the left endpoint
-    #    spline = spline_other_mles(reverse(param_vals), reverse(other_mles))
-    #else
-    #    spline = spline_other_mles(deepcopy(param_vals), deepcopy(other_mles)) # not deepcopying can lead to OutOfMemory errors / segfaults when we resize 
-    #end
     spline = bspline_other_mles(param_vals, other_mles)
     repopulate_points!(param_vals, m)
     resize!(profile_vals, m)
@@ -509,9 +553,7 @@ function add_point!(profile_vals, other_mles, restricted_prob, n, i, original_le
     other_mles[j] .= soln.u
 end
 
-function _reach_min_steps_refine!(param_vals, profile_vals, other_mles, param_range,
-    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-    threshold, min_steps, mles; kwargs...)
+function _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
     original_length = length(param_vals)
     resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
     for (i, θₙ) in enumerate(@view param_vals[original_length+1:end])
