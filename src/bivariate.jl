@@ -55,10 +55,10 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     parallel=Val(false),
     next_initial_estimate_method=Val(:nearest),
     kwargs...) where {M,F}
-    parallel = Val(SciMLBase._unwrap_val(parallel))
-    normalise = Val(SciMLBase._unwrap_val(normalise))
-    confidence_region_method = Val(SciMLBase._unwrap_val(confidence_region_method))
-    next_initial_estimate_method = Val(SciMLBase._unwrap_val(next_initial_estimate_method))
+    parallel = _Val(parallel)
+    normalise = _Val(normalise)
+    confidence_region_method = _Val(confidence_region_method)
+    next_initial_estimate_method = _Val(next_initial_estimate_method)
 
     ## Extract the problem and solution 
     opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
@@ -173,7 +173,7 @@ end
 @inline function prepare_cache_vectors(n, mles::AbstractVector{T}, res, num_params, normalise, ℓmax; parallel=Val(false)) where {T}
     profile_vals = OffsetArray(zeros(T, 2res + 1, 2res + 1), -res:res, -res:res)
     other_mles = OffsetArray([zeros(T, num_params - 2) for _ in 1:(2res+1), _ in 1:(2res+1)], -res:res, -res:res)
-    normalise = SciMLBase._unwrap_val(normalise)
+    normalise = take_val(normalise)
     profile_vals[0, 0] = normalise ? zero(T) : ℓmax
     other_mles[0, 0] .= mles[Not(n[1], n[2])]
     if parallel == Val(false)
@@ -264,7 +264,7 @@ end
     fixed_prob = setup_layer_node_problem!(fixed_vals, grid, I, sub_cache, other_mle, layer, restricted_prob,
         next_initial_estimate_method, cache, n)
     soln = solve(fixed_prob, alg; kwargs...)
-    normalise = SciMLBase._unwrap_val(normalise)
+    normalise = take_val(normalise)
     @inbounds profile_vals[I] = -soln.objective - ℓmax * !normalise
     @inbounds other_mle[I] = soln.u
     return compare_to_threshold(any_above_threshold, profile_vals, threshold, I)

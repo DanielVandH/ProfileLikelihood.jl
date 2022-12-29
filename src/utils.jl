@@ -68,3 +68,8 @@ end
 function convert_symbol_tuples(n::NTuple{2,S where S<:Union{Integer,Symbol}}, prob)
     return convert_symbol_tuples((n,), prob)[1]
 end
+
+_Val(V::Val{B}) where {B} = V
+_Val(V) = Val(V)
+take_val(::Val{B}) where {B} = B
+take_val(V) = V

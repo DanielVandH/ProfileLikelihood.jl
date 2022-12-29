@@ -34,7 +34,8 @@ LaTeXStrings.jl to access the function).
 - `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of `2resolution` points). - `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. 
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
-- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. See also `min_steps_fallback`.
+- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values.
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
 - `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
 - `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
@@ -53,13 +54,14 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
     resolution=200,
     param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution),
     min_steps=10,
+    min_steps_fallback=:replace,
     normalise::Bool=true,
     spline_alg=FritschCarlsonMonotonicInterpolation,
     extrap=Line,
     parallel=false,
     next_initial_estimate_method=:prev,
     kwargs...) where {F}
-    parallel = Val(SciMLBase._unwrap_val(parallel))
+    parallel = _Val(parallel)
     ## Extract the problem and solution 
     opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
 
@@ -78,17 +80,16 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
             profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, mles,
                 shifted_opt_prob, alg, ℓmax, normalise, threshold, min_steps,
-                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, parallel, kwargs...)
+                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
         end
     else
         @sync for _n in n
             Base.Threads.@spawn profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, deepcopy(mles),
                 deepcopy(shifted_opt_prob), alg, deepcopy(ℓmax), normalise, threshold, min_steps,
-                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, parallel, kwargs...)
+                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
         end
     end
-    # splines = Dict(keys(splines) .=> values(splines)) # fixes the type 
     return ProfileLikelihoodSolution(θ, prof, prob, sol, splines, confidence_intervals, other_mles)
 end
 
@@ -101,6 +102,7 @@ end
         resolution=200,
         param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
         min_steps=10,
+        min_steps_fallback=:replace,
         normalise::Bool=true,
         spline_alg=FritschCarlsonMonotonicInterpolation,
         extrap=Line,
@@ -108,7 +110,7 @@ end
         next_initial_estimate_method=:prev,
         kwargs...) where {F}
 
-Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n`. The keyword 
+Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n` by re-profiling. The keyword 
 arguments are the same as for [`profile`](@ref).
 """
 function replace_profile!(prof::ProfileLikelihoodSolution, n;
@@ -119,6 +121,7 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     resolution=200,
     param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
     min_steps=10,
+    min_steps_fallback=:replace,
     normalise::Bool=true,
     spline_alg=FritschCarlsonMonotonicInterpolation,
     extrap=Line,
@@ -128,7 +131,7 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     _prof = profile(prof.likelihood_problem, prof.likelihood_solution, n;
         alg, conf_level, confidence_interval_method,
         threshold, resolution, param_ranges,
-        min_steps, normalise, spline_alg, extrap,
+        min_steps, min_steps_fallback, normalise, spline_alg, extrap,
         parallel, next_initial_estimate_method, kwargs...)
     for _n in n
         prof.parameter_values[_n] = _prof.parameter_values[_n]
@@ -250,7 +253,7 @@ function prepare_profile_results(N, T, F, spline_alg=FritschCarlsonMonotonicInte
 end
 
 @inline function normalise_objective_function(opt_prob, ℓmax::T, normalise) where {T}
-    normalise = SciMLBase._unwrap_val(normalise)
+    normalise = take_val(normalise)
     shift = normalise ? -ℓmax : zero(T)
     shifted_opt_prob = shift_objective_function(opt_prob, shift)
     return shifted_opt_prob
