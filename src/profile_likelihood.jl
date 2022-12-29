@@ -328,21 +328,9 @@ function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
     threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
     steps = 1
     for θₙ in param_range
-        #=
-        !isempty(other_mles) && set_next_initial_estimate!(sub_cache, param_vals, other_mles, restricted_prob, θₙ; next_initial_estimate_method)
-        push!(param_vals, θₙ)
-        ## Fix the objective function 
-        fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
-        fixed_prob.u0 .= sub_cache
-        ## Solve the fixed problem 
-        soln = solve(fixed_prob, alg; kwargs...)
-        push!(profile_vals, -soln.objective - ℓmax * !normalise)
-        push!(other_mles, soln.u)
-        =#
         add_point!(param_vals, profile_vals, other_mles, θₙ, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-        ## Increment 
         steps += 1
         if profile_vals[end] ≤ threshold
             break
@@ -350,16 +338,57 @@ function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
     end
     ## Check if we need to extend the values 
     if steps < min_steps
-        if min_steps_fallback == Val(:replace)
-            _find_endpoint_replace!(param_vals, profile_vals, other_mles, param_range,
-                restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-                threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
-        end
+        reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
     end
     return nothing
 end
 
-function _find_endpoint_replace!(param_vals, profile_vals, other_mles, param_range,
+"""
+    reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+        restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+
+Updates the results from the side of a profile likelihood (e.g. left or right side, see `find_endpoint!`) to meet the minimum number of 
+steps `min_steps`.
+
+# Arguments 
+- `param_vals`: The parameter values. 
+- `profile_vals`: The profile values. 
+- `other_mles`: The other MLEs, i.e. the optimised parameters for the corresponding fixed parameter values in `param_vals`.
+- `param_range`: The vector of parameter values.
+- `restricted_prob`: The optimisation problem, restricted to the `n`th parameter. 
+- `n`: The parameter being profiled.
+- `cache`: A cache for the complete parameter vector. 
+- `alg`: The algorithm used for optimising. 
+- `sub_cache`: A cache for the parameter vector excluding the `n`th parameter.
+- `ℓmax`: The maximum likelihood. 
+- `normalise`: Whether the optimisation problem is normalised.
+- `threshold`: The threshold for the confidence interval. 
+- `min_steps`: The minimum number of steps to reach. 
+- `mles`: The MLEs.
+
+# Keyword Arguments 
+- `min_steps_fallback=Val(:interp)`: The method used for reaching the minimum number of steps. The available methods are:
+
+    - `min_steps_fallback = Val(:replace)`: This method completely replaces the profile, defining a grid from the MLE to the computed endpoint with `min_steps` points. No information is re-used.
+    - `min_steps_fallback = Val(:refine)`: This method just adds more points to the profile, filling in enough points so that the total number of points is `min_steps`. The initial estimates in this case come from a spline from `other_mles`.
+    
+- `next_initial_estimate_method=Val(:replace)`: The method used for obtaining initial estimates. See also [`set_next_initial_estimate!`](@ref).
+"""
+function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    if min_steps_fallback == Val(:replace)
+        _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_range,
+            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    end
+    return nothing
+end
+
+function _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_range,
     restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
     threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
     sub_cache .= mles[Not(n)]
