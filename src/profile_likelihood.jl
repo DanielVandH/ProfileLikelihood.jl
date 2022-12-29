@@ -351,9 +351,7 @@ function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
         steps += 1
-        if profile_vals[end] ≤ threshold
-            break
-        end
+        profile_vals[end] ≤ threshold && break
     end
     ## Check if we need to extend the values 
     if steps < min_steps
