@@ -147,11 +147,33 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     return nothing
 end
 
+@inline function exclude_parameter(shifted_opt_prob, n, sub_cache_left, sub_cache_right)
+    restricted_prob_left = exclude_parameter(deepcopy(shifted_opt_prob), n)
+    restricted_prob_right = exclude_parameter(deepcopy(shifted_opt_prob), n)
+    restricted_prob_left.u0 .= sub_cache_left
+    restricted_prob_right.u0 .= sub_cache_right
+    return restricted_prob_left, restricted_prob_right
+end
+
+function get_results!(θ, prof, other_mles, splines, confidence_intervals, n,
+    combined_param_vals, combined_profiles, combined_other_mles,
+    spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
+    lock(dict_lock) do
+        θ[n] = combined_param_vals
+        prof[n] = combined_profiles
+        other_mles[n] = combined_other_mles
+        spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
+        get_confidence_intervals!(confidence_intervals, confidence_interval_method,
+            n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
+    end
+    return nothing
+end
+
 function profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
     n, num_params, param_ranges, mles,
     shifted_opt_prob, alg, ℓmax, normalise, threshold, min_steps,
     spline_alg, extrap, confidence_interval_method, conf_level; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:prev), parallel=Val(false), kwargs...)
-    ## First, prepare all the cache vectors  
+
     _param_ranges = param_ranges[n]
     left_profile_vals, right_profile_vals,
     left_param_vals, right_param_vals,
@@ -160,55 +182,36 @@ function profile_single_parameter!(θ, prof, other_mles, splines, confidence_int
     cache, sub_cache = prepare_cache_vectors(n, num_params, _param_ranges, mles)
     sub_cache_left, sub_cache_right = deepcopy(sub_cache), deepcopy(sub_cache)
 
-    ## Now restrict the problem 
-    restricted_prob_left = exclude_parameter(deepcopy(shifted_opt_prob), n)
-    restricted_prob_right = exclude_parameter(deepcopy(shifted_opt_prob), n)
-    restricted_prob_left.u0 .= sub_cache_left
-    restricted_prob_right.u0 .= sub_cache_right
+    restricted_prob_left, restricted_prob_right = exclude_parameter(shifted_opt_prob, n, sub_cache_left, sub_cache_right)
 
-    if parallel == Val(false)
-        ## Get the left endpoint
-        find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, _param_ranges[1],
-            restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
-            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+        right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+        _param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise, parallel;
+        min_steps_fallback, next_initial_estimate_method, kwargs...)
 
-        ## Get the right endpoint
-        find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, _param_ranges[2],
-            restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
-            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
-    else
-        ## Get the left endpoint
-        @sync begin
-            @async find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, _param_ranges[1],
-                restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
-                threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
-
-            ## Get the right endpoint
-            @async find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, _param_ranges[2],
-                restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
-                threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
-        end
-    end
-
-    ## Now combine the results 
     combine_and_clean_results!(left_profile_vals, right_profile_vals,
         left_param_vals, right_param_vals,
         left_other_mles, right_other_mles,
         combined_profiles, combined_param_vals, combined_other_mles)
 
+    #=
     ## Put the results in 
     lock(dict_lock) do
-        θ[n] = combined_param_vals
-        prof[n] = combined_profiles
-        other_mles[n] = combined_other_mles
+    θ[n] = combined_param_vals
+    prof[n] = combined_profiles
+    other_mles[n] = combined_other_mles
 
-        # Put a spline through the profile 
-        spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
+    # Put a spline through the profile 
+    spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
 
-        ## Get the confidence intervals
-        get_confidence_intervals!(confidence_intervals, confidence_interval_method,
-            n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
+    ## Get the confidence intervals
+    get_confidence_intervals!(confidence_intervals, confidence_interval_method,
+        n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
     end
+    =#
+    get_results!(θ, prof, other_mles, splines, confidence_intervals, n,
+        combined_param_vals, combined_profiles, combined_other_mles,
+        spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
     return nothing
 end
 
@@ -308,18 +311,49 @@ function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θ�
     return nothing
 end
 
-function add_point!(param_vals, profile_vals, other_mles, θₙ, param_range,
-    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-    threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-    !isempty(other_mles) && set_next_initial_estimate!(sub_cache, param_vals, other_mles, restricted_prob, θₙ; next_initial_estimate_method)
-    push!(param_vals, θₙ)
-    ## Fix the objective function 
-    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
-    fixed_prob.u0 .= sub_cache
-    ## Solve the fixed problem 
-    soln = solve(fixed_prob, alg; kwargs...)
-    push!(profile_vals, -soln.objective - ℓmax * !normalise)
-    push!(other_mles, soln.u)
+function find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise, parallel;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    if parallel == Val(false)
+        _find_endpoint_serial!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+            right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+            param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+            min_steps_fallback, next_initial_estimate_method, kwargs...)
+    else
+        _find_endpoint_parallel!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+            right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+            param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+            min_steps_fallback, next_initial_estimate_method, kwargs...)
+    end
+    return nothing
+end
+
+function _find_endpoint_serial!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, param_ranges[1],
+        restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # left
+    find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, param_ranges[2],
+        restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # right
+    return nothing
+end
+
+function _find_endpoint_parallel!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    @sync begin
+        @async find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, param_ranges[1],
+            restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # left
+        @async find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, param_ranges[2],
+            restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # right
+    end
     return nothing
 end
 
@@ -342,6 +376,21 @@ function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
     end
+    return nothing
+end
+
+function add_point!(param_vals, profile_vals, other_mles, θₙ, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
+    !isempty(other_mles) && set_next_initial_estimate!(sub_cache, param_vals, other_mles, restricted_prob, θₙ; next_initial_estimate_method)
+    push!(param_vals, θₙ)
+    ## Fix the objective function 
+    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
+    fixed_prob.u0 .= sub_cache
+    ## Solve the fixed problem 
+    soln = solve(fixed_prob, alg; kwargs...)
+    push!(profile_vals, -soln.objective - ℓmax * !normalise)
+    push!(other_mles, soln.u)
     return nothing
 end
 
