@@ -276,9 +276,9 @@ The available methods are:
 """
 function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
     if next_initial_estimate_method == Val(:prev)
-        sub_cache .= other_mles[end]
-        return nothing
+        _set_next_initial_estimate_mle!(sub_cache, other_mles)
     elseif next_initial_estimate_method == Val(:interp)
+        #=
         if length(other_mles) == 1
             set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
             return nothing
@@ -290,8 +290,27 @@ function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θ�
             end
             return nothing
         end
+        =#
+        _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, prob, θₙ)
     else
         throw("Invalid initial estimate method provided, $next_initial_estimate_method. The available options are :prev and :interp.")
+    end
+    return nothing
+end
+
+function _set_next_initial_estimate_mle!(sub_cache, other_mles::AbstractVector)
+    sub_cache .= other_mles[end]
+    return nothing
+end
+
+function _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, prob, θₙ)
+    if length(other_mles) == 1
+        _set_next_initial_estimate_mle!(sub_cache, other_mles)
+    else
+        linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
+        if !parameter_is_inbounds(prob, sub_cache)
+            _set_next_initial_estimate_mle!(sub_cache, other_mles)
+        end 
     end
     return nothing
 end
@@ -535,6 +554,8 @@ function get_confidence_intervals!(confidence_intervals, method, n, param_vals, 
             @warn("Failed to create the confidence interval for parameter $n.")
             confidence_intervals[n] = ConfidenceInterval(NaN, NaN, conf_level)
         end
+    else
+        throw("Invalid confidence region method selected.")
     end
     return nothing
 end
