@@ -191,20 +191,24 @@ function refine_profile!(prof::ProfileLikelihoodSolution, n;
     for _n in n
         _refine_single_parameter!(prof, parameter_values, profile_values, other_mles, splines, confidence_intervals,
             _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
-            confidence_interval_method, threshold, mles, conf_level; kwargs...)
+            confidence_interval_method, threshold, mles, conf_level, parallel; kwargs...)
     end
     return nothing
 end
 
 function _refine_single_parameter!(prof::ProfileLikelihoodSolution, parameter_values, profile_values, other_mles, splines, confidence_intervals,
     _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
-    confidence_interval_method, threshold, mles, conf_level; kwargs...)
+    confidence_interval_method, threshold, mles, conf_level, parallel; kwargs...)
     restricted_prob = exclude_parameter(shifted_opt_prob, _n)
     _param_vals = get_parameter_values(prof[_n])
     if length(_param_vals) < target_number
         _profile_vals = get_profile_values(prof[_n])
         _other_mles = get_other_mles(prof[_n])
-        _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        if parallel == Val(false)
+            _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        else
+            _reach_min_steps_parallel_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        end
         _sort_results!(_profile_vals, _param_vals, _other_mles)
         _cleanup_duplicates!(_profile_vals, _param_vals, _other_mles)
         get_results!(parameter_values, profile_values, other_mles, splines, confidence_intervals, _n,
@@ -493,7 +497,7 @@ function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
     elseif min_steps_fallback == Val(:refine)
         _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
     elseif min_steps_fallback == Val(:parallel_refine)
-
+        _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
     else
         throw("Invalid min_steps_fallback method.")
     end
@@ -561,6 +565,21 @@ function _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restrict
     resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
     for (i, θₙ) in enumerate(@view param_vals[original_length+1:end])
         add_point!(profile_vals, other_mles, restricted_prob, n, i, original_length, θₙ, cache, alg, ℓmax, normalise; kwargs...)
+    end
+    return nothing
+end
+
+function _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
+    original_length = length(param_vals)
+    resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
+    nt = Base.Threads.nthreads()
+    _restricted_prob = [deepcopy(restricted_prob) for _ in 1:nt]
+    _cache = [deepcopy(cache) for _ in 1:nt]
+    Base.Threads.@threads for i in 1:(min_steps - original_length)
+        j = original_length + i
+        θₙ = param_vals[j]
+        id = Base.Threads.threadid()
+        add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
     end
     return nothing
 end

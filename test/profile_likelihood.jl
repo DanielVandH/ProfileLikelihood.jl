@@ -12,6 +12,8 @@ using FiniteVolumeMethod
 using InteractiveUtils
 using DelaunayTriangulation
 using Interpolations
+using CairoMakie
+using LaTeXStrings
 include("templates.jl")
 
 ######################################################
@@ -967,8 +969,8 @@ _prof = deepcopy(prof)
 
 F1 = plot_profiles(prof; show_points=true, spline=true)
 
-prof1 = prof 
-prof2 = _prof 
+prof1 = prof
+prof2 = _prof
 @test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
 @test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
 @test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
@@ -995,8 +997,8 @@ refine_profile!(prof, [1, 2, 3]; target_number=250)
 
 F1 = plot_profiles(prof; show_points=true, spline=true)
 
-prof1 = prof 
-prof2 = _prof 
+prof1 = prof
+prof2 = _prof
 @test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
 @test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
 @test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
@@ -1012,3 +1014,70 @@ prof2 = _prof
 @test length(get_parameter_values(prof1[1])) == 250
 @test length(get_parameter_values(prof1[2])) == 250
 @test length(get_parameter_values(prof1[3])) == 250
+
+# parallel refinement 
+prof1 = profile(deepcopy(prob), deepcopy(sol);
+    alg=NLopt.LN_NELDERMEAD, min_steps=25, resolution=15,
+    min_steps_fallback=:replace)
+prof2 = profile(deepcopy(prob), deepcopy(sol);
+    alg=NLopt.LN_NELDERMEAD, min_steps=25, resolution=15,
+    min_steps_fallback=:replace)
+@time refine_profile!(prof1, 1; target_number=250, parallel=false)
+@time refine_profile!(prof2, 1; target_number=250, parallel=true)
+
+F1 = plot_profiles(prof2; show_points=true, spline=true)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test length(get_parameter_values(prof1[1])) == 250
+@test length(get_parameter_values(prof1[2])) < 250
+@test length(get_parameter_values(prof1[3])) < 250
+@test prof1.parameter_values[2] == prof2.parameter_values[2]
+@test prof1.parameter_values[3] == prof2.parameter_values[3]
+@test prof1.profile_values[2] == prof2.profile_values[2]
+@test prof1.profile_values[3] == prof2.profile_values[3]
+@test prof1.other_mles[2] == prof2.other_mles[2]
+@test prof1.other_mles[3] == prof2.other_mles[3]
+@test prof1.other_mles[1] == prof2.other_mles[1]
+@test prof1.profile_values[1] == prof2.profile_values[1]
+@test prof1.parameter_values[1] == prof2.parameter_values[1]
+
+@time refine_profile!(prof1, [1, 2, 3]; target_number=250)
+@time refine_profile!(prof2, [1, 2, 3]; target_number=250, parallel=true)
+
+F1 = plot_profiles(prof; show_points=true, spline=true)
+
+@test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
+@test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
+@test prof1.confidence_intervals[3].lower ≈ prof2.confidence_intervals[3].lower rtol = 1e-1
+@test prof1.confidence_intervals[1].upper ≈ prof2.confidence_intervals[1].upper rtol = 1e-1
+@test prof1.confidence_intervals[2].upper ≈ prof2.confidence_intervals[2].upper rtol = 1e-1
+@test prof1.confidence_intervals[3].upper ≈ prof2.confidence_intervals[3].upper rtol = 1e-1
+@test issorted(prof1.parameter_values[1])
+@test issorted(prof1.parameter_values[2])
+@test issorted(prof1.parameter_values[3])
+@test issorted(prof2.parameter_values[1])
+@test issorted(prof2.parameter_values[2])
+@test issorted(prof2.parameter_values[3])
+@test length(get_parameter_values(prof1[1])) == 250
+@test length(get_parameter_values(prof1[2])) == 250
+@test length(get_parameter_values(prof1[3])) == 250
+@test prof1.parameter_values[2] == prof2.parameter_values[2]
+@test prof1.parameter_values[3] == prof2.parameter_values[3]
+@test prof1.profile_values[2] == prof2.profile_values[2]
+@test prof1.profile_values[3] == prof2.profile_values[3]
+@test prof1.other_mles[2] == prof2.other_mles[2]
+@test prof1.other_mles[3] == prof2.other_mles[3]
+@test prof1.other_mles[1] == prof2.other_mles[1]
+@test prof1.profile_values[1] == prof2.profile_values[1]
+@test prof1.parameter_values[1] == prof2.parameter_values[1]
