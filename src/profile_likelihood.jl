@@ -194,21 +194,6 @@ function profile_single_parameter!(θ, prof, other_mles, splines, confidence_int
         left_other_mles, right_other_mles,
         combined_profiles, combined_param_vals, combined_other_mles)
 
-    #=
-    ## Put the results in 
-    lock(dict_lock) do
-    θ[n] = combined_param_vals
-    prof[n] = combined_profiles
-    other_mles[n] = combined_other_mles
-
-    # Put a spline through the profile 
-    spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
-
-    ## Get the confidence intervals
-    get_confidence_intervals!(confidence_intervals, confidence_interval_method,
-        n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
-    end
-    =#
     get_results!(θ, prof, other_mles, splines, confidence_intervals, n,
         combined_param_vals, combined_profiles, combined_other_mles,
         spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
