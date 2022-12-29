@@ -73,3 +73,9 @@ _Val(V::Val{B}) where {B} = V
 _Val(V) = Val(V)
 take_val(::Val{B}) where {B} = B
 take_val(V) = V
+
+struct VecBSpline{N,Spl}
+    splines::Vector{Spl}
+    VecBSpline(spl::Vector{S}) where {S} = new{length(spl),S}(spl)
+end
+(spl::VecBSpline{N,S})(x) where {N,S} = [spl.splines[i](x) for i in 1:N]

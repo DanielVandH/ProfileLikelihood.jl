@@ -11,6 +11,7 @@ using OptimizationNLopt
 using FiniteVolumeMethod
 using InteractiveUtils
 using DelaunayTriangulation
+using Interpolations
 include("templates.jl")
 
 ######################################################
@@ -165,19 +166,19 @@ prof = profile(prob, sol, [1, 3])
 ## Check that the parameter values are correct 
 xmin, xmax = extrema(get_parameter_values(prof, :σ))
 m = length(get_parameter_values(prof, :σ))
-Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(200 - 1)
-Δright = (xmax - sol[:σ])/(10 - 1) # reached min_steps
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1]) / (200 - 1)
+Δright = (xmax - sol[:σ]) / (10 - 1) # reached min_steps
 left_grid = xmin:Δleft:sol[:σ]
-right_grid = sol[:σ]:Δright:xmax 
+right_grid = sol[:σ]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
 @test get_parameter_values(prof, :σ) ≈ full_grid
 
 xmin, xmax = extrema(get_parameter_values(prof, :β₁))
 m = length(get_parameter_values(prof, :β₁))
-Δleft = (sol[:β₁] - xmin)/(10 - 1)
-Δright = (xmax - sol[:β₁])/(10 - 1) # reached min_steps
+Δleft = (sol[:β₁] - xmin) / (10 - 1)
+Δright = (xmax - sol[:β₁]) / (10 - 1) # reached min_steps
 left_grid = xmin:Δleft:sol[:β₁]
-right_grid = sol[:β₁]:Δright:xmax 
+right_grid = sol[:β₁]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
 @test get_parameter_values(prof, :β₁) ≈ full_grid
 
@@ -224,23 +225,23 @@ x = prof.splines[i].itp.knots
 @test prof_view(x) == prof(x, i) == prof.splines[i](x) ≈ prof_view.parent.profile_values[i]
 
 ## Test that resolution is being correctly applied
-prof = profile(prob, sol, [1, 3]; resolution = [50000, 18000, 75000, 5000, 5000], min_steps=0)
+prof = profile(prob, sol, [1, 3]; resolution=[50000, 18000, 75000, 5000, 5000], min_steps=0)
 
 xmin, xmax = extrema(get_parameter_values(prof, :σ))
 m = length(get_parameter_values(prof, :σ))
-Δleft = (sol[:σ] - get_lower_bounds(prob)[1])/(50000 - 1)
-Δright = (get_upper_bounds(prob)[1] - sol[:σ])/(50000 - 1) 
+Δleft = (sol[:σ] - get_lower_bounds(prob)[1]) / (50000 - 1)
+Δright = (get_upper_bounds(prob)[1] - sol[:σ]) / (50000 - 1)
 left_grid = xmin:Δleft:sol[:σ]
-right_grid = sol[:σ]:Δright:xmax 
+right_grid = sol[:σ]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
 @test get_parameter_values(prof, :σ) ≈ full_grid
 
 xmin, xmax = extrema(get_parameter_values(prof, :β₁))
 m = length(get_parameter_values(prof, :β₁))
-Δleft = (sol[:β₁] - get_lower_bounds(prob)[3])/(75000 - 1)
-Δright = (get_upper_bounds(prob)[3] - sol[:β₁])/(75000 - 1) 
+Δleft = (sol[:β₁] - get_lower_bounds(prob)[3]) / (75000 - 1)
+Δright = (get_upper_bounds(prob)[3] - sol[:β₁]) / (75000 - 1)
 left_grid = xmin:Δleft:sol[:β₁]
-right_grid = sol[:β₁]:Δright:xmax 
+right_grid = sol[:β₁]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
 @test get_parameter_values(prof, :β₁) ≈ full_grid
 
@@ -801,3 +802,136 @@ replace_profile!(prof, 1; min_steps=50)
 @test prof.confidence_intervals[1][2] ≈ _prof.confidence_intervals[1][2] rtol = 1e-1
 @test prof.confidence_intervals[1][1] ≠ _prof.confidence_intervals[1][1]
 @test prof.confidence_intervals[1][2] ≠ _prof.confidence_intervals[1][2]
+
+## Refining a solution 
+# Check that we can properly fill up points 
+range_1 = collect(LinRange(0, 5, 32))
+ProfileLikelihood.repopulate_points!(range_1, 40)
+@test length(range_1) == 40
+@test range_1[1:32] == collect(LinRange(0, 5, 32))
+range_2 = collect(LinRange(0, 5, 10))
+@test range_1[33:40] ≈ range_2[2:end-1]
+
+range_1 = collect(LinRange(-4, 4, 1382))
+ProfileLikelihood.repopulate_points!(range_1, 1666)
+@test length(range_1) == 1666
+@test range_1[1:1382] == collect(LinRange(-4, 4, 1382))
+range_2 = collect(LinRange(-4, 4, 1666 - 1382 + 2))
+@test range_1[1383:1666] ≈ range_2[2:end-1]
+
+range_1 = collect(LinRange(5, 0, 32))
+ProfileLikelihood.repopulate_points!(range_1, 40)
+@test length(range_1) == 40
+@test range_1[1:32] == collect(LinRange(5, 0, 32))
+range_2 = collect(LinRange(5, 0, 10))
+@test range_1[33:40] ≈ range_2[2:end-1]
+
+range_1 = collect(LinRange(4, -4, 1382))
+ProfileLikelihood.repopulate_points!(range_1, 1666)
+@test length(range_1) == 1666
+@test range_1[1:1382] == collect(LinRange(4, -4, 1382))
+range_2 = collect(LinRange(4, -4, 1666 - 1382 + 2))
+@test range_1[1383:1666] ≈ range_2[2:end-1]
+
+# Check that we can properly resize all the data 
+noise_dat = rand(32)
+param_vals = LinRange(0, 2, 32)
+other_mle_noise = [[param_vals[i]^2, param_vals[i]^(5 / 2) + 4] for i in 1:32]
+profile_vals = collect(noise_dat)
+other_mles = collect(other_mle_noise)
+reduced_mles = reduce(hcat, other_mles)
+itp1 = interpolate(reduced_mles[1,:], BSpline(Cubic(Line(OnGrid()))))
+itp2 = interpolate(reduced_mles[2,:], BSpline(Cubic(Line(OnGrid()))))
+spl1 = Interpolations.scale(itp1, param_vals)
+spl2 = Interpolations.scale(itp2, param_vals)
+param_vals = collect(param_vals)
+ProfileLikelihood.resize_profile_data!(param_vals, profile_vals, other_mles, 40)
+@test param_vals ≈ [LinRange(0, 2, 32)..., LinRange(0, 2, 10)[2:end-1]...]
+@test profile_vals[1:32] ≈ noise_dat
+@test length(profile_vals) == 40
+@test length(other_mles) == 40
+@test other_mles[1:32] == other_mle_noise
+@test other_mles[33:40] ≈ [[spl1(x), spl2(x)] for x in param_vals[33:40]]
+@test getindex.(other_mles[33:40], 1) ≈ param_vals[33:40] .^ 2 rtol = 0.1
+@test getindex.(other_mles[33:40], 2) ≈ param_vals[33:40] .^ (5 / 2) .+ 4.0 rtol = 0.1
+
+noise_dat = rand(32)
+param_vals = LinRange(2, 0, 32)
+other_mle_noise = [[param_vals[i]^2, param_vals[i]^(5 / 2) + 4] for i in 1:32]
+profile_vals = collect(noise_dat)
+other_mles = collect(other_mle_noise)
+reduced_mles = reduce(hcat, other_mles)
+itp1 = interpolate(reverse(reduced_mles[1,:]), BSpline(Cubic(Line(OnGrid()))))
+itp2 = interpolate(reverse(reduced_mles[2,:]), BSpline(Cubic(Line(OnGrid()))))
+spl1 = Interpolations.scale(itp1, reverse(param_vals))
+spl2 = Interpolations.scale(itp2, reverse(param_vals))
+param_vals = collect(param_vals)
+ProfileLikelihood.resize_profile_data!(param_vals, profile_vals, other_mles, 40)
+@test param_vals ≈ [LinRange(2, 0, 32)..., LinRange(2, 0, 10)[2:end-1]...]
+@test profile_vals[1:32] ≈ noise_dat
+@test length(profile_vals) == 40
+@test length(other_mles) == 40
+@test other_mles[1:32] == other_mle_noise
+@test other_mles[33:40] ≈ [[spl1(x), spl2(x)] for x in param_vals[33:40]]
+@test getindex.(other_mles[33:40], 1) ≈ param_vals[33:40] .^ 2 rtol = 0.2
+@test getindex.(other_mles[33:40], 2) ≈ param_vals[33:40] .^ (5 / 2) .+ 4.0 rtol = 0.1
+
+param_vals = [0.010438031266786045, 0.013263886176301327, 0.016089741085816612, 0.018915595995331894]
+other_mles = [[99.5761184310497, 8.094637304374515], [97.77129117887698, 4.610877949211225], [96.53432680720022, 2.6217967940631275], [95.53802793620645, 1.5284755336047502]]
+profile_vals = rand(4)
+min_steps = 10
+ProfileLikelihood.resize_profile_data!(param_vals, profile_vals, other_mles, min_steps) # this used to segfault
+
+# Profile
+λ = 0.01
+K = 100.0
+u₀ = 10.0
+t = 0:100:1000
+σ = 17.0
+@inline function ode_fnc(u, p, t)
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+tspan = extrema(t)
+p = (λ, K)
+prob = ODEProblem(ode_fnc, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2828)
+uᵒ = sol.u + σ * randn(length(t))
+@inline function loglik_fnc2(θ, data, integrator)
+    λ, K, u₀ = θ
+    uᵒ, σ = data
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u₀)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, length(uᵒ))
+end
+lb = [0.0, 10.0, 0.0]
+ub = [0.25, 550.0, 550.0]
+θ₀ = [λ, K, u₀]
+syms = [:λ, :K, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, maximum(t);
+    syms=syms,
+    data=(uᵒ, σ),
+    ode_parameters=[1.0, 1.0],
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)
+sol = mle(prob, NLopt.LD_LBFGS)
+@time prof = profile(prob, sol;
+    alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=40, resolution=30,
+    min_steps_fallback=:replace)
+@time _prof = profile(prob, sol;
+    alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=40, resolution=30,
+    min_steps_fallback=:refine)
+@time __prof = profile(prob, sol;
+    alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=0, resolution=30,
+    min_steps_fallback=:refine)
+F1=plot_profiles(prof; show_points=true, spline=false)
+F2=plot_profiles(_prof; show_points=true, spline=false)
+F3=plot_profiles(__prof; show_points=true, spline=false)

@@ -173,17 +173,25 @@ end
     return build_q_prototype(q, get_parent(prof), data)
 end
 
+@inline function spline_other_mles(parameter_values, other_mles)
+    spline = interpolate((parameter_values,), other_mles, Gridded(Linear()))
+    return spline
+end
+@inline function spline_other_mles(parameter_values_1, parameter_values_2, other_mles)
+    spline = interpolate((parameter_values_1, parameter_values_2), other_mles, Gridded(Linear()))
+    return spline
+end
 @inline function spline_other_mles(prof::ProfileLikelihoodSolutionView)
     data = get_parameter_values(prof)
     other_mles = get_other_mles(prof)
-    spline = interpolate((data,), other_mles, Gridded(Linear()))
+    spline = spline_other_mles(data, other_mles)
     return spline
 end
 @inline function spline_other_mles(prof::BivariateProfileLikelihoodSolutionView)
     grid_1 = get_parameter_values(prof, 1)
     grid_2 = get_parameter_values(prof, 2)
     other_mles = get_other_mles(prof)
-    spline = interpolate((grid_1, grid_2), other_mles, Gridded(Linear()))
+    spline = spline_other_mles(grid_1, grid_2, other_mles)
     return spline
 end
 @inline function spline_other_mles(prof::Union{ProfileLikelihoodSolution,BivariateProfileLikelihoodSolution})

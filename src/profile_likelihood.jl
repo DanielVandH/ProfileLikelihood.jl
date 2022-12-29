@@ -35,7 +35,7 @@ LaTeXStrings.jl to access the function).
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of `2resolution` points). - `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. 
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
 - `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. See also `min_steps_fallback`.
-- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values.
+- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values. You can use `:refine_parallel` to apply `:refine` in parallel.
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
 - `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
 - `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
@@ -310,7 +310,7 @@ function _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, p
         linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
         if !parameter_is_inbounds(prob, sub_cache)
             _set_next_initial_estimate_mle!(sub_cache, other_mles)
-        end 
+        end
     end
     return nothing
 end
@@ -425,7 +425,8 @@ steps `min_steps`.
 
     - `min_steps_fallback = Val(:replace)`: This method completely replaces the profile, defining a grid from the MLE to the computed endpoint with `min_steps` points. No information is re-used.
     - `min_steps_fallback = Val(:refine)`: This method just adds more points to the profile, filling in enough points so that the total number of points is `min_steps`. The initial estimates in this case come from a spline from `other_mles`.
-    
+    - `min_steps_fallback = Val(:parallel_refine)`: This applies the method above, except in parallel. 
+
 - `next_initial_estimate_method=Val(:replace)`: The method used for obtaining initial estimates. See also [`set_next_initial_estimate!`](@ref).
 """
 function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
@@ -435,6 +436,14 @@ function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
         _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    elseif min_steps_fallback == Val(:refine)
+        _reach_min_steps_refine!(param_vals, profile_vals, other_mles, param_range,
+            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+            threshold, min_steps, mles; kwargs...)
+    elseif min_steps_fallback == Val(:parallel_refine)
+
+    else
+        throw("Invalid min_steps_fallback method.")
     end
     return nothing
 end
@@ -447,6 +456,67 @@ function _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_r
     find_endpoint!(param_vals, profile_vals, other_mles, new_range,
         restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
         typemin(threshold), zero(min_steps), mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    return nothing
+end
+
+function repopulate_points!(grid, m) # resize grid to have m points
+    n = length(grid)
+    a = grid[begin]
+    b = grid[end]
+    step = (b - a) / (m - n + 1)
+    resize!(grid, m)
+    for i in 2:(m-n+1)
+        grid[i+n-1] = a + (i - 1) * step
+    end
+    return nothing
+end
+
+function bspline_other_mles(param_vals, other_mles)
+    param_range = LinRange(param_vals[begin], param_vals[end], length(param_vals))
+    hcat_other_mles = reduce(hcat, other_mles)
+    if param_vals[begin] ≤ param_vals[end]
+        itp = [scale(interpolate(mles, BSpline(Cubic(Line(OnGrid())))), param_range) for mles in eachrow(hcat_other_mles)]
+        return VecBSpline(itp)
+    else
+        itp = [scale(interpolate(reverse(mles), BSpline(Cubic(Line(OnGrid())))), reverse(param_range)) for mles in eachrow(hcat_other_mles)]
+        return VecBSpline(itp)
+    end
+end
+
+function resize_profile_data!(param_vals, profile_vals, other_mles, m)
+    n = length(param_vals)
+    #if param_vals[begin] > param_vals[end] # knot-vectors must be unique and sorted in increasing order - this is for the left endpoint
+    #    spline = spline_other_mles(reverse(param_vals), reverse(other_mles))
+    #else
+    #    spline = spline_other_mles(deepcopy(param_vals), deepcopy(other_mles)) # not deepcopying can lead to OutOfMemory errors / segfaults when we resize 
+    #end
+    spline = bspline_other_mles(param_vals, other_mles)
+    repopulate_points!(param_vals, m)
+    resize!(profile_vals, m)
+    resize!(other_mles, m)
+    for i in (n+1):m
+        other_mles[i] = spline(param_vals[i])
+    end
+    return nothing
+end
+
+function add_point!(profile_vals, other_mles, restricted_prob, n, i, original_length, θₙ, cache, alg, ℓmax, normalise; kwargs...)
+    j = original_length + i
+    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
+    fixed_prob.u0 .= other_mles[j]
+    soln = solve(fixed_prob, alg; kwargs...)
+    profile_vals[j] = -soln.objective - ℓmax * !normalise
+    other_mles[j] .= soln.u
+end
+
+function _reach_min_steps_refine!(param_vals, profile_vals, other_mles, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; kwargs...)
+    original_length = length(param_vals)
+    resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
+    for (i, θₙ) in enumerate(@view param_vals[original_length+1:end])
+        add_point!(profile_vals, other_mles, restricted_prob, n, i, original_length, θₙ, cache, alg, ℓmax, normalise; kwargs...)
+    end
     return nothing
 end
 

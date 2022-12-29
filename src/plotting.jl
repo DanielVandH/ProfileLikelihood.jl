@@ -10,6 +10,8 @@ const ALPHABET = join('a':'z')
         shade_ci=true, 
         fig_kwargs=nothing, 
         axis_kwargs=nothing,
+        show_points=false,
+        markersize=9,
         latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
      
 Plot results from a profile likelihood solution `prof`.
@@ -27,6 +29,8 @@ Plot results from a profile likelihood solution `prof`.
 - `shade_ci=true`: Whether to shade the area under the profile between the confidence interval.
 - `fig_kwargs=nothing`: Extra keyword arguments for `Figure` (see the Makie docs).
 - `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
+- `show_points=false`: Whether to show the profile data. 
+- `markersize=9`: The marker size used for `show_points`.
 - `latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
 
 # Output 
@@ -41,6 +45,8 @@ function plot_profiles(prof::ProfileLikelihoodSolution, vars=profiled_parameters
     shade_ci=true,
     fig_kwargs=nothing,
     axis_kwargs=nothing,
+    show_points=false,
+    markersize=9,
     latex_names=Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))
     num_plots = vars isa Symbol ? 1 : length(vars)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
@@ -53,9 +59,9 @@ function plot_profiles(prof::ProfileLikelihoodSolution, vars=profiled_parameters
     for (ℓ, k) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k]; axis_kwargs)
+            plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize; axis_kwargs)
         else
-            plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k])
+            plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize)
         end
     end
     return fig
@@ -150,7 +156,8 @@ function choose_grid_layout(num_plots, cols, rows)
 end
 
 function plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
-    spline, true_vals, mle_val=nothing, shade_ci=true, param_name=LaTeXStrings.L"\theta_{%$ℓ}"; axis_kwargs=nothing)
+    spline, true_vals, mle_val=nothing, shade_ci=true, param_name=LaTeXStrings.L"\theta_{%$ℓ}",
+    show_points=false, markersize=9; axis_kwargs=nothing)
     lower_ci, upper_ci = get_confidence_intervals(prof)
     θ_vals = get_parameter_values(prof)
     ℓ_vals = get_profile_values(prof)
@@ -195,6 +202,9 @@ function plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
     end
     if !isnothing(mle_val)
         CairoMakie.vlines!(ax, [mle_val], color=:red, linetype=:dashed)
+    end
+    if show_points
+        CairoMakie.scatter!(ax, θ_vals, ℓ_vals, color=:black, markersize=markersize)
     end
     return nothing
 end
