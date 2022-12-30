@@ -30,11 +30,12 @@ LaTeXStrings.jl to access the function).
 # Keyword Arguments 
 - `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
 - `conf_level::F=0.95`: The level to use for the [`ConfidenceInterval`](@ref)s.
-- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also `get_confidence_intervals!`. The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
+- `confidence_interval_method=:spline`: The method to use for computing the confidence intervals. See also [`get_confidence_intervals!`](@ref). The default `:spline` uses rootfinding on the spline through the data, defining a continuous function, while the alternative `:extrema` simply takes the extrema of the values that exceed the threshold.
 - `threshold=get_chisq_threshold(conf_level)`: The threshold to use for defining the confidence intervals. 
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of `2resolution` points). - `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. 
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
-- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. 
+- `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. See also `min_steps_fallback`.
+- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. See also [`reach_min_steps!`](@ref). If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values. You can use `:refine_parallel` to apply `:refine` in parallel.
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
 - `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
 - `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
@@ -53,13 +54,18 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
     resolution=200,
     param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution),
     min_steps=10,
+    min_steps_fallback=:replace,
     normalise::Bool=true,
     spline_alg=FritschCarlsonMonotonicInterpolation,
     extrap=Line,
     parallel=false,
     next_initial_estimate_method=:prev,
     kwargs...) where {F}
-    parallel = Val(SciMLBase._unwrap_val(parallel))
+    parallel = _Val(parallel)
+    confidence_interval_method = _Val(confidence_interval_method)
+    min_steps_fallback = _Val(min_steps_fallback)
+    spline_alg = _Val(spline_alg)
+    next_initial_estimate_method = _Val(next_initial_estimate_method)
     ## Extract the problem and solution 
     opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
 
@@ -78,17 +84,16 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
             profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, mles,
                 shifted_opt_prob, alg, ℓmax, normalise, threshold, min_steps,
-                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, parallel, kwargs...)
+                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
         end
     else
         @sync for _n in n
             Base.Threads.@spawn profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, deepcopy(mles),
                 deepcopy(shifted_opt_prob), alg, deepcopy(ℓmax), normalise, threshold, min_steps,
-                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, parallel, kwargs...)
+                spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
         end
     end
-    # splines = Dict(keys(splines) .=> values(splines)) # fixes the type 
     return ProfileLikelihoodSolution(θ, prof, prob, sol, splines, confidence_intervals, other_mles)
 end
 
@@ -101,6 +106,7 @@ end
         resolution=200,
         param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
         min_steps=10,
+        min_steps_fallback=:replace,
         normalise::Bool=true,
         spline_alg=FritschCarlsonMonotonicInterpolation,
         extrap=Line,
@@ -108,7 +114,7 @@ end
         next_initial_estimate_method=:prev,
         kwargs...) where {F}
 
-Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n`. The keyword 
+Given an existing `prof::ProfileLikelihoodSolution`, replaces the profile results for the parameters in `n` by re-profiling. The keyword 
 arguments are the same as for [`profile`](@ref).
 """
 function replace_profile!(prof::ProfileLikelihoodSolution, n;
@@ -119,6 +125,7 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     resolution=200,
     param_ranges=construct_profile_ranges(prof.likelihood_solution, get_lower_bounds(prof.likelihood_problem), get_upper_bounds(prof.likelihood_problem), resolution),
     min_steps=10,
+    min_steps_fallback=:replace,
     normalise::Bool=true,
     spline_alg=FritschCarlsonMonotonicInterpolation,
     extrap=Line,
@@ -128,7 +135,7 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     _prof = profile(prof.likelihood_problem, prof.likelihood_solution, n;
         alg, conf_level, confidence_interval_method,
         threshold, resolution, param_ranges,
-        min_steps, normalise, spline_alg, extrap,
+        min_steps, min_steps_fallback, normalise, spline_alg, extrap,
         parallel, next_initial_estimate_method, kwargs...)
     for _n in n
         prof.parameter_values[_n] = _prof.parameter_values[_n]
@@ -140,11 +147,105 @@ function replace_profile!(prof::ProfileLikelihoodSolution, n;
     return nothing
 end
 
+"""
+    refine_profile!(prof::ProfileLikelihoodSolution, n;
+        alg=get_optimiser(prof.likelihood_solution),
+        conf_level::F=0.95,
+        confidence_interval_method=:spline,
+        threshold=get_chisq_threshold(conf_level),
+        target_number=10,
+        normalise::Bool=true,
+        spline_alg=FritschCarlsonMonotonicInterpolation,
+        extrap=Line,
+        parallel=false,
+        kwargs...) where {F}
+
+Given an existing `prof::ProfileLikelihoodSolution`, refines the profile results for the parameters in `n` by adding more points. The keyword 
+arguments are the same as for [`profile`](@ref). `target_number` is the total number of points that should be included in the end (not how many more 
+are added).
+"""
+function refine_profile!(prof::ProfileLikelihoodSolution, n;
+    alg=get_optimiser(prof.likelihood_solution),
+    conf_level::F=0.95,
+    confidence_interval_method=:spline,
+    threshold=get_chisq_threshold(conf_level),
+    target_number=10,
+    normalise::Bool=true,
+    spline_alg=FritschCarlsonMonotonicInterpolation,
+    extrap=Line,
+    parallel=false,
+    kwargs...) where {F}
+    parallel = _Val(parallel)
+    confidence_interval_method = _Val(confidence_interval_method)
+    spline_alg = _Val(spline_alg)
+    prob = get_likelihood_problem(prof)
+    sol = get_likelihood_solution(prof)
+    opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
+    shifted_opt_prob = normalise_objective_function(opt_prob, ℓmax, normalise)
+    num_params = number_of_parameters(shifted_opt_prob)
+    cache = DiffCache(zeros(number_type(mles), num_params))
+    splines = get_splines(prof)
+    confidence_intervals = get_confidence_intervals(prof)
+    parameter_values = get_parameter_values(prof)
+    profile_values = get_profile_values(prof)
+    other_mles = get_other_mles(prof)
+    for _n in n
+        _refine_single_parameter!(prof, parameter_values, profile_values, other_mles, splines, confidence_intervals,
+            _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
+            confidence_interval_method, threshold, mles, conf_level, parallel; kwargs...)
+    end
+    return nothing
+end
+
+function _refine_single_parameter!(prof::ProfileLikelihoodSolution, parameter_values, profile_values, other_mles, splines, confidence_intervals,
+    _n, shifted_opt_prob, cache, alg, ℓmax, normalise, target_number, spline_alg, extrap,
+    confidence_interval_method, threshold, mles, conf_level, parallel; kwargs...)
+    restricted_prob = exclude_parameter(shifted_opt_prob, _n)
+    _param_vals = get_parameter_values(prof[_n])
+    if length(_param_vals) < target_number
+        _profile_vals = get_profile_values(prof[_n])
+        _other_mles = get_other_mles(prof[_n])
+        if parallel == Val(false)
+            _reach_min_steps_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        else
+            _reach_min_steps_parallel_refine!(_param_vals, _profile_vals, _other_mles, restricted_prob, _n, cache, alg, ℓmax, normalise, target_number; kwargs...)
+        end
+        _sort_results!(_profile_vals, _param_vals, _other_mles)
+        _cleanup_duplicates!(_profile_vals, _param_vals, _other_mles)
+        get_results!(parameter_values, profile_values, other_mles, splines, confidence_intervals, _n,
+            _param_vals, _profile_vals, _other_mles,
+            spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
+    end
+    return nothing
+end
+
+@inline function exclude_parameter(shifted_opt_prob, n, sub_cache_left, sub_cache_right)
+    restricted_prob_left = exclude_parameter(deepcopy(shifted_opt_prob), n)
+    restricted_prob_right = exclude_parameter(deepcopy(shifted_opt_prob), n)
+    restricted_prob_left.u0 .= sub_cache_left
+    restricted_prob_right.u0 .= sub_cache_right
+    return restricted_prob_left, restricted_prob_right
+end
+
+function get_results!(θ, prof, other_mles, splines, confidence_intervals, n,
+    combined_param_vals, combined_profiles, combined_other_mles,
+    spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
+    lock(dict_lock) do
+        θ[n] = combined_param_vals
+        prof[n] = combined_profiles
+        other_mles[n] = combined_other_mles
+        spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
+        get_confidence_intervals!(confidence_intervals, confidence_interval_method,
+            n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
+    end
+    return nothing
+end
+
 function profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
     n, num_params, param_ranges, mles,
     shifted_opt_prob, alg, ℓmax, normalise, threshold, min_steps,
-    spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method=:prev, parallel=Val(false), kwargs...)
-    ## First, prepare all the cache vectors  
+    spline_alg, extrap, confidence_interval_method, conf_level; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:prev), parallel=Val(false), kwargs...)
+
     _param_ranges = param_ranges[n]
     left_profile_vals, right_profile_vals,
     left_param_vals, right_param_vals,
@@ -153,55 +254,21 @@ function profile_single_parameter!(θ, prof, other_mles, splines, confidence_int
     cache, sub_cache = prepare_cache_vectors(n, num_params, _param_ranges, mles)
     sub_cache_left, sub_cache_right = deepcopy(sub_cache), deepcopy(sub_cache)
 
-    ## Now restrict the problem 
-    restricted_prob_left = exclude_parameter(deepcopy(shifted_opt_prob), n)
-    restricted_prob_right = exclude_parameter(deepcopy(shifted_opt_prob), n)
-    restricted_prob_left.u0 .= sub_cache_left
-    restricted_prob_right.u0 .= sub_cache_right
+    restricted_prob_left, restricted_prob_right = exclude_parameter(shifted_opt_prob, n, sub_cache_left, sub_cache_right)
 
-    if parallel == Val(false)
-        ## Get the left endpoint
-        find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, _param_ranges[1],
-            restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
-            threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
+    find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+        right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+        _param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise, parallel;
+        min_steps_fallback, next_initial_estimate_method, kwargs...)
 
-        ## Get the right endpoint
-        find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, _param_ranges[2],
-            restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
-            threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-    else
-        ## Get the left endpoint
-        @sync begin
-            @async find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, _param_ranges[1],        #=left_end = Base.Threads.@spawn=#
-                restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
-                threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-
-            ## Get the right endpoint
-            @async find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, _param_ranges[2],        #=right_end = Base.Threads.@spawn=#
-                restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
-                threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-        end
-    end
-
-    ## Now combine the results 
     combine_and_clean_results!(left_profile_vals, right_profile_vals,
         left_param_vals, right_param_vals,
         left_other_mles, right_other_mles,
         combined_profiles, combined_param_vals, combined_other_mles)
 
-    ## Put the results in 
-    lock(dict_lock) do
-        θ[n] = combined_param_vals
-        prof[n] = combined_profiles
-        other_mles[n] = combined_other_mles
-
-        # Put a spline through the profile 
-        spline_profile!(splines, n, combined_param_vals, combined_profiles, spline_alg, extrap)
-
-        ## Get the confidence intervals
-        get_confidence_intervals!(confidence_intervals, confidence_interval_method,
-            n, combined_param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
-    end
+    get_results!(θ, prof, other_mles, splines, confidence_intervals, n,
+        combined_param_vals, combined_profiles, combined_other_mles,
+        spline_alg, extrap, confidence_interval_method, threshold, mles, conf_level)
     return nothing
 end
 
@@ -234,6 +301,7 @@ function prepare_profile_results(N, T, F, spline_alg=FritschCarlsonMonotonicInte
     θ = Dict{Int64,Vector{T}}([])
     prof = Dict{Int64,Vector{T}}([])
     other_mles = Dict{Int64,Vector{Vector{T}}}([])
+    spline_alg = take_val(spline_alg)
     if typeof(spline_alg) <: Gridded
         spline_type = typeof(extrapolate(interpolate((T.(collect(1:20)),), T.(collect(1:20)), spline_alg isa Type ? spline_alg() : spline_alg), extrap isa Type ? extrap() : extrap))
     else
@@ -250,7 +318,7 @@ function prepare_profile_results(N, T, F, spline_alg=FritschCarlsonMonotonicInte
 end
 
 @inline function normalise_objective_function(opt_prob, ℓmax::T, normalise) where {T}
-    normalise = SciMLBase._unwrap_val(normalise)
+    normalise = take_val(normalise)
     shift = normalise ? -ℓmax : zero(T)
     shifted_opt_prob = shift_objective_function(opt_prob, shift)
     return shifted_opt_prob
@@ -265,19 +333,8 @@ function reset_profile_vectors!(restricted_prob, param_vals, profile_vals, other
     return new_range
 end
 
-function reset_find_endpoint!(param_vals, profile_vals, other_mles, param_range,
-    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-    threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-    sub_cache .= mles[Not(n)]
-    new_range = reset_profile_vectors!(restricted_prob, param_vals, profile_vals, other_mles, min_steps, mles, n)
-    find_endpoint!(param_vals, profile_vals, other_mles, new_range,
-        restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-        typemin(threshold), zero(min_steps), mles; next_initial_estimate_method, kwargs...)
-    return nothing
-end
-
 """
-    set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=:prev)
+    set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
 
 Method for selecting the next initial estimate for the optimisers. `sub_cache` is the cache vector for placing 
 the initial estimate into, `param_vals` is the current list of parameter values for the interest parameter, 
@@ -286,56 +343,244 @@ and `other_mles` is the corresponding list of previous optimisers. `prob` is the
 
 The available methods are: 
 
-- `next_initial_estimate_method = :prev`: If this is selected, simply use `other_mles[end]`, i.e. the previous optimiser. 
-- `next_initial_estimate_method = :interp`: If this is selected, the next optimiser is determined via linear interpolation using the data `(param_vals[end-1], other_mles[end-1]), (param_vals[end], other_mles[end])`. If the new approximation is outside of the parameter bounds, falls back to `next_initial_estimate_method = :prev`.
+- `next_initial_estimate_method = Val(:prev)`: If this is selected, simply use `other_mles[end]`, i.e. the previous optimiser. 
+- `next_initial_estimate_method = Val(:interp)`: If this is selected, the next optimiser is determined via linear interpolation using the data `(param_vals[end-1], other_mles[end-1]), (param_vals[end], other_mles[end])`. If the new approximation is outside of the parameter bounds, falls back to `next_initial_estimate_method = :prev`.
 """
-function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=:prev)
-    if next_initial_estimate_method == :prev
-        sub_cache .= other_mles[end]
-        return nothing
-    elseif next_initial_estimate_method == :interp
-        if length(other_mles) == 1
-            set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=:prev)
-            return nothing
-        else
-            linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
-            if !parameter_is_inbounds(prob, sub_cache)
-                set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=:prev)
-                return nothing
-            end
-            return nothing
-        end
+function set_next_initial_estimate!(sub_cache, param_vals, other_mles, prob, θₙ; next_initial_estimate_method=Val(:prev))
+    if next_initial_estimate_method == Val(:prev)
+        _set_next_initial_estimate_mle!(sub_cache, other_mles)
+    elseif next_initial_estimate_method == Val(:interp)
+        _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, prob, θₙ)
     else
         throw("Invalid initial estimate method provided, $next_initial_estimate_method. The available options are :prev and :interp.")
     end
     return nothing
 end
 
-function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
-    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
-    threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
-    steps = 1
-    for θₙ in param_range
-        !isempty(other_mles) && set_next_initial_estimate!(sub_cache, param_vals, other_mles, restricted_prob, θₙ; next_initial_estimate_method)
-        push!(param_vals, θₙ)
-        ## Fix the objective function 
-        fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
-        fixed_prob.u0 .= sub_cache
-        ## Solve the fixed problem 
-        soln = solve(fixed_prob, alg; kwargs...)
-        push!(profile_vals, -soln.objective - ℓmax * !normalise)
-        push!(other_mles, soln.u)
-        ## Increment 
-        steps += 1
-        if profile_vals[end] ≤ threshold
-            break
+function _set_next_initial_estimate_mle!(sub_cache, other_mles::AbstractVector)
+    sub_cache .= other_mles[end]
+    return nothing
+end
+
+function _set_next_initial_estimate_interp!(sub_cache, param_vals, other_mles, prob, θₙ)
+    if length(other_mles) == 1
+        _set_next_initial_estimate_mle!(sub_cache, other_mles)
+    else
+        linear_extrapolation!(sub_cache, θₙ, param_vals[end-1], other_mles[end-1], param_vals[end], other_mles[end])
+        if !parameter_is_inbounds(prob, sub_cache)
+            _set_next_initial_estimate_mle!(sub_cache, other_mles)
         end
     end
-    ## Check if we need to extend the values 
-    if steps ≤ min_steps
-        reset_find_endpoint!(param_vals, profile_vals, other_mles, param_range,
+    return nothing
+end
+
+function find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise, parallel;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    if parallel == Val(false)
+        _find_endpoint_serial!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+            right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+            param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+            min_steps_fallback, next_initial_estimate_method, kwargs...)
+    else
+        _find_endpoint_parallel!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+            right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+            param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+            min_steps_fallback, next_initial_estimate_method, kwargs...)
+    end
+    return nothing
+end
+
+function _find_endpoint_serial!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, param_ranges[1],
+        restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # left
+    find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, param_ranges[2],
+        restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # right
+    return nothing
+end
+
+function _find_endpoint_parallel!(left_param_vals, left_profile_vals, left_other_mles, restricted_prob_left, sub_cache_left,
+    right_param_vals, right_profile_vals, right_other_mles, restricted_prob_right, sub_cache_right,
+    param_ranges, threshold, min_steps, mles, n, cache, alg, ℓmax, normalise;
+    min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    @sync begin
+        @async find_endpoint!(left_param_vals, left_profile_vals, left_other_mles, param_ranges[1],
+            restricted_prob_left, n, cache, alg, sub_cache_left, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # left
+        @async find_endpoint!(right_param_vals, right_profile_vals, right_other_mles, param_ranges[2],
+            restricted_prob_right, n, cache, alg, sub_cache_right, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...) # right
+    end
+    return nothing
+end
+
+function find_endpoint!(param_vals, profile_vals, other_mles, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    steps = 1
+    for θₙ in param_range
+        add_point!(param_vals, profile_vals, other_mles, θₙ, param_range,
             restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
             threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
+        steps += 1
+        profile_vals[end] ≤ threshold && break
+    end
+    ## Check if we need to extend the values 
+    if steps < min_steps
+        reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    end
+    return nothing
+end
+
+function add_point!(param_vals, profile_vals, other_mles, θₙ, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; next_initial_estimate_method, kwargs...)
+    !isempty(other_mles) && set_next_initial_estimate!(sub_cache, param_vals, other_mles, restricted_prob, θₙ; next_initial_estimate_method)
+    push!(param_vals, θₙ)
+    ## Fix the objective function 
+    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
+    fixed_prob.u0 .= sub_cache
+    ## Solve the fixed problem 
+    soln = solve(fixed_prob, alg; kwargs...)
+    push!(profile_vals, -soln.objective - ℓmax * !normalise)
+    push!(other_mles, soln.u)
+    return nothing
+end
+
+"""
+    reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+        restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+        threshold, min_steps, mles; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+
+Updates the results from the side of a profile likelihood (e.g. left or right side, see `find_endpoint!`) to meet the minimum number of 
+steps `min_steps`.
+
+# Arguments 
+- `param_vals`: The parameter values. 
+- `profile_vals`: The profile values. 
+- `other_mles`: The other MLEs, i.e. the optimised parameters for the corresponding fixed parameter values in `param_vals`.
+- `param_range`: The vector of parameter values.
+- `restricted_prob`: The optimisation problem, restricted to the `n`th parameter. 
+- `n`: The parameter being profiled.
+- `cache`: A cache for the complete parameter vector. 
+- `alg`: The algorithm used for optimising. 
+- `sub_cache`: A cache for the parameter vector excluding the `n`th parameter.
+- `ℓmax`: The maximum likelihood. 
+- `normalise`: Whether the optimisation problem is normalised.
+- `threshold`: The threshold for the confidence interval. 
+- `min_steps`: The minimum number of steps to reach. 
+- `mles`: The MLEs.
+
+# Keyword Arguments 
+- `min_steps_fallback=Val(:interp)`: The method used for reaching the minimum number of steps. The available methods are:
+
+    - `min_steps_fallback = Val(:replace)`: This method completely replaces the profile, defining a grid from the MLE to the computed endpoint with `min_steps` points. No information is re-used.
+    - `min_steps_fallback = Val(:refine)`: This method just adds more points to the profile, filling in enough points so that the total number of points is `min_steps`. The initial estimates in this case come from a spline from `other_mles`.
+    - `min_steps_fallback = Val(:parallel_refine)`: This applies the method above, except in parallel. 
+
+- `next_initial_estimate_method=Val(:replace)`: The method used for obtaining initial estimates. See also [`set_next_initial_estimate!`](@ref).
+"""
+function reach_min_steps!(param_vals, profile_vals, other_mles, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; min_steps_fallback=Val(:replace), next_initial_estimate_method=Val(:interp), kwargs...)
+    if min_steps_fallback == Val(:replace)
+        _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_range,
+            restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+            threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    elseif min_steps_fallback == Val(:refine)
+        _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
+    elseif min_steps_fallback == Val(:parallel_refine)
+        _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
+    else
+        throw("Invalid min_steps_fallback method.")
+    end
+    return nothing
+end
+
+function _reach_min_steps_replace!(param_vals, profile_vals, other_mles, param_range,
+    restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+    threshold, min_steps, mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    sub_cache .= mles[Not(n)]
+    new_range = reset_profile_vectors!(restricted_prob, param_vals, profile_vals, other_mles, min_steps, mles, n)
+    find_endpoint!(param_vals, profile_vals, other_mles, new_range,
+        restricted_prob, n, cache, alg, sub_cache, ℓmax, normalise,
+        typemin(threshold), zero(min_steps), mles; min_steps_fallback, next_initial_estimate_method, kwargs...)
+    return nothing
+end
+
+function repopulate_points!(grid, m) # resize grid to have m points
+    n = length(grid)
+    a = grid[begin]
+    b = grid[end]
+    step = (b - a) / (m - n + 1)
+    resize!(grid, m)
+    for i in 2:(m-n+1)
+        grid[i+n-1] = a + (i - 1) * step
+    end
+    return nothing
+end
+
+function bspline_other_mles(param_vals, other_mles)
+    param_range = LinRange(param_vals[begin], param_vals[end], length(param_vals))
+    hcat_other_mles = reduce(hcat, other_mles)
+    if param_vals[begin] ≤ param_vals[end]
+        itp = [scale(interpolate(mles, BSpline(Cubic(Line(OnGrid())))), param_range) for mles in eachrow(hcat_other_mles)]
+        return VecBSpline(itp)
+    else
+        itp = [scale(interpolate(reverse(mles), BSpline(Cubic(Line(OnGrid())))), reverse(param_range)) for mles in eachrow(hcat_other_mles)]
+        return VecBSpline(itp)
+    end
+end
+
+function resize_profile_data!(param_vals, profile_vals, other_mles, m)
+    n = length(param_vals)
+    spline = bspline_other_mles(param_vals, other_mles)
+    repopulate_points!(param_vals, m)
+    resize!(profile_vals, m)
+    resize!(other_mles, m)
+    for i in (n+1):m
+        other_mles[i] = spline(param_vals[i])
+    end
+    return nothing
+end
+
+function add_point!(profile_vals, other_mles, restricted_prob, n, i, original_length, θₙ, cache, alg, ℓmax, normalise; kwargs...)
+    j = original_length + i
+    fixed_prob = construct_fixed_optimisation_function(restricted_prob, n, θₙ, cache)
+    fixed_prob.u0 .= other_mles[j]
+    soln = solve(fixed_prob, alg; kwargs...)
+    profile_vals[j] = -soln.objective - ℓmax * !normalise
+    other_mles[j] .= soln.u
+end
+
+function _reach_min_steps_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
+    original_length = length(param_vals)
+    resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
+    for (i, θₙ) in enumerate(@view param_vals[original_length+1:end])
+        add_point!(profile_vals, other_mles, restricted_prob, n, i, original_length, θₙ, cache, alg, ℓmax, normalise; kwargs...)
+    end
+    return nothing
+end
+
+function _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles, restricted_prob, n, cache, alg, ℓmax, normalise, min_steps; kwargs...)
+    original_length = length(param_vals)
+    resize_profile_data!(param_vals, profile_vals, other_mles, min_steps)
+    nt = Base.Threads.nthreads()
+    _restricted_prob = [deepcopy(restricted_prob) for _ in 1:nt]
+    _cache = [deepcopy(cache) for _ in 1:nt]
+    Base.Threads.@threads for i in 1:(min_steps - original_length)
+        j = original_length + i
+        θₙ = param_vals[j]
+        id = Base.Threads.threadid()
+        add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
     end
     return nothing
 end
@@ -365,30 +610,47 @@ function prepare_cache_vectors(n, num_params, param_ranges, mles::AbstractVector
     cache, sub_cache
 end
 
+function _combine_results!(left_profile_vals, right_profile_vals,
+    left_param_vals, right_param_vals,
+    left_other_mles, right_other_mles,
+    combined_profiles, combined_param_vals, combined_other_mles)
+    append!(combined_profiles, left_profile_vals, right_profile_vals)
+    append!(combined_param_vals, left_param_vals, right_param_vals)
+    append!(combined_other_mles, left_other_mles, right_other_mles)
+    return nothing
+end
+
+function _sort_results!(profiles, param_vals, other_mles)
+    sort_idx = sortperm(param_vals)
+    permute!(param_vals, sort_idx)
+    permute!(profiles, sort_idx)
+    permute!(other_mles, sort_idx)
+    return nothing
+end
+
+function _cleanup_duplicates!(profiles, param_vals, other_mles)
+    idx = unique(i -> param_vals[i], eachindex(param_vals))
+    keepat!(param_vals, idx)
+    keepat!(profiles, idx)
+    keepat!(other_mles, idx)
+    return nothing
+end
+
 function combine_and_clean_results!(left_profile_vals, right_profile_vals,
     left_param_vals, right_param_vals,
     left_other_mles, right_other_mles,
     combined_profiles, combined_param_vals, combined_other_mles)
-    ## Combine the results 
-    append!(combined_profiles, left_profile_vals, right_profile_vals)
-    append!(combined_param_vals, left_param_vals, right_param_vals)
-    append!(combined_other_mles, left_other_mles, right_other_mles)
-
-    ## Make sure the results are sorted 
-    sort_idx = sortperm(combined_param_vals)
-    permute!(combined_param_vals, sort_idx)
-    permute!(combined_profiles, sort_idx)
-    permute!(combined_other_mles, sort_idx)
-
-    ## Cleanup some duplicate values
-    idx = unique(i -> combined_param_vals[i], eachindex(combined_param_vals))
-    keepat!(combined_param_vals, idx)
-    keepat!(combined_profiles, idx)
-    keepat!(combined_other_mles, idx)
+    _combine_results!(left_profile_vals, right_profile_vals,
+        left_param_vals, right_param_vals,
+        left_other_mles, right_other_mles,
+        combined_profiles, combined_param_vals, combined_other_mles)
+    _sort_results!(combined_profiles, combined_param_vals, combined_other_mles)
+    _cleanup_duplicates!(combined_profiles, combined_param_vals, combined_other_mles)
     return nothing
 end
 
 function spline_profile!(splines, n, param_vals, profiles, spline_alg, extrap)
+    spline_alg = take_val(spline_alg)
     try
         if typeof(spline_alg) <: Gridded
             itp = interpolate((param_vals,), profiles, spline_alg isa Type ? spline_alg() : spline_alg)
@@ -404,25 +666,52 @@ function spline_profile!(splines, n, param_vals, profiles, spline_alg, extrap)
     return nothing
 end
 
+"""
+    get_confidence_intervals!(confidence_intervals, method, n, param_vals, profile_vals, threshold, spline_alg, extrap, mles, conf_level)
+
+Method for computing the confidence intervals.
+
+# Arguments
+- `confidence_intervals`: The dictionary storing the confidence intervals. 
+- `method`: The method to use for computing the confidence interval. The available methods are:
+
+    - `method = Val(:spline)`: Fits a spline to `(param_vals, profile_vals)` and finds where the continuous spline equals `threshold`.
+    - `method = Val(:extrema)`: Takes the first and last values in `param_vals` whose corresponding value in `profile_vals` exceeds `threshold`.
+
+- `n`: The parameter being profiled. 
+- `param_vals`: The parameter values. 
+- `profile_vals`: The profile values. 
+- `threshold`: The threshold for the confidence interval. 
+- `spline_alg`: The algorithm to use for fitting a spline. 
+- `extrap`: The extrapolation algorithm used for the spline.
+- `mles`: The MLEs. 
+- `conf_level`: The confidence level for the confidence interval.
+
+# Outputs 
+There are no outputs - `confidence_intervals[n]` gets the [`ConfidenceInterval`](@ref) put into it.
+"""
 function get_confidence_intervals!(confidence_intervals, method, n, param_vals, profile_vals, threshold, spline_alg, extrap, mles, conf_level)
-    if method == :spline
+    if method == Val(:spline)
         try
             _get_confidence_intervals_spline!(confidence_intervals, n, param_vals, profile_vals, threshold, spline_alg, extrap, mles, conf_level)
         catch
             @warn("Failed to create the confidence interval for parameter $n using a spline. Restarting using the extrema method.")
-            get_confidence_intervals!(confidence_intervals, :extrema, n, param_vals, profile_vals, threshold, spline_alg, extrap, mles, conf_level)
+            get_confidence_intervals!(confidence_intervals, Val(:extrema), n, param_vals, profile_vals, threshold, spline_alg, extrap, mles, conf_level)
         end
-    elseif method == :extrema
+    elseif method == Val(:extrema)
         try
             _get_confidence_intervals_extrema!(confidence_intervals, n, param_vals, profile_vals, threshold, conf_level)
         catch
             @warn("Failed to create the confidence interval for parameter $n.")
             confidence_intervals[n] = ConfidenceInterval(NaN, NaN, conf_level)
         end
+    else
+        throw("Invalid confidence region method selected.")
     end
     return nothing
 end
 function _get_confidence_intervals_spline!(confidence_intervals, n, param_vals, combined_profiles, threshold, spline_alg, extrap, mles, conf_level)
+    spline_alg = take_val(spline_alg)
     itp = interpolate(param_vals, combined_profiles .- threshold, spline_alg isa Type ? spline_alg() : spline_alg)
     itp_f = (θ, _) -> itp(θ)
     left_bracket = (param_vals[begin], mles[n])

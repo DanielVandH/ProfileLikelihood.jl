@@ -116,3 +116,17 @@ ProfileLikelihood.linear_extrapolation!(y, x₀, x₀, y₀, x₁, y₁)
 @test y ≈ y₀
 ProfileLikelihood.linear_extrapolation!(y, x₁, x₀, y₀, x₁, y₁) 
 @test y ≈ y₁
+
+# _Val 
+@test ProfileLikelihood._Val(6) == Val(6)
+@test ProfileLikelihood._Val(true) == Val(true)
+@test ProfileLikelihood._Val(false) == Val(false)
+@test ProfileLikelihood._Val(:interp) == Val(:interp)
+@test ProfileLikelihood._Val(Val(:interp)) == Val(:interp)
+@test ProfileLikelihood._Val(Val(true)) == Val(true)
+
+# take_val 
+@test ProfileLikelihood.take_val(6) == 6
+@test ProfileLikelihood.take_val(true) == true 
+@test ProfileLikelihood.take_val(Val(6)) == 6  
+@test ProfileLikelihood.take_val(Val(:interp)) == :interp  
