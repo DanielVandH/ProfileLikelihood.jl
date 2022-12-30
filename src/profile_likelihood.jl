@@ -35,7 +35,7 @@ LaTeXStrings.jl to access the function).
 - `resolution=200`: The number of points to use for evaluating the profile likelihood in each direction starting from the MLE (giving a total of `2resolution` points). - `resolution=200`: The number of points to use for defining `grids` below, giving the number of points to the left and right of each interest parameter. This can also be a vector, e.g. `resolution = [20, 50, 60]` will use `20` points for the first parameter, `50` for the second, and `60` for the third. 
 - `param_ranges=construct_profile_ranges(sol, get_lower_bounds(prob), get_upper_bounds(prob), resolution)`: The ranges to use for each parameter.
 - `min_steps=10`: The minimum number of steps to allow for the profile in each direction. If fewer than this number of steps are used before reaching the threshold, then the algorithm restarts and computes the profile likelihood a number `min_steps` of points in that direction. See also `min_steps_fallback`.
-- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values. You can use `:refine_parallel` to apply `:refine` in parallel.
+- `min_steps_fallback=:replace`: Method to use for updating the profile when it does not reach the minimum number of steps, `min_steps`. See also [`reach_min_steps!`](@ref). If `:replace`, then the profile is completely replaced and we use `min_steps` equally spaced points to replace it. If `:refine`, we just fill in some of the space in the grid so that a `min_steps` number of points are reached. Note that this latter option will mean that the spacing is no longer constant between parameter values. You can use `:refine_parallel` to apply `:refine` in parallel.
 - `normalise::Bool=true`: Whether to optimise the normalised profile log-likelihood or not. 
 - `spline_alg=FritschCarlsonMonotonicInterpolation`: The interpolation algorithm to use for computing a spline from the profile data. See Interpolations.jl. 
 - `extrap=Line`: The extrapolation algorithm to use for computing a spline from the profile data. See Interpolations.jl.
@@ -160,8 +160,9 @@ end
         parallel=false,
         kwargs...) where {F}
 
-Given an existing `prof::ProfileLikelihoodSolution`, refines the profile results for the parameters in `n` by re-profiling. The keyword 
-arguments are the same as for [`profile`](@ref).
+Given an existing `prof::ProfileLikelihoodSolution`, refines the profile results for the parameters in `n` by adding more points. The keyword 
+arguments are the same as for [`profile`](@ref). `target_number` is the total number of points that should be included in the end (not how many more 
+are added).
 """
 function refine_profile!(prof::ProfileLikelihoodSolution, n;
     alg=get_optimiser(prof.likelihood_solution),
@@ -681,7 +682,7 @@ Method for computing the confidence intervals.
 - `param_vals`: The parameter values. 
 - `profile_vals`: The profile values. 
 - `threshold`: The threshold for the confidence interval. 
-- `spline_agl`: The algorithm to use for fitting a spline. 
+- `spline_alg`: The algorithm to use for fitting a spline. 
 - `extrap`: The extrapolation algorithm used for the spline.
 - `mles`: The MLEs. 
 - `conf_level`: The confidence level for the confidence interval.

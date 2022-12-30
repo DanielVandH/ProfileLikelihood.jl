@@ -24,7 +24,10 @@ ProfileLikelihood.ProfileLikelihoodSolution
 ProfileLikelihood.ConfidenceInterval
 profile 
 replace_profile!
+refine_profile!
 ProfileLikelihood.set_next_initial_estimate!(::Any, ::Any, ::Any, ::Any, ::Any)
+ProfileLikelihood.get_confidence_intervals!
+ProfileLikelihood.reach_min_steps!
 ```
 
 ## BivariateProfileLikelihoodSolution 
