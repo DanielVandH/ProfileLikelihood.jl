@@ -15,6 +15,7 @@ using LoopVectorization
 using LatinHypercubeSampling 
 using OptimizationOptimJL
 using OptimizationNLopt
+using Test
 ```
 
 ## Setting up the problem 
