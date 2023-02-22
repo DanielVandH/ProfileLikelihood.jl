@@ -21,7 +21,7 @@ a₀ = 0.8
 b₀ = 0.3
 σ = 0.2
 t = LinRange(0, 10, 21)
-@inline function ode_fnc!(du, u, p, t) where {T}
+@inline function ode_fnc!(du, u, p, t)
     α, β = p
     a, b = u
     du[1] = α * a - a * b
@@ -68,15 +68,18 @@ u₀_cache = DiffCache(zeros(2), 12)
 αβ_cache = DiffCache(zeros(2), 12)
 n = findlast(t .≤ 7) # Using t ≤ 7 for estimation
 lbc = @inline (f, u, p, tspan, ode_alg; kwargs...) -> GeneralLazyBufferCache(
-    @inline function ((cache, α, β),) # Needs to be a 1-argument function
+    @inline function ((cache, u₀_cache, α, β, a₀, b₀),) # Needs to be a 1-argument function
         αβ = get_tmp(cache, α)
         αβ[1] = α
         αβ[2] = β
+        u₀ = get_tmp(u₀_cache, a₀)
+        u₀[1] = a₀
+        u₀[2] = b₀
         int = construct_integrator(f, u₀, tspan, αβ, ode_alg; kwargs...)
         return int
     end
 )
-lbc_index = @inline (θ, p) -> (p[4], θ[1], θ[2])
+lbc_index = @inline (θ, p) -> (p[4], p[3], θ[1], θ[2], θ[3], θ[4])
 prob = LikelihoodProblem(
     loglik_fnc2, θ₀, ode_fnc!, u₀, tspan, lbc, lbc_index;
     syms=syms,

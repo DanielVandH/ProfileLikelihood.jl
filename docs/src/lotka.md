@@ -49,7 +49,7 @@ a₀ = 0.8
 b₀ = 0.3
 σ = 0.2
 t = LinRange(0, 10, 21)
-@inline function ode_fnc!(du, u, p, t) where {T}
+@inline function ode_fnc!(du, u, p, t) 
     α, β = p
     a, b = u
     du[1] = α * a - a * b
@@ -158,11 +158,14 @@ Maximum likelihood estimates: 4-element Vector{Float64}
  To get around this, we can use `GeneralLazyBufferCache` from PreallocationTools.jl. This is a cache that wraps around a function, creating the cache when the function is called (and reused if the same function method is used). This does make things a bit slower (in fact, automatic differentiation is slower than using finite differences or e.g. Nelder-Mead for this problem -- this is just a demonstration) since the dynamic dispatch slows things down. We provide a method for constructing a `LikelihoodProblem` using this cache. The method requires that we first define a function that maps the arguments that would be used for constructing an integrator into a `GeneralLazyBufferCache`. For this problem, this function is as follows:
 
  ```julia
- lbc = @inline (f, u, p, tspan, ode_alg; kwargs...) -> GeneralLazyBufferCache(
-    @inline function ((cache, α, β),) # Needs to be a 1-argument function
+lbc = @inline (f, u, p, tspan, ode_alg; kwargs...) -> GeneralLazyBufferCache(
+    @inline function ((cache, u₀_cache, α, β, a₀, b₀),) # Needs to be a 1-argument function
         αβ = get_tmp(cache, α)
         αβ[1] = α
         αβ[2] = β
+        u₀ = get_tmp(u₀_cache, a₀)
+        u₀[1] = a₀
+        u₀[2] = b₀
         int = construct_integrator(f, u₀, tspan, αβ, ode_alg; kwargs...)
         return int
     end
@@ -172,7 +175,7 @@ Maximum likelihood estimates: 4-element Vector{Float64}
 This `cache` argument in the inner function is why we need `αβ_cache` in our likelihood function. The second thing we need is a method that takes `(θ, p)` into the appropriate set of arguments for our `GeneralLazyBufferCache`. For this problem, we want to put `α` and `β` into the cache, and we should also put `αβ_cache` into it. This corresponds to forwarding `θ[1]`, `θ[2]`, and `p[4]` into the function, so we define 
 
 ```julia 
-lbc_index = @inline (θ, p) -> (p[4], θ[1], θ[2])
+lbc_index = @inline (θ, p) -> (p[4], p[3], θ[1], θ[2], θ[3], θ[4])
 ```
 
 With these ingredients, we can now define our `LikelihoodProblem`. The constructor is the same as usual for an ODE problem, except with these two functions at the end of the arguments:
