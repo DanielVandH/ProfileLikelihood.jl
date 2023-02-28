@@ -42,7 +42,7 @@ using FiniteVolumeMethod, DelaunayTriangulation, LinearSolve
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
 r = 0.022
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe" # set this to whatever your path is
-tri = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+tri = generate_mesh(a, b, c, d, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
@@ -508,7 +508,7 @@ using DelaunayTriangulation, FiniteVolumeMethod
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
 r = 0.022
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-tri = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+tri = generate_mesh(a, b, c, d, r; gmsh_path=GMSH_PATH)
 mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
