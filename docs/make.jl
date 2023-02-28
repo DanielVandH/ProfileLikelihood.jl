@@ -4,7 +4,7 @@ using Documenter
 DocMeta.setdocmeta!(ProfileLikelihood, :DocTestSetup, :(using ProfileLikelihood);
     recursive=true)
 
-makedocs(sitename="ProfileLikelihood.jl",
+makedocs(
     modules=[ProfileLikelihood],
     authors="Daniel VandenHeuvel <danj.vandenheuvel@gmail.com>",
     repo="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/{commit}{path}#{line}",
