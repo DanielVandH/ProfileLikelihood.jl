@@ -5,7 +5,7 @@ using OrdinaryDiffEq
 using CairoMakie
 using LaTeXStrings
 using OptimizationNLopt
-const SAVE_FIGURE = false
+const SAVE_FIGURE = true
 
 ######################################################
 ## Example II: Logistic ODE
@@ -118,7 +118,7 @@ fig = plot_profiles(prof;
     true_vals=[λ, K, u₀],
     fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
-SAVE_FIGURE && save("test/figures/logistic_example.png", fig)
+SAVE_FIGURE && save("figures/logistic_example.png", fig)
 
 ## Step 5: Get prediction intervals, compare to evaluating at many points 
 function prediction_function(θ, data)
@@ -178,4 +178,4 @@ q_upr = maximum(q_mat; dims=2) |> vec
 lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
 lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)
 
-SAVE_FIGURE && save("test/figures/logistic_example_prediction.png", fig)
+SAVE_FIGURE && save("figures/logistic_example_prediction.png", fig)

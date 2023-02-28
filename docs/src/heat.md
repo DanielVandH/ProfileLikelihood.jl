@@ -40,34 +40,20 @@ Let us start by defining the PDE problem, and then we will discuss profiling.
 ```julia 
 using FiniteVolumeMethod, DelaunayTriangulation, LinearSolve
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
-n = 500
-x₁ = LinRange(a, b, n)
-x₂ = LinRange(b, b, n)
-x₃ = LinRange(b, a, n)
-x₄ = LinRange(a, a, n)
-y₁ = LinRange(c, c, n)
-y₂ = LinRange(c, d, n)
-y₃ = LinRange(d, d, n)
-y₄ = LinRange(d, c, n)
-x = reduce(vcat, [x₁, x₂, x₃, x₄])
-y = reduce(vcat, [y₁, y₂, y₃, y₄])
-xy = [[x[i], y[i]] for i in eachindex(x)]
-unique!(xy)
-x = getx.(xy)
-y = gety.(xy)
 r = 0.022
-GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
-mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe" # set this to whatever your path is
+tri = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
-BCs = BoundaryConditions(mesh, bc, type, BN)
+BCs = BoundaryConditions(mesh, bc, type)
 c = 1.0
 u₀ = 50.0
 f = (x, y) -> y ≤ c ? u₀ : 0.0
 D = (x, y, t, u, p) -> p[1]
 flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
 R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+points = get_points(tri)
 initc = @views f.(points[1, :], points[2, :])
 iip_flux = true
 final_time = 0.1
@@ -520,34 +506,20 @@ Here is all the code used for obtaining the results in this example, should you 
 ## Step 1: Define the problem. See FiniteVolumeMethod.jl
 using DelaunayTriangulation, FiniteVolumeMethod
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
-n = 500
-x₁ = LinRange(a, b, n)
-x₂ = LinRange(b, b, n)
-x₃ = LinRange(b, a, n)
-x₄ = LinRange(a, a, n)
-y₁ = LinRange(c, c, n)
-y₂ = LinRange(c, d, n)
-y₃ = LinRange(d, d, n)
-y₄ = LinRange(d, c, n)
-x = reduce(vcat, [x₁, x₂, x₃, x₄])
-y = reduce(vcat, [y₁, y₂, y₃, y₄])
-xy = [[x[i], y[i]] for i in eachindex(x)]
-unique!(xy)
-x = getx.(xy)
-y = gety.(xy)
 r = 0.022
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
-mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+tri = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
-BCs = BoundaryConditions(mesh, bc, type, BN)
+BCs = BoundaryConditions(mesh, bc, type)
 c = 1.0
 u₀ = 50.0
 f = (x, y) -> y ≤ c ? u₀ : 0.0
 D = (x, y, t, u, p) -> p[1]
 flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
 R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+points = get_points(tri)
 initc = @views f.(points[1, :], points[2, :])
 iip_flux = true
 final_time = 0.1

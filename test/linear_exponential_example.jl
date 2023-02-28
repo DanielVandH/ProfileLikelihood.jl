@@ -10,13 +10,14 @@ using LoopVectorization
 using LatinHypercubeSampling 
 using OptimizationOptimJL
 using OptimizationNLopt
-const SAVE_FIGURE = false
+using StableRNGs
+const SAVE_FIGURE = true
 
 ######################################################
 ## Example III: Linear Exponential ODE with Grid Search
 ######################################################
 ## Step 1: Generate some data for the problem and define the likelihood
-Random.seed!(2992999)
+rng = StableRNG(2992999)
 λ = -0.5
 y₀ = 15.0
 σ = 0.5
@@ -25,7 +26,7 @@ n = 450
 Δt = T / n
 t = [j * Δt for j in 0:n]
 y = y₀ * exp.(λ * t)
-yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
+yᵒ = y .+ [0.0, rand(rng, Normal(0, σ), n)...]
 @inline function ode_fnc(u, p, t)
     local λ
     λ = p

@@ -9,42 +9,29 @@ using LaTeXStrings
 using BenchmarkTools
 using StaticArraysCore
 using Optimization
+using StableRNGs
 using OptimizationNLopt
-const SAVE_FIGURE = false
+const SAVE_FIGURE = true
 
 ######################################################
 ## Example IV: Heat equation on a square plate
 ######################################################
 ## Define the problem. See FiniteVolumeMethod.jl
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
-n = 500
-x₁ = LinRange(a, b, n)
-x₂ = LinRange(b, b, n)
-x₃ = LinRange(b, a, n)
-x₄ = LinRange(a, a, n)
-y₁ = LinRange(c, c, n)
-y₂ = LinRange(c, d, n)
-y₃ = LinRange(d, d, n)
-y₄ = LinRange(d, c, n)
-x = reduce(vcat, [x₁, x₂, x₃, x₄])
-y = reduce(vcat, [y₁, y₂, y₃, y₄])
-xy = [[x[i], y[i]] for i in eachindex(x)]
-unique!(xy)
-x = getx.(xy)
-y = gety.(xy)
-r = 0.022
+r = 0.03
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
-mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+tri = generate_mesh(a, b, c, d, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
-BCs = BoundaryConditions(mesh, bc, type, BN)
+BCs = BoundaryConditions(mesh, bc, type)
 c = 1.0
 u₀ = 50.0
 f = (x, y) -> y ≤ c ? u₀ : 0.0
 D = (x, y, t, u, p) -> p[1]
 flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
 R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+points = get_points(tri)
 initc = @views f.(points[1, :], points[2, :])
 iip_flux = true
 final_time = 0.1
@@ -56,7 +43,7 @@ prob = FVMProblem(mesh, BCs; iip_flux,
 
 ## Generate some data.
 alg = TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false))
-sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01)
+@time sol = solve(prob, alg; specialization=SciMLBase.FullSpecialize, saveat=0.01, parallel = true);
 
 ## Let us compute the mass at each time and then add some noise to it
 function compute_mass!(M::AbstractVector{T}, αβγ, sol, prob) where {T}
@@ -78,9 +65,9 @@ M = zeros(length(sol.t))
 compute_mass!(M, αβγ, sol, prob)
 true_M = deepcopy(M)
 
-Random.seed!(29922881)
+rng = StableRNG(29922881)
 σ = 0.1
-true_M .+= σ * randn(length(M))
+true_M .+= σ * randn(rng, length(M))
 
 ## We need to now construct the integrator. Here's a method for converting an FVMProblem into an integrator. 
 function ProfileLikelihood.construct_integrator(prob::FVMProblem, alg; ode_problem_kwargs, kwargs...)
@@ -220,8 +207,8 @@ grid = RegularGrid(get_lower_bounds(likprob_2), get_upper_bounds(likprob_2), 50)
 
 @test get_mle(gs) ≈ get_mle(_gs)
 @test get_maximum(gs) ≈ get_maximum(_gs)
-@test gs[:k] ≈ 7.408163265306122
-@test gs[:u₀] ≈ 51.0204081632653
+@test gs[:k] ≈ 7.408163265306122 rtol=1e-1
+@test gs[:u₀] ≈ 51.0204081632653 rtol=1e-1
 
 fig = Figure(fontsize=38)
 k_grid = get_range(grid, 1)

@@ -282,11 +282,11 @@ ug = RegularGrid(lb, ub, res)
 sol = grid_search(prob, ug; save_vals=Val(false))
 @inferred grid_search(prob, ug; save_vals=Val(false))
 @test sol isa ProfileLikelihood.LikelihoodSolution
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 param_ranges = [LinRange(lb[i], ub[i], res) for i in eachindex(lb)]
 f_res_true = [loglikk(collect(x), dat) for x in Iterators.product(param_ranges...)]
@@ -297,25 +297,29 @@ max_idx = Tuple(findmax(f_res_true)[2])
 sol, f_res = grid_search(prob, ug; save_vals=Val(true))
 @inferred grid_search(prob, ug; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 
-Random.seed!(82882828)
-gr = Matrix(reduce(hcat, [lb[i] .+ (ub[i] - lb[i]) .* rand(250) for i in eachindex(lb)])')
-gr = hcat(gr, [0.09230769230823077, -0.9230769230769231, 0.8076923076923077, 0.46153846153846156, 3.2307692307692317])
+rng = StableRNG(82882828)
+gr = Matrix(reduce(hcat, [lb[i] .+ (ub[i] - lb[i]) .* rand(rng, 250) for i in eachindex(lb)])')
+gr = hcat(gr, [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
+    3.2307692307692317])
 ig = IrregularGrid(lb, ub, gr)
 sol = grid_search(prob, ig; save_vals=Val(false))
 @inferred grid_search(prob, ig; save_vals=Val(false))
 @test sol isa ProfileLikelihood.LikelihoodSolution
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 f_res_true = [loglikk(x, dat) for x in eachcol(gr)]
 @test ProfileLikelihood.get_maximum(sol) ≈ maximum(f_res_true)
@@ -325,26 +329,30 @@ max_idx = findmax(f_res_true)[2]
 sol, f_res = grid_search(prob, ig; save_vals=Val(true))
 @inferred grid_search(prob, ig; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 
-Random.seed!(82882828)
-gr = Matrix(reduce(hcat, [lb[i] .+ (ub[i] - lb[i]) .* rand(250) for i in eachindex(lb)])')
-gr = hcat(gr, [0.09230769230823077, -0.9230769230769231, 0.8076923076923077, 0.46153846153846156, 3.2307692307692317])
+rng = StableRNG(82882828)
+gr = Matrix(reduce(hcat, [lb[i] .+ (ub[i] - lb[i]) .* rand(rng, 250) for i in eachindex(lb)])')
+gr = hcat(gr, [0.10000000000050001,
+-0.9230769230769229,
+0.8076923076923077,
+0.46153846153846156,
+3.2307692307692317])
 gr = [collect(x) for x in eachcol(gr)]
 ig = IrregularGrid(lb, ub, gr)
 sol = grid_search(prob, ig; save_vals=Val(false))
 @inferred grid_search(prob, ig; save_vals=Val(false))
 @test sol isa ProfileLikelihood.LikelihoodSolution
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 f_res_true = [loglikk(x, dat) for x in gr]
 @test ProfileLikelihood.get_maximum(sol) ≈ maximum(f_res_true)
@@ -354,11 +362,11 @@ max_idx = findmax(f_res_true)[2]
 sol, f_res = grid_search(prob, ig; save_vals=Val(true))
 @inferred grid_search(prob, ig; save_vals=Val(true))
 @test f_res ≈ f_res_true
-@test ProfileLikelihood.get_maximum(sol) ≈ 281.7360323629172
-@test ProfileLikelihood.get_mle(sol) ≈ [0.09230769230823077
-    -0.9230769230769231
-    0.8076923076923077
-    0.46153846153846156
+@test ProfileLikelihood.get_maximum(sol) ≈ 256.81821108514555
+@test ProfileLikelihood.get_mle(sol) ≈ [0.10000000000050001,
+    -0.9230769230769229,
+    0.8076923076923077,
+    0.46153846153846156,
     3.2307692307692317]
 
 ## Test that the parallel grid searches are working 

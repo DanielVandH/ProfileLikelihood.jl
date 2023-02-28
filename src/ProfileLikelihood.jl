@@ -69,11 +69,10 @@ function __init__()
         @inline threshold_intersection_exists(τ, uᵢ, uⱼ) = (uᵢ < τ && uⱼ > τ) || (uᵢ > τ && uⱼ < τ)
         function _get_confidence_regions_delaunay!(confidence_regions, n, range_1::AbstractArray{T}, range_2, profile_values, threshold, conf_level) where {T}
             grid_xy = vec([(x, y) for x in range_1, y in range_2])
-            tri = DelaunayTriangulation.triangulate_bowyer(grid_xy)
+            tri = DelaunayTriangulation.triangulate(grid_xy)
             conf_contour = NTuple{2,T}[]
-            DG = DelaunayTriangulation.get_graph(tri)
-            DelaunayTriangulation.delete_point!(DG, DelaunayTriangulation.BoundaryIndex)
-            for (u, v) in DelaunayTriangulation.edges(DG)
+            DelaunayTriangulation.delete_boundary_vertices_from_graph!(tri)
+            for (u, v) in DelaunayTriangulation.get_edges(tri)
                 u₁, u₂ = profile_values[u], profile_values[v]
                 if threshold_intersection_exists(threshold, u₁, u₂)
                     p₁ = grid_xy[u]

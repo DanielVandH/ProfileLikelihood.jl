@@ -1,16 +1,17 @@
 ######################################################
 ## Templates 
 ######################################################
+using StableRNGs
 function multiple_linear_regression()
-    Random.seed!(98871)
+    rng = StableRNG(98871)
     n = 300
     β = [-1.0, 1.0, 0.5, 3.0]
     σ = 0.05
     θ₀ = ones(5)
-    x₁ = rand(Uniform(-1, 1), n)
-    x₂ = rand(Normal(1.0, 0.5), n)
+    x₁ = rand(rng, Uniform(-1, 1), n)
+    x₂ = rand(rng, Normal(1.0, 0.5), n)
     X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
-    ε = rand(Normal(0.0, σ), n)
+    ε = rand(rng, Normal(0.0, σ), n)
     y = X * β + ε
     sse = DiffCache(zeros(n))
     β_cache = DiffCache(similar(β), 10)

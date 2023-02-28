@@ -7,7 +7,7 @@ using LaTeXStrings
 using LinearAlgebra
 using Optimization 
 using OptimizationOptimJL
-const SAVE_FIGURE = false
+const SAVE_FIGURE = true
 
 ######################################################
 ## Example I: Multiple Linear Regression 

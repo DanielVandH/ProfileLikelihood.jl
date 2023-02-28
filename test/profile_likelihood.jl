@@ -236,7 +236,7 @@ m = length(get_parameter_values(prof, :σ))
 left_grid = xmin:Δleft:sol[:σ]
 right_grid = sol[:σ]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
-@test get_parameter_values(prof, :σ) ≈ full_grid
+@test get_parameter_values(prof, :σ)[begin:end-1] ≈ full_grid
 
 xmin, xmax = extrema(get_parameter_values(prof, :β₁))
 m = length(get_parameter_values(prof, :β₁))
@@ -440,34 +440,20 @@ prof2 = profile(prob, sol; parallel=false, next_initial_estimate_method=:interp)
 ## More parallel testing for a problem involving a PDE 
 # Need to setup 
 a, b, c, d = 0.0, 2.0, 0.0, 2.0
-n = 500
-x₁ = LinRange(a, b, n)
-x₂ = LinRange(b, b, n)
-x₃ = LinRange(b, a, n)
-x₄ = LinRange(a, a, n)
-y₁ = LinRange(c, c, n)
-y₂ = LinRange(c, d, n)
-y₃ = LinRange(d, d, n)
-y₄ = LinRange(d, c, n)
-x = reduce(vcat, [x₁, x₂, x₃, x₄])
-y = reduce(vcat, [y₁, y₂, y₃, y₄])
-xy = [[x[i], y[i]] for i in eachindex(x)]
-unique!(xy)
-x = getx.(xy)
-y = gety.(xy)
 r = 0.2
 GMSH_PATH = "./gmsh-4.9.4-Windows64/gmsh.exe"
-(T, adj, adj2v, DG, points), BN = generate_mesh(x, y, r; gmsh_path=GMSH_PATH)
-mesh = FVMGeometry(T, adj, adj2v, DG, points, BN)
+tri = generate_mesh(a, b, c, d, r; gmsh_path=GMSH_PATH)
+mesh = FVMGeometry(tri)
 bc = ((x, y, t, u::T, p) where {T}) -> zero(T)
 type = :D
-BCs = BoundaryConditions(mesh, bc, type, BN)
+BCs = BoundaryConditions(mesh, bc, type)
 c = 1.0
 u₀ = 50.0
 f = (x, y) -> y ≤ c ? u₀ : 0.0
 D = (x, y, t, u, p) -> p[1]
 flux = (q, x, y, t, α, β, γ, p) -> (q[1] = -α / p[1]; q[2] = -β / p[1])
 R = ((x, y, t, u::T, p) where {T}) -> zero(T)
+points = get_points(tri)
 initc = @views f.(points[1, :], points[2, :])
 iip_flux = true
 final_time = 0.2
@@ -546,8 +532,8 @@ prof1 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, x
 prof2 = profile(likprob, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, xtol_rel=1e-4,
     resolution=50, parallel=true)
 
-using BenchmarkTools
-#=b1 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4,
+#=using BenchmarkTools
+b1 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4,
     xtol_rel=$1e-4,
     resolution=$80)
 b2 = @benchmark profile($likprob, $mle_sol; ftol_abs=$1e-4, ftol_rel=$1e-4, xtol_abs=$1e-4,

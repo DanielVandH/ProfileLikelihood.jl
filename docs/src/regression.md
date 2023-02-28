@@ -28,7 +28,7 @@ Let us start by simulating the data:
 
 ```julia 
 using Random, Distributions 
-Random.seed!(98871)
+Random.seed!(98871) 
 n = 600
 β = [-1.0, 1.0, 0.5, 3.0]
 σ = 0.05
@@ -72,7 +72,7 @@ end
 Now having defined our likelihood, we can define the likelihood problem. We let the problem be unconstrained, except for $\sigma > 0$. We start at the value $1$ for each parameter. To use automatic differentiation, we use `Optimization.AutoForwardDiff` for the `adtype`.
 
 ```julia 
-using Optimization, ForwardDiff
+using Optimization
 θ₀ = ones(5)
 prob = LikelihoodProblem(loglik_fnc, θ₀;
     data=dat,

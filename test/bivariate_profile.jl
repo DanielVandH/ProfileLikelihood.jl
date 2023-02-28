@@ -13,10 +13,11 @@ using InvertedIndices
 using Contour
 using OffsetArrays
 using Interpolations
+using PolygonOps
 using DelaunayTriangulation
 using PolygonInbounds
 using InteractiveUtils
-const SAVE_FIGURE = false
+const SAVE_FIGURE = true
 
 ## Constructing the profile grids 
 # Setup
@@ -664,13 +665,14 @@ for results in (results_mle, results_near, results_int, results_par, results_nea
     conf_x = CR.x
     conf_y = CR.y
     xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
-    A = DelaunayTriangulation.area(xy)
+    A = PolygonOps.area([xy..., xy[begin]])
+
     @test A ≈ 0.23243592745692931 rtol = 1e-3
     CR = ProfileLikelihood.get_confidence_regions(results, 3, 1)
     conf_x = CR.x
     conf_y = CR.y
     xy = [(x, y) for (x, y) in zip(conf_x, conf_y)]
-    A = DelaunayTriangulation.area(xy)
+    A = PolygonOps.area([xy..., xy[begin]])
     @test A ≈ 0.09636388019922583 rtol = 1e-3
     @test_throws BoundsError results[1, 3]
     @test length(results.parameter_values[(1, 2)][1]) == 205
@@ -1122,10 +1124,18 @@ CR_12_x, CR_12_y = CR_12.x, CR_12.y
 CR_31_x, CR_31_y = CR_31.x, CR_31.y
 CR_12_2_x, CR_12_2_y = CR_12_2.x, CR_12_2.y
 CR_31_2_x, CR_31_2_y = CR_31_2.x, CR_31_2.y
-A_12 = DelaunayTriangulation.area([CR_12_x'; CR_12_y'])
-A_31 = DelaunayTriangulation.area([CR_31_x'; CR_31_y'])
-A_12_2 = DelaunayTriangulation.area([CR_12_2_x'; CR_12_2_y'])
-A_31_2 = DelaunayTriangulation.area([CR_31_2_x'; CR_31_2_y'])
+mat1 = [CR_12_x'; CR_12_y']
+mat2 = [CR_31_x'; CR_31_y']
+mat3 = [CR_12_2_x'; CR_12_2_y']
+mat4 = [CR_31_2_x'; CR_31_2_y']
+xy1 = collect(eachcol(mat1)) |> x -> [x..., x[begin]]
+xy2 = collect(eachcol(mat2)) |> x -> [x..., x[begin]]
+xy3 = collect(eachcol(mat3)) |> x -> [x..., x[begin]]
+xy4 = collect(eachcol(mat4)) |> x -> [x..., x[begin]]
+A_12 = PolygonOps.area(xy1)
+A_31 = PolygonOps.area(xy2)
+A_12_2 = PolygonOps.area(xy3)
+A_31_2 = PolygonOps.area(xy4)
 @test A_12 ≈ 0.23243592745692931 rtol = 1e-3
 @test A_12_2 ≈ 0.23243592745692931 rtol = 1e-2
 @test A_31 ≈ 0.09636388019922583 rtol = 1e-3
