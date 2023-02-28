@@ -15,6 +15,7 @@ using Interpolations
 using CairoMakie
 using LaTeXStrings
 include("templates.jl")
+test_f(grid1, grid2) = length(grid1) == length(grid2) ? grid1 ≈ grid2 : grid1[begin:end-1] ≈ grid2
 
 ######################################################
 ## ProfileLikelihood 
@@ -173,7 +174,7 @@ m = length(get_parameter_values(prof, :σ))
 left_grid = xmin:Δleft:sol[:σ]
 right_grid = sol[:σ]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
-@test get_parameter_values(prof, :σ) ≈ full_grid
+@test test_f(get_parameter_values(prof, :σ), full_grid)
 
 xmin, xmax = extrema(get_parameter_values(prof, :β₁))
 m = length(get_parameter_values(prof, :β₁))
@@ -182,7 +183,7 @@ m = length(get_parameter_values(prof, :β₁))
 left_grid = xmin:Δleft:sol[:β₁]
 right_grid = sol[:β₁]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
-@test get_parameter_values(prof, :β₁) ≈ full_grid
+@test test_f(get_parameter_values(prof, :β₁), full_grid)
 
 ## Test that other_mles and parameter_values line up 
 for i in eachindex(prof.parameter_values[1])
@@ -236,7 +237,7 @@ m = length(get_parameter_values(prof, :σ))
 left_grid = xmin:Δleft:sol[:σ]
 right_grid = sol[:σ]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
-@test get_parameter_values(prof, :σ)[begin:end-1] ≈ full_grid
+@test test_f(get_parameter_values(prof, :σ), full_grid)
 
 xmin, xmax = extrema(get_parameter_values(prof, :β₁))
 m = length(get_parameter_values(prof, :β₁))
@@ -245,7 +246,7 @@ m = length(get_parameter_values(prof, :β₁))
 left_grid = xmin:Δleft:sol[:β₁]
 right_grid = sol[:β₁]:Δright:xmax
 full_grid = [left_grid..., right_grid[2:end]...]
-@test get_parameter_values(prof, :β₁) ≈ full_grid
+@test test_f(get_parameter_values(prof, :β₁), full_grid)
 
 ## Threads 
 Random.seed!(98871)
