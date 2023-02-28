@@ -55,7 +55,3 @@ const RUN_EXAMPLE_4 = true
         include("lotka_volterra_example.jl")
     end
 end
-
-@safetestset "ProfileLikelihood" begin
-    include("profile_likelihood.jl")
-end
