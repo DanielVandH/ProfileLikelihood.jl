@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Example II: Logistic ordinary differential equation · ProfileLikelihood.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link rel="canonical" href="https://DanielVandH.github.io/ProfileLikelihood.jl/logistic/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">ProfileLikelihood.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../interface/">Interface</a></li><li><a class="tocitem" href="../docstrings/">Docstrings</a></li><li><a class="tocitem" href="../regression/">Example I: Multiple linear regression</a></li><li class="is-active"><a class="tocitem" href>Example II: Logistic ordinary differential equation</a><ul class="internal"><li><a class="tocitem" href="#Data-generation-and-setting-up-the-problem"><span>Data generation and setting up the problem</span></a></li><li><a class="tocitem" href="#Parameter-estimation"><span>Parameter estimation</span></a></li><li><a class="tocitem" href="#Prediction-intervals"><span>Prediction intervals</span></a></li><li><a class="tocitem" href="#Just-the-code"><span>Just the code</span></a></li></ul></li><li><a class="tocitem" href="../exponential/">Example III: Linear exponential ODE and grid searching</a></li><li><a class="tocitem" href="../heat/">Example IV: Diffusion equation on a square plate</a></li><li><a class="tocitem" href="../lotka/">Example V: Lotka-Volterra ODE, GeneralLazyBufferCache, and computing bivarate profile likelihoods</a></li><li><a class="tocitem" href="../math/">Mathematical and Implementation Details</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Example II: Logistic ordinary differential equation</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Example II: Logistic ordinary differential equation</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/docs/src/logistic.md#" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Example-II:-Logistic-ordinary-differential-equation"><a class="docs-heading-anchor" href="#Example-II:-Logistic-ordinary-differential-equation">Example II: Logistic ordinary differential equation</a><a id="Example-II:-Logistic-ordinary-differential-equation-1"></a><a class="docs-heading-anchor-permalink" href="#Example-II:-Logistic-ordinary-differential-equation" title="Permalink"></a></h1><p>The following example comes from the first case study of <a href="https://doi.org/10.1101/2022.12.14.520367">Simpson and Maclaren (2022)</a>. First, load the packages we&#39;ll be using:</p><pre><code class="language-julia hljs">using Random 
+using ProfileLikelihood
+using Optimization 
+using OrdinaryDiffEq
+using CairoMakie 
+using LaTeXStrings
+using OptimizationNLopt
+using Test</code></pre><p>Let us consider the logistic ordinary differential equation (ODE). For ODEs, our treatment is as follows: Let us have some ODE <span>$\mathrm dy/\mathrm dt = f(y, t; \boldsymbol \theta)$</span> for some parameters <span>$\boldsymbol\theta$</span> of interest. We will suppose that we have some data <span>$y_i^o$</span> at time <span>$t_i$</span>, <span>$i=1,\ldots,n$</span>, with initial condition <span>$y_0^o$</span> at time <span>$t_0=0$</span>, which we model according to a normal distribution <span>$y_i^o \mid \boldsymbol \theta \sim \mathcal N(y_i(\boldsymbol \theta), \sigma^2)$</span>, <span>$i=0,1,\ldots,n$</span>, where <span>$y_i$</span> is a solution of the ODE at time <span>$t_i$</span>. This defines a likelihood that we can use for estimating the parameters.</p><p>Let us now proceed with our example. We are considering <span>$\mathrm du/\mathrm dt = \lambda u(1-u/K)$</span>, <span>$u(0)=u_0$</span>, and our interest is in estimating <span>$(\lambda, K, u_0)$</span>, we will fix the standard deviation of the noise, <span>$\sigma$</span>, at <span>$\sigma=10$</span>. Note that the exact solution to this ODE is <span>$u(t) = Ku_0/[(K-u_0)\mathrm{e}^{-\lambda t} + u_0]$</span>.</p><h2 id="Data-generation-and-setting-up-the-problem"><a class="docs-heading-anchor" href="#Data-generation-and-setting-up-the-problem">Data generation and setting up the problem</a><a id="Data-generation-and-setting-up-the-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Data-generation-and-setting-up-the-problem" title="Permalink"></a></h2><p>The first step is to generate the data.</p><pre><code class="language-julia hljs">using OrdinaryDiffEq, Random
+λ = 0.01
+K = 100.0
+u₀ = 10.0
+t = 0:100:1000
+σ = 10.0
+@inline function ode_fnc(u, p, t)
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+# Initial data is obtained by solving the ODE 
+tspan = extrema(t)
+p = (λ, K)
+prob = ODEProblem(ode_fnc, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2828)
+uᵒ = sol.u + σ * randn(length(t))</code></pre><p>Now having our data, we define the likelihood function.</p><pre><code class="language-julia hljs">@inline function loglik_fnc2(θ, data, integrator)
+    λ, K, u₀ = θ
+    uᵒ, σ = data
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u₀)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, length(uᵒ))
+end</code></pre><p>Now we can define our problem. We constrain the problem so that <span>$0 \leq \lambda \leq 0.05$</span>, <span>$50 \leq K \leq 150$</span>, and <span>$0 \leq u_0 \leq 50$</span>.</p><pre><code class="language-julia hljs">lb = [0.0, 50.0, 0.0] # λ, K, u₀
+ub = [0.05, 150.0, 50.0]
+θ₀ = [λ, K, u₀]
+syms = [:λ, :K, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, maximum(t); # Note that u₀ is just a placeholder IC in this case since we are estimating it
+    syms=syms,
+    data=(uᵒ, σ),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K]
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)</code></pre><h2 id="Parameter-estimation"><a class="docs-heading-anchor" href="#Parameter-estimation">Parameter estimation</a><a id="Parameter-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Parameter-estimation" title="Permalink"></a></h2><p>Now we find the MLEs.</p><pre><code class="language-julia hljs">using OptimizationNLopt
+sol = mle(prob, NLopt.LD_LBFGS)
+LikelihoodSolution. retcode: Failure
+Maximum likelihood: -38.99053694428977
+Maximum likelihood estimates: 3-element Vector{Float64}
+     λ: 0.010438031266786045
+     K: 99.59921873132551
+     u₀: 8.098422110755225</code></pre><p>We can now profile. </p><pre><code class="language-julia hljs">prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
+ProfileLikelihoodSolution. MLE retcode: Failure
+Confidence intervals: 
+     95.0% CI for λ: (0.006400992274213644, 0.01786032876226762)
+     95.0% CI for K: (90.81154862835605, 109.54214763511888)
+     95.0% CI for u₀: (1.5919805025139593, 19.070831536649305)</code></pre><pre><code class="language-julia hljs">@test λ ∈ get_confidence_intervals(prof, :λ)
+@test K ∈ prof.confidence_intervals[2]
+@test u₀ ∈ get_confidence_intervals(prof, 3)</code></pre><p>We can visualise as we did before:</p><pre><code class="language-julia hljs">using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof;
+    latex_names=[L&quot;\lambda&quot;, L&quot;K&quot;, L&quot;u_0&quot;],
+    show_mles=true,
+    shade_ci=true,
+    nrow=1,
+    ncol=3,
+    true_vals=[λ, K, u₀],
+    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    axis_kwargs=(width=600, height=300))</code></pre><p><img src="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example.png?raw=true" alt="Logistic profiles"/></p><h2 id="Prediction-intervals"><a class="docs-heading-anchor" href="#Prediction-intervals">Prediction intervals</a><a id="Prediction-intervals-1"></a><a class="docs-heading-anchor-permalink" href="#Prediction-intervals" title="Permalink"></a></h2><p>Let us now use these results to compute prediction intervals for <span>$u(t)$</span>. Following <a href="https://doi.org/10.1101/2022.12.14.520367">Simpson and Maclaren (2022)</a>, the idea is to use the profile likelihood to construct another profile likelihood, called the <em>profile-wise profile likelihood</em>, that allows us to obtain prediction intervals for some prediction function <span>$q(\boldsymbol \theta)$</span>. More detail is given in the mathematical details section.</p><p>The first step is to define a function <span>$q(\boldsymbol\theta)$</span> that comptues our prediction given some parameters <span>$\boldsymbol\theta$</span>. The function in this case is simply:</p><pre><code class="language-julia hljs">function prediction_function(θ, data)
+    λ, K, u₀ = θ
+    t = data
+    prob = ODEProblem(ode_fnc, u₀, extrema(t), (λ, K))
+    sol = solve(prob, Rosenbrock23(), saveat=t)
+    return sol.u
+end</code></pre><p>Note that the second argument <code>data</code> allows for extra parameters to be passed. To now obtain prediction intervals for <code>sol.u</code>, for each <code>t</code>, we define a large grid for <code>t</code> and use <code>get_prediction_intervals</code>:</p><pre><code class="language-julia hljs">t_many_pts = LinRange(extrema(t)..., 1000)
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(prediction_function, prof,
+        t_many_pts; parallel=true)
+# t_many_pts is the `data` argument, it doesn&#39;t have to be time for other problems</code></pre><p>This function <code>get_prediction_intervals</code> has four outputs:</p><ul><li><code>parameter_wise</code>: These are prediction intervals for the prediction at each point <span>$t$</span>, coming from the profile likelihood of each respective parameter:</li></ul><pre><code class="language-julia hljs">julia&gt; parameter_wise
+Dict{Int64, Vector{ConfidenceInterval{Float64, Float64}}} with 3 entries:
+  2 =&gt; [ConfidenceInterval{Float64, Float64}(6.45444, 12.0694, 0.95), ConfidenceInterval{Float64, Float64}(6.52931, 12.1545, 0.95), ConfidenceInterval{Float64, Float64}(6.60498, 12.24, 0.95), ConfidenceInterva…  3 =&gt; [ConfidenceInterval{Float64, Float64}(1.59389, 19.0709, 0.95), ConfidenceInterval{Float64, Float64}(1.621, 19.1773, 0.95), ConfidenceInterval{Float64, Float64}(1.64856, 19.2842, 0.95), ConfidenceInterva…  1 =&gt; [ConfidenceInterval{Float64, Float64}(1.86302, 17.5828, 0.95), ConfidenceInterval{Float64, Float64}(1.89596, 17.6768, 0.95), ConfidenceInterval{Float64, Float64}(1.92948, 17.7712, 0.95), ConfidenceInter…</code></pre><p>For example, <code>parameter_wise[1]</code> comes from varying <span>$\lambda$</span>, with the parameters <span>$K$</span> and <span>$u_0$</span> coming from optimising the likelihood function with <span>$\lambda$</span> fixed.</p><ul><li><p><code>union_intervals</code>: These are prediction intervals at each point <span>$t$</span> coming from taking the union of the intervals from the corresponding elements of <code>parameter_wise</code>.</p></li><li><p><code>all_curves</code>: The intervals come from taking extrema over many curves. This is a <code>Dict</code> mapping parameter indices to the curves that were used, with <code>all_curves[i][j]</code> being the set of curves for the <code>i</code>th parameter (e.g. <code>i=1</code> is for <span>$\lambda$</span>) and the <code>j</code>th parameter.</p></li><li><p><code>param_range</code>: The curves come from evaluating the prediction function between the bounds of the confidence intervals for each parameter, and this output gives the parameters used, so that e.g. <code>all_curves[i][j]</code> uses <code>param_range[i][j]</code> for the value of the <code>i</code>th parameter.</p></li></ul><p>Let us now use these outputs to visualise the prediction intervals. First, let us extract the solution with the true parameter values and with the MLEs.</p><pre><code class="language-julia hljs">exact_soln = prediction_function([λ, K, u₀], t_many_pts)
+mle_soln = prediction_function(get_mle(sol), t_many_pts)</code></pre><p>Now let us plot the prediction intervals coming from each parameter, and from the union of all intervals (not shown yet, see below).</p><pre><code class="language-julia hljs">fig = Figure(fontsize=38, resolution=(1402.7681f0, 848.64404f0))
+alp = join(&#39;a&#39;:&#39;z&#39;)
+latex_names = [L&quot;\lambda&quot;, L&quot;K&quot;, L&quot;u_0&quot;]
+for i in 1:3
+    ax = Axis(fig[i &lt; 3 ? 1 : 2, i &lt; 3 ? i : 1], title=L&quot;(%$(alp[i])): Profile-wise PI for %$(latex_names[i])&quot;,
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black, linewidth=3)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black, linewidth=3)
+end
+ax = Axis(fig[2, 2], title=L&quot;(d):$ $ Union of all intervals&quot;,
+    titlealign=:left, width=600, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black, linewidth=3)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black, linewidth=3)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)</code></pre><p>To now assess the coverage of these intervals, we want to compare them to the interval coming from the full likelihood. We find this interval by taking a large number of parameters, and finding all of them for which the normalised log-likelihood exceeds the threshold <span>$-1.92$</span>. We then take the parameters that give a value exceeding this threshold, compute the prediction function at these values, and then take the extrema. The code below uses the function <code>grid_search</code> that evaluates the function at many points, and we describe this function in more detail in the next example.</p><pre><code class="language-julia hljs">lb = get_lower_bounds(prob)
+ub = get_upper_bounds(prob)
+N = 1e5
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:3]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(prob, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(sol) # normalised 
+feasible_idx = findall(lik_vals .&gt; ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [prediction_function(θ, t_many_pts) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |&gt; vec
+q_upr = maximum(q_mat; dims=2) |&gt; vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
+lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)</code></pre><p><img src="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/logistic_example_prediction.png?raw=true" alt="Logistic prediction intervals"/></p><p>The first plot shows that the profile-wise prediction interval for <span>$\lambda$</span> is quite large when <span>$t$</span> is small, and then small for large time. This makes sense since the large time solution is independent of <span>$\lambda$</span> (the large time solution is <span>$u_s(t)=K$</span>). For <span>$K$</span>, we see that the profile-wise interval only becomes large for large time, which again makes sense. For <span>$u_0$</span> we see similar behaviour as for <span>$\lambda$</span>. Finally, taking the union over all the intervals, as is done in (d), shows that we fully enclose the solution coming from the MLE, as well as the true curve. The magenta curve shows the results from the full likelihood function, and is reasonably close to the approximate interval obtained from the union.</p><h2 id="Just-the-code"><a class="docs-heading-anchor" href="#Just-the-code">Just the code</a><a id="Just-the-code-1"></a><a class="docs-heading-anchor-permalink" href="#Just-the-code" title="Permalink"></a></h2><p>Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.</p><pre><code class="language-julia hljs">## Step 1: Generate the data and define the likelihood
+using OrdinaryDiffEq, Random
+λ = 0.01
+K = 100.0
+u₀ = 10.0
+t = 0:100:1000
+σ = 10.0
+@inline function ode_fnc(u, p, t)
+    λ, K = p
+    du = λ * u * (1 - u / K)
+    return du
+end
+# Initial data is obtained by solving the ODE 
+tspan = extrema(t)
+p = (λ, K)
+prob = ODEProblem(ode_fnc, u₀, tspan, p)
+sol = solve(prob, Rosenbrock23(), saveat=t)
+Random.seed!(2828)
+uᵒ = sol.u + σ * randn(length(t))
+@inline function loglik_fnc2(θ, data, integrator)
+    λ, K, u₀ = θ
+    uᵒ, σ = data
+    integrator.p[1] = λ
+    integrator.p[2] = K
+    reinit!(integrator, u₀)
+    solve!(integrator)
+    return gaussian_loglikelihood(uᵒ, integrator.sol.u, σ, length(uᵒ))
+end
+
+## Step 2: Define the problem 
+using Optimization
+lb = [0.0, 50.0, 0.0] # λ, K, u₀
+ub = [0.05, 150.0, 50.0]
+θ₀ = [λ, K, u₀]
+syms = [:λ, :K, :u₀]
+prob = LikelihoodProblem(
+    loglik_fnc2, θ₀, ode_fnc, u₀, maximum(t); # Note that u₀ is just a placeholder IC in this case since we are estimating it
+    syms=syms,
+    data=(uᵒ, σ),
+    ode_parameters=[1.0, 1.0], # temp values for [λ, K]
+    ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
+    prob_kwargs=(lb=lb, ub=ub),
+    ode_alg=Rosenbrock23()
+)
+
+## Step 3: Compute the MLE 
+using OptimizationNLopt
+sol = mle(prob, NLopt.LD_LBFGS)
+
+## Step 4: Profile 
+prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
+
+## Step 5: Visualise 
+using CairoMakie, LaTeXStrings
+fig = plot_profiles(prof;
+    latex_names=[L&quot;\lambda&quot;, L&quot;K&quot;, L&quot;u_0&quot;],
+    show_mles=true,
+    shade_ci=true,
+    nrow=1,
+    ncol=3,
+    true_vals=[λ, K, u₀],
+    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    axis_kwargs=(width=600, height=300))
+
+## Step 6: Get prediction intervals, compare to evaluating at many points 
+function prediction_function(θ, data)
+    λ, K, u₀ = θ
+    t = data
+    prob = ODEProblem(ode_fnc, u₀, extrema(t), (λ, K))
+    sol = solve(prob, Rosenbrock23(), saveat=t)
+    return sol.u
+end
+t_many_pts = LinRange(extrema(t)..., 1000)
+parameter_wise, union_intervals, all_curves, param_range =
+    get_prediction_intervals(prediction_function, prof,
+        t_many_pts; parallel=true)
+
+## Step 7: Plot the prediction intervals 
+# Get the exact solution and MLE solutions first for comparison 
+exact_soln = prediction_function([λ, K, u₀], t_many_pts)
+mle_soln = prediction_function(get_mle(sol), t_many_pts)
+
+# Now plot the prediction intervals
+fig = Figure(fontsize=38, resolution=(1402.7681f0, 848.64404f0))
+alp = join(&#39;a&#39;:&#39;z&#39;)
+latex_names = [L&quot;\lambda&quot;, L&quot;K&quot;, L&quot;u_0&quot;]
+for i in 1:3
+    ax = Axis(fig[i &lt; 3 ? 1 : 2, i &lt; 3 ? i : 1], title=L&quot;(%$(alp[i])): Profile-wise PI for %$(latex_names[i])&quot;,
+        titlealign=:left, width=600, height=300)
+    [lines!(ax, t_many_pts, all_curves[i][:, j], color=:grey) for j in eachindex(param_range[1])]
+    lines!(ax, t_many_pts, exact_soln, color=:red)
+    lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 1), color=:black, linewidth=3)
+    lines!(ax, t_many_pts, getindex.(parameter_wise[i], 2), color=:black, linewidth=3)
+end
+ax = Axis(fig[2, 2], title=L&quot;(d):$ $ Union of all intervals&quot;,
+    titlealign=:left, width=600, height=300)
+band!(ax, t_many_pts, getindex.(union_intervals, 1), getindex.(union_intervals, 2), color=:grey)
+lines!(ax, t_many_pts, getindex.(union_intervals, 1), color=:black, linewidth=3)
+lines!(ax, t_many_pts, getindex.(union_intervals, 2), color=:black, linewidth=3)
+lines!(ax, t_many_pts, exact_soln, color=:red)
+lines!(ax, t_many_pts, mle_soln, color=:blue, linestyle=:dash)
+
+# We can now compare these intervals to the one obtained from the full likelihood. We re-use our grid_search code (see the next example) to evaluate at many points 
+lb = get_lower_bounds(prob)
+ub = get_upper_bounds(prob)
+N = 1e5
+grid = [[lb[i] + (ub[i] - lb[i]) * rand() for _ in 1:N] for i in 1:3]
+grid = permutedims(reduce(hcat, grid), (2, 1))
+ig = IrregularGrid(lb, ub, grid)
+gs, lik_vals = grid_search(prob, ig; parallel=Val(true), save_vals=Val(true))
+lik_vals .-= get_maximum(sol) # normalised 
+feasible_idx = findall(lik_vals .&gt; ProfileLikelihood.get_chisq_threshold(0.95)) # values in the confidence region 
+parameter_evals = grid[:, feasible_idx]
+q = [prediction_function(θ, t_many_pts) for θ in eachcol(parameter_evals)]
+q_mat = reduce(hcat, q)
+q_lwr = minimum(q_mat; dims=2) |&gt; vec
+q_upr = maximum(q_mat; dims=2) |&gt; vec
+lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
+lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../regression/">« Example I: Multiple linear regression</a><a class="docs-footer-nextpage" href="../exponential/">Example III: Linear exponential ODE and grid searching »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 28 February 2023 21:24">Tuesday 28 February 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
