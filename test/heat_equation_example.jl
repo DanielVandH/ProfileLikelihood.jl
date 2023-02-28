@@ -11,7 +11,7 @@ using StaticArraysCore
 using Optimization
 using StableRNGs
 using OptimizationNLopt
-const SAVE_FIGURE = true
+const SAVE_FIGURE = false
 
 ######################################################
 ## Example IV: Heat equation on a square plate

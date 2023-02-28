@@ -9,7 +9,7 @@ using OptimizationNLopt
 using PreallocationTools
 using LoopVectorization
 using DelaunayTriangulation
-const SAVE_FIGURE = true
+const SAVE_FIGURE = false
 
 ######################################################
 ## Example V: Lotka-Volterra ODE

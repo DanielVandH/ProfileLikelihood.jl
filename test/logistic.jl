@@ -5,7 +5,7 @@ using OrdinaryDiffEq
 using CairoMakie
 using LaTeXStrings
 using OptimizationNLopt
-const SAVE_FIGURE = true
+const SAVE_FIGURE = false
 
 ######################################################
 ## Example II: Logistic ODE

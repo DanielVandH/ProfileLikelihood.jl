@@ -17,7 +17,7 @@ using PolygonOps
 using DelaunayTriangulation
 using PolygonInbounds
 using InteractiveUtils
-const SAVE_FIGURE = true
+const SAVE_FIGURE = false
 
 ## Constructing the profile grids 
 # Setup

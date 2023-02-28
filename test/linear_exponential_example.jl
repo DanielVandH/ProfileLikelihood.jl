@@ -11,7 +11,7 @@ using LatinHypercubeSampling
 using OptimizationOptimJL
 using OptimizationNLopt
 using StableRNGs
-const SAVE_FIGURE = true
+const SAVE_FIGURE = false
 
 ######################################################
 ## Example III: Linear Exponential ODE with Grid Search
