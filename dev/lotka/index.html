@@ -91,7 +91,7 @@ Stacktrace:
        @ ProfileLikelihood c:\Users\licer\.julia\dev\ProfileLikelihood\src\mle.jl:13
     [25] ⋮ internal
        @ Unknown
-Use `err` to retrieve the full stack trace.</code></pre><p>The error here comes from trying to use dual numbers when we modify <code>integrator.p</code> with the new values for the parameters. We cannot so simply use <code>DiffCache</code> to get around this, we would need to somehow assign the appropriate tags when constructing the integrator (see e.g. <a href="https://discourse.julialang.org/t/declaring-forwarddiff-tag-directly-with-a-differentialequations-integrator-nested-function/83766">here</a> for some more discussion). Note also that this is not just a Optim.jl issue. With NLopt.jl, we do not error, but the optimiser does not go anywhere:</p><pre><code class="language-julia hljs">using OptimizationNLopt </code></pre><pre><code class="language-julia hljs">julia&gt; mle(_prob, NLopt.LD_LBFGS())
+Use `err` to retrieve the full stack trace.</code></pre><p>The error here comes from trying to use dual numbers when we modify <code>integrator.p</code> with the new values for the parameters. We cannot so simply use <code>DiffCache</code> to get around this, we would need to somehow assign the appropriate tags when constructing the integrator (see e.g. <a href="https://discourse.julialang.org/t/declaring-forwarddiff-tag-directly-with-a-differentialequations-integrator-nested-function/83766">here</a> for some more discussion). Note also that this is not just a Optim.jl issue. With NLopt.jl, we do not error, but the optimiser does not go anywhere:</p><pre><code class="language-julia hljs">using OptimizationNLopt </code></pre><pre><code class="language-julia hljs">julia&gt; mle(_prob, NLopt.LN_NELDERMEAD())
 LikelihoodSolution. retcode: Failure
 Maximum likelihood: -0.0
 Maximum likelihood estimates: 4-element Vector{Float64}
@@ -123,7 +123,7 @@ Maximum likelihood estimates: 4-element Vector{Float64}
      α: 0.75
      β: 1.23
      a₀: 0.76
-     b₀: 0.292</code></pre><h2 id="Parameter-estimation"><a class="docs-heading-anchor" href="#Parameter-estimation">Parameter estimation</a><a id="Parameter-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Parameter-estimation" title="Permalink"></a></h2><p>Let us now proceed as usual, computing the MLEs and obtaining the profiles. </p><pre><code class="language-julia hljs">julia&gt; @time sol = mle(prob, NLopt.LD_LBFGS())
+     b₀: 0.292</code></pre><h2 id="Parameter-estimation"><a class="docs-heading-anchor" href="#Parameter-estimation">Parameter estimation</a><a id="Parameter-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Parameter-estimation" title="Permalink"></a></h2><p>Let us now proceed as usual, computing the MLEs and obtaining the profiles. </p><pre><code class="language-julia hljs">julia&gt; @time sol = mle(prob, NLopt.LN_NELDERMEAD())
   0.157597 seconds (1.34 M allocations: 57.224 MiB)
 LikelihoodSolution. retcode: Failure
 Maximum likelihood: 5.0672221211843596
@@ -360,7 +360,7 @@ prob = LikelihoodProblem(
 
 ## Step 3: Compute the MLE 
 using OptimizationNLopt 
-sol = mle(prob, NLopt.LD_LBFGS())
+sol = mle(prob, NLopt.LN_NELDERMEAD())
 
 ## Step 4: Profile
 prof = profile(prob, sol; parallel=true)
@@ -509,4 +509,4 @@ end
 for (k, idx) in enumerate((a_idx, b_idx))
     lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
     lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
-end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../heat/">« Example IV: Diffusion equation on a square plate</a><a class="docs-footer-nextpage" href="../math/">Mathematical and Implementation Details »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 16 March 2023 12:16">Thursday 16 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../heat/">« Example IV: Diffusion equation on a square plate</a><a class="docs-footer-nextpage" href="../math/">Mathematical and Implementation Details »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Thursday 13 April 2023 08:17">Thursday 13 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
