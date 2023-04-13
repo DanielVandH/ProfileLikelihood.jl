@@ -18,8 +18,14 @@ end
 function mle(prob::LikelihoodProblem, alg::Tuple, args...; kwargs...)
     opt_prob = get_problem(prob)
     opt_sol = solve(opt_prob, alg[begin], args...; kwargs...)
-    for _alg in alg[begin+1:end]
-        updated_problem = update_initial_estimate(opt_prob, opt_sol)
+    for i in 2:length(alg)
+        if any(isnan, opt_sol.u)
+            @warn "Encountered a NaN in the MLE solution, $(opt_sol.u), for the algorithm $(alg[i-1]). Ignoring its solution."
+            updated_problem = opt_prob
+        else
+            updated_problem = update_initial_estimate(opt_prob, opt_sol)
+        end
+        _alg = alg[i]
         opt_sol = solve(updated_problem, _alg, args...; kwargs...)
     end
     return LikelihoodSolution(opt_sol, prob; alg=alg)

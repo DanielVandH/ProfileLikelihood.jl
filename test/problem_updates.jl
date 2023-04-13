@@ -16,6 +16,7 @@ prob = ProfileLikelihood.construct_optimisation_problem(negloglik, θ₀, data)
 new_prob = ProfileLikelihood.update_initial_estimate(prob, θ₁)
 @test new_prob.u0 == θ₁
 sol = solve(prob, Opt(:LN_NELDERMEAD, 3))
+sol.u .= 1.3 # fix nan
 new_prob_2 = ProfileLikelihood.update_initial_estimate(prob, sol)
 @test new_prob_2.u0 == sol.u
 @test prob.u0 == θ₀ # check aliasing

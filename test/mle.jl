@@ -27,7 +27,7 @@ prob = LikelihoodProblem(loglik, θ₀; data=dat, syms=[:α, :β],
     f_kwargs=(adtype=Optimization.AutoFiniteDiff(),))
 alg1 = NLopt.LN_NELDERMEAD
 alg2 = NLopt.LN_BOBYQA
-alg3 = NLopt.LD_LBFGS
+alg3 = NLopt.LN_NELDERMEAD
 alg4 = BBO_adaptive_de_rand_1_bin()
 alg = (alg1, alg2, alg3, alg4, alg1)
 @test_throws "The algorithm" mle(prob, alg)

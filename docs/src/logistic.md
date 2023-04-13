@@ -80,7 +80,7 @@ Now we find the MLEs.
 
 ```julia
 using OptimizationNLopt
-sol = mle(prob, NLopt.LD_LBFGS)
+sol = mle(prob, NLopt.LN_NELDERMEAD)
 LikelihoodSolution. retcode: Failure
 Maximum likelihood: -38.99053694428977
 Maximum likelihood estimates: 3-element Vector{Float64}
@@ -276,7 +276,7 @@ prob = LikelihoodProblem(
 
 ## Step 3: Compute the MLE 
 using OptimizationNLopt
-sol = mle(prob, NLopt.LD_LBFGS)
+sol = mle(prob, NLopt.LN_NELDERMEAD)
 
 ## Step 4: Profile 
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)

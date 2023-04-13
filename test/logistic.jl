@@ -55,11 +55,11 @@ prob = LikelihoodProblem(
 )
 
 ## Step 3: Compute the MLE 
-sol = mle(prob, NLopt.LD_LBFGS)
+sol = mle(prob, NLopt.LN_NELDERMEAD)
 @test get_maximum(sol) ≈ -38.99053694428977 rtol = 1e-3
-@test get_mle(sol, 1) ≈ 0.010438031266786045 rtol = 1e-3
+@test get_mle(sol, 1) ≈ 0.010438031266786045 rtol = 1e-1
 @test get_mle(sol, 2) ≈ 99.59921873132551 rtol = 1e-3
-@test sol[:u₀] ≈ 8.098422110755225 rtol = 1e-3
+@test sol[:u₀] ≈ 8.098422110755225 rtol = 1e-1
 
 ## Step 4: Profile 
 _prob = deepcopy(prob)

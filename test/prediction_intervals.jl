@@ -47,7 +47,7 @@ prob = LikelihoodProblem(
     prob_kwargs=(lb=lb, ub=ub),
     ode_alg=Rosenbrock23()
 )
-sol = mle(prob, NLopt.LD_LBFGS)
+sol = mle(prob, NLopt.LN_NELDERMEAD)
 prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, conf_level=0.95, parallel=true)
 
 function prediction_function(θ, data)

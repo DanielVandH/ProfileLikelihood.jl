@@ -8,6 +8,7 @@ using OptimizationOptimJL
 using OptimizationNLopt
 using PreallocationTools
 using LoopVectorization
+using PolygonOps
 using DelaunayTriangulation
 const SAVE_FIGURE = false
 
@@ -104,11 +105,11 @@ _prob = LikelihoodProblem(
 ## Step 3: Compute the MLE 
 mle(prob, Optim.LBFGS())
 mle(_prob, Optim.LBFGS())
-mle(prob, NLopt.LD_LBFGS())
-mle(_prob, NLopt.LD_LBFGS())
+mle(prob, NLopt.LN_NELDERMEAD())
+mle(_prob, NLopt.LN_NELDERMEAD())
 
-@time sol = mle(prob, NLopt.LD_LBFGS())
-@time _sol = mle(_prob, NLopt.LD_LBFGS())
+@time sol = mle(prob, NLopt.LN_NELDERMEAD())
+@time _sol = mle(_prob, NLopt.LN_NELDERMEAD())
 
 @test get_mle(sol) ≈ get_mle(_sol) rtol = 1e-2
 @test get_maximum(sol) ≈ get_maximum(_sol) rtol = 1e-3
@@ -163,8 +164,8 @@ integer_n = ntuple(i -> (SciMLBase.sym_to_index(param_pairs[i][1], prob), SciMLB
 for (i, j) in param_pairs
     CR_1 = get_confidence_regions(prof_2, i, j)
     CR_2 = get_confidence_regions(_prof_2, i, j)
-    A_1 = DelaunayTriangulation.area([[x, y] for (x, y) in CR_1])
-    A_2 = DelaunayTriangulation.area([[x, y] for (x, y) in CR_2])
+    A_1 = PolygonOps.area([[x, y] for (x, y) in CR_1])
+    A_2 = PolygonOps.area([[x, y] for (x, y) in CR_2])
     @test A_1 ≈ A_2 rtol = 1e-2
 end
 

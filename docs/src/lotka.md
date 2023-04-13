@@ -145,7 +145,7 @@ using OptimizationNLopt
 ```
 
 ```julia
-julia> mle(_prob, NLopt.LD_LBFGS())
+julia> mle(_prob, NLopt.LN_NELDERMEAD())
 LikelihoodSolution. retcode: Failure
 Maximum likelihood: -0.0
 Maximum likelihood estimates: 4-element Vector{Float64}
@@ -206,7 +206,7 @@ LikelihoodProblem. In-place: true
 Let us now proceed as usual, computing the MLEs and obtaining the profiles. 
 
 ```julia
-julia> @time sol = mle(prob, NLopt.LD_LBFGS())
+julia> @time sol = mle(prob, NLopt.LN_NELDERMEAD())
   0.157597 seconds (1.34 M allocations: 57.224 MiB)
 LikelihoodSolution. retcode: Failure
 Maximum likelihood: 5.0672221211843596
@@ -522,7 +522,7 @@ prob = LikelihoodProblem(
 
 ## Step 3: Compute the MLE 
 using OptimizationNLopt 
-sol = mle(prob, NLopt.LD_LBFGS())
+sol = mle(prob, NLopt.LN_NELDERMEAD())
 
 ## Step 4: Profile
 prof = profile(prob, sol; parallel=true)
