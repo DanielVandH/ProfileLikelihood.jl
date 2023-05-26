@@ -7,6 +7,7 @@ using ProfileLikelihood
 else
     using ..Makie
 end
+using Printf
 
 const ALPHABET = join('a':'z')
 
