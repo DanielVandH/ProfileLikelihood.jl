@@ -1,7 +1,6 @@
 using ProfileLikelihood
 using Test
 using SafeTestsets
-const RUN_EXAMPLE_4 = true
 
 @testset "ProfileLikelihood" begin
     @safetestset "Utilities" begin
