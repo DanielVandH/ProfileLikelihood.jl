@@ -59,7 +59,7 @@ function plot_profiles end
 function plot_profiles! end
 export plot_profiles
 export plot_profiles!
-function choose_grid_layout! end
+function choose_grid_layout end
 SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 
 function __init__()
