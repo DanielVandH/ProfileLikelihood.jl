@@ -7,7 +7,6 @@ using PreallocationTools
 using StatsFuns
 using SimpleNonlinearSolve
 using Interpolations
-using Requires
 using Printf
 using OffsetArrays
 using PolygonInbounds
@@ -56,44 +55,22 @@ export construct_profile_grids
 export bivariate_profile
 export refine_profile!
 
+function plot_profiles end
+function plot_profiles! end
+export plot_profiles
+export plot_profiles!
+function choose_grid_layout! end
+SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
+
 function __init__()
-    @require CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0" begin
-        @require LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f" begin
-            include("plotting.jl")
-            export plot_profiles
+    @static if !isdefined(Base, :get_extension)
+        @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
+            include("../ext/ProfileLikelihodMakieExt.jl")
         end
-    end
-
-    @require DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df" begin
-        @inline threshold_intersection(τ, uᵢ, uⱼ) = (τ - uᵢ) / (uⱼ - uᵢ)
-        @inline threshold_intersection_exists(τ, uᵢ, uⱼ) = (uᵢ < τ && uⱼ > τ) || (uᵢ > τ && uⱼ < τ)
-        function _get_confidence_regions_delaunay!(confidence_regions, n, range_1::AbstractArray{T}, range_2, profile_values, threshold, conf_level) where {T}
-            grid_xy = vec([(x, y) for x in range_1, y in range_2])
-            tri = DelaunayTriangulation.triangulate(grid_xy)
-            conf_contour = NTuple{2,T}[]
-            DelaunayTriangulation.delete_boundary_vertices_from_graph!(tri)
-            for (u, v) in DelaunayTriangulation.get_edges(tri)
-                u₁, u₂ = profile_values[u], profile_values[v]
-                if threshold_intersection_exists(threshold, u₁, u₂)
-                    p₁ = grid_xy[u]
-                    p₂ = grid_xy[v]
-                    t = threshold_intersection(threshold, u₁, u₂)
-                    p = @. p₁ + t * (p₂ - p₁)
-                    push!(conf_contour, Tuple(p))
-                end
-            end
-            θ = zeros(length(conf_contour))
-            for j in eachindex(conf_contour)
-                x, y = conf_contour[j]
-                θ[j] = atan(y - range_2[0], x - range_1[0])
-            end
-            sort_idx = sortperm(θ)
-            permute!(conf_contour, sort_idx)
-            confidence_regions[n] = ConfidenceRegion(getindex.(conf_contour, 1), getindex.(conf_contour, 2), conf_level)
-            return nothing
+        @require DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df" begin
+            include("../ext/ProfileLikelihoodDelaunayTriangulationExt.jl")
         end
     end
 end
 
-end
-# new line
+end # module ProfileLikelihood
