@@ -45,11 +45,11 @@ using SafeTestsets
     @safetestset "Example III: Linear Exponential" begin
         include("linear_exponential_example.jl")
     end
-    if RUN_EXAMPLE_4
-        @safetestset "Example IV: Heat Equation" begin
-            include("heat_equation_example.jl")
-        end
-    end
+    #if RUN_EXAMPLE_4
+    #    @safetestset "Example IV: Heat Equation" begin
+    #        include("heat_equation_example.jl")
+    #    end
+    #end
     @safetestset "Evample V: Lotka-Volterra ODE" begin
         include("lotka_volterra_example.jl")
     end

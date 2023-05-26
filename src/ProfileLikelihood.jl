@@ -60,6 +60,7 @@ function plot_profiles! end
 export plot_profiles
 export plot_profiles!
 function choose_grid_layout end
+function _get_confidence_regions_delaunay! end
 SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 
 @static if !isdefined(Base, :get_extension)
