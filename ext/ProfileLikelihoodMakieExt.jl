@@ -22,7 +22,7 @@ const ALPHABET = join('a':'z')
         axis_kwargs=nothing,
         show_points=false,
         markersize=9,
-        latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
+        latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
      
 Plot results from a profile likelihood solution `prof`.
 
@@ -41,7 +41,7 @@ Plot results from a profile likelihood solution `prof`.
 - `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
 - `show_points=false`: Whether to show the profile data. 
 - `markersize=9`: The marker size used for `show_points`.
-- `latex_names = Dict(vars .=> [LaTeXStrings.L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
+- `latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
 
 # Output 
 The `Figure()` is returned.
@@ -57,7 +57,7 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihoodSolution, vars=p
     axis_kwargs=nothing,
     show_points=false,
     markersize=9,
-    latex_names=Dict(vars .=> [LaTeXStrings.L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))
+    latex_names=Dict(vars .=> [L"\theta_{%$i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))
     num_plots = vars isa Symbol ? 1 : length(vars)
     _, _, plot_positions = choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
@@ -148,7 +148,7 @@ function ProfileLikelihood.plot_profiles(prof::BivariateProfileLikelihoodSolutio
                 close_contour, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ])
         end
     end
-    CairoMakie.Colorbar(fig[1:nr, nc+1], colorrange=(-16, 0), colormap=:viridis, label=LaTeXStrings.L"Normalised profile $ $", ticks=(-16:4:0))
+    CairoMakie.Colorbar(fig[1:nr, nc+1], colorrange=(-16, 0), colormap=:viridis, label=L"Normalised profile $ $", ticks=(-16:4:0))
     return fig
 end
 
@@ -166,7 +166,7 @@ function ProfileLikelihood.choose_grid_layout(num_plots, cols, rows)
 end
 
 function ProfileLikelihood.plot_profile!(prof::ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
-    spline, true_vals, mle_val=nothing, shade_ci=true, param_name=LaTeXStrings.L"\theta_{%$ℓ}",
+    spline, true_vals, mle_val=nothing, shade_ci=true, param_name=L"\theta_{%$ℓ}",
     show_points=false, markersize=9; axis_kwargs=nothing)
     lower_ci, upper_ci = get_confidence_intervals(prof)
     θ_vals = get_parameter_values(prof)
@@ -179,14 +179,14 @@ function ProfileLikelihood.plot_profile!(prof::ProfileLikelihoodSolutionView, fi
     if axis_kwargs !== nothing
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
-            ylabel=LaTeXStrings.L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=LaTeXStrings.L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
+            title=L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left; axis_kwargs...)
     else
         ax = CairoMakie.Axis(fig[i, j],
             xlabel=param_name,
-            ylabel=LaTeXStrings.L"$\ell_p^*($%$(param_name)$) - \ell^*$",
-            title=LaTeXStrings.L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
+            ylabel=L"$\ell_p^*($%$(param_name)$) - \ell^*$",
+            title=L"(%$(ALPHABET[ℓ])): $%$formatted_conf_level$% CI: $(%$formatted_lower_ci, %$formatted_upper_ci)$",
             titlealign=:left)
     end
     CairoMakie.ylims!(ax, threshold - 1, 0.1)
@@ -219,7 +219,7 @@ function ProfileLikelihood.plot_profile!(prof::ProfileLikelihoodSolutionView, fi
     return nothing
 end
 function ProfileLikelihood.plot_profile!(prof::BivariateProfileLikelihoodSolutionView, fig, ℓ, (k, r), i, j,
-    true_vals, interpolation=false, smooth_confidence_boundary=false, mle_val=nothing, (name_1, name_2)=(LaTeXStrings.L"\psi", LaTeXStrings.L"\varphi"), close_contour=true,
+    true_vals, interpolation=false, smooth_confidence_boundary=false, mle_val=nothing, (name_1, name_2)=(L"\psi", L"\varphi"), close_contour=true,
     xlim_tuple=nothing, ylim_tuple=nothing; axis_kwargs=nothing)
     if !interpolation
         grid_1 = get_parameter_values(prof, 1).parent
@@ -242,15 +242,15 @@ function ProfileLikelihood.plot_profile!(prof::BivariateProfileLikelihoodSolutio
     end
     if axis_kwargs !== nothing
         ax = CairoMakie.Axis(fig[i, j],
-            xlabel=LaTeXStrings.L"%$(name_1)",
-            ylabel=LaTeXStrings.L"%$(name_2)",
-            title=name_1 isa Symbol ? LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : LaTeXStrings.L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
+            xlabel=L"%$(name_1)",
+            ylabel=L"%$(name_2)",
+            title=name_1 isa Symbol ? L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
             titlealign=:left; axis_kwargs...)
     else
         ax = CairoMakie.Axis(fig[i, j],
-            xlabel=LaTeXStrings.L"%$(name_1)",
-            ylabel=LaTeXStrings.L"%$(name_2)",
-            title=name_1 isa Symbol ? LaTeXStrings.L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : LaTeXStrings.L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
+            xlabel=L"%$(name_1)",
+            ylabel=L"%$(name_2)",
+            title=name_1 isa Symbol ? L"(%$(ALPHABET[ℓ])): $(%$(name_1), %$(name_2))$" : L"(%$(ALPHABET[ℓ])): (%$(name_1), %$(name_2))",
             titlealign=:left)
     end
     conf = get_confidence_regions(prof)
