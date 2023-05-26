@@ -62,6 +62,10 @@ export plot_profiles!
 function choose_grid_layout end
 SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 
+@static if !isdefined(Base, :get_extension)
+    using Requires
+end
+
 function __init__()
     @static if !isdefined(Base, :get_extension)
         @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
