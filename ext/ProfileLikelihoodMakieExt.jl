@@ -69,9 +69,9 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikeliho
     for (ℓ, k) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            ProfileLikelihood.plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize; axis_kwargs)
+            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize; axis_kwargs)
         else
-            ProfileLikelihood.plot_profile!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize)
+            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize)
         end
     end
     return fig
@@ -138,12 +138,12 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.BivariateProfil
     for (ℓ, (k, r)) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            ProfileLikelihood.plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
+            ProfileLikelihood.plot_profiles!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
                 show_mles ? (ProfileLikelihood.get_likelihood_solution(prof)[k], ProfileLikelihood.get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]),
                 close_contour, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ];
                 axis_kwargs)
         else
-            ProfileLikelihood.plot_profile!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
+            ProfileLikelihood.plot_profiles!(prof[k, r], fig, ℓ, (k, r), i, j, (true_vals[k], true_vals[r]), interpolation, smooth_confidence_boundary,
                 show_mles ? (ProfileLikelihood.get_likelihood_solution(prof)[k], ProfileLikelihood.get_likelihood_solution(prof)[r]) : nothing, (latex_names[k], latex_names[r]),
                 close_contour, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ])
         end
@@ -165,7 +165,7 @@ function ProfileLikelihood.choose_grid_layout(num_plots, cols, rows)
     return rows, cols, plot_positions
 end
 
-function ProfileLikelihood.plot_profile!(prof::ProfileLikelihood.ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
+function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
     spline, true_vals, mle_val=nothing, shade_ci=true, param_name=L"\theta_{%$ℓ}",
     show_points=false, markersize=9; axis_kwargs=nothing)
     lower_ci, upper_ci = ProfileLikelihood.get_confidence_intervals(prof)
@@ -218,7 +218,7 @@ function ProfileLikelihood.plot_profile!(prof::ProfileLikelihood.ProfileLikeliho
     end
     return nothing
 end
-function ProfileLikelihood.plot_profile!(prof::ProfileLikelihood.BivariateProfileLikelihoodSolutionView, fig, ℓ, (k, r), i, j,
+function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.BivariateProfileLikelihoodSolutionView, fig, ℓ, (k, r), i, j,
     true_vals, interpolation=false, smooth_confidence_boundary=false, mle_val=nothing, (name_1, name_2)=(L"\psi", L"\varphi"), close_contour=true,
     xlim_tuple=nothing, ylim_tuple=nothing; axis_kwargs=nothing)
     if !interpolation
