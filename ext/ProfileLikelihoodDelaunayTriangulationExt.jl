@@ -31,7 +31,7 @@ function ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions,
     end
     sort_idx = sortperm(θ)
     permute!(conf_contour, sort_idx)
-    confidence_regions[n] = ConfidenceRegion(getindex.(conf_contour, 1), getindex.(conf_contour, 2), conf_level)
+    confidence_regions[n] = ProfileLikelihood.ConfidenceRegion(getindex.(conf_contour, 1), getindex.(conf_contour, 2), conf_level)
     return nothing
 end
 
