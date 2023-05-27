@@ -1168,7 +1168,7 @@ end
         @time refine_profile!(prof1, [1, 2, 3]; target_number=250)
         @time refine_profile!(prof2, [1, 2, 3]; target_number=250, parallel=true)
 
-        F1 = plot_profiles(prof; show_points=true, spline=true)
+        F1 = plot_profiles(prof1; show_points=true, spline=true)
 
         @test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-1
         @test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-1
