@@ -109,14 +109,16 @@ end
     return nothing
 end
 @inline function evaluate_prediction_function!(q_n, range, spline, θ::AbstractVector{T}, n, q, data, iip::Val{B}=Val(isinplace(q, 3)), parallel::Val{true}=Val(true)) where {B,T<:AbstractVector}
-    Base.Threads.@threads for j in eachindex(range)
-        id = Base.Threads.threadid()
-        ψ = range[j]
-        build_θ!(θ[id], n, spline, ψ)
-        if B
-            @views q(q_n[:, j], θ[id], data)
-        else
-            @views q_n[:, j] .= q(θ[id], data)
+    chunked_range = chunks(eachindex(range), Base.Threads.nthreads())
+    Base.Threads.@threads for (j_range, id) in chunked_range
+        for j in j_range
+            ψ = range[j]
+            build_θ!(θ[id], n, spline, ψ)
+            if B
+                @views q(q_n[:, j], θ[id], data)
+            else
+                @views q_n[:, j] .= q(θ[id], data)
+            end
         end
     end
     return nothing

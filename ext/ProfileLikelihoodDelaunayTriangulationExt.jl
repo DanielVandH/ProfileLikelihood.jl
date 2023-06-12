@@ -1,7 +1,7 @@
 module ProfileLikelihoodDelaunayTriangulationExt
 
 using ProfileLikelihood
-@static if isdefined(Base, :get_extension)
+@static if isdefined(Base, :get_extension) && !CIMIP
     using DelaunayTriangulation
 else
     using ..DelaunayTriangulation

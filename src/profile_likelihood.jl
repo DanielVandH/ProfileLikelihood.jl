@@ -576,11 +576,13 @@ function _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles,
     nt = Base.Threads.nthreads()
     _restricted_prob = [deepcopy(restricted_prob) for _ in 1:nt]
     _cache = [deepcopy(cache) for _ in 1:nt]
-    Base.Threads.@threads for i in 1:(min_steps - original_length)
-        j = original_length + i
-        θₙ = param_vals[j]
-        id = Base.Threads.threadid()
-        add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
+    chunked_step_itr = chunks(1:(min_steps-original_length), Base.Threads.nthreads())
+    Base.Threads.@threads for (chunk_range, id) in chunked_step_itr
+        for i in chunk_range
+            j = original_length + i
+            θₙ = param_vals[j]
+            add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
+        end
     end
     return nothing
 end

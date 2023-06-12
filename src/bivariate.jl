@@ -64,7 +64,7 @@ function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::
     opt_prob, mles, ℓmax = extract_problem_and_solution(prob, sol)
 
     ## Prepare the profile results 
-    T = number_type(mles)
+    T = ProfileLikelihood.number_type(mles)
     θ, prof, other_mles, interpolants, confidence_regions = prepare_bivariate_profile_results(M, T, F)
     num_params = number_of_parameters(opt_prob)
 
@@ -251,10 +251,12 @@ end
     ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator; kwargs...)
     fill!(any_above_threshold, false)
     collected_iterator = collect(layer_iterator) # can we do better than collect()? -
-    Base.Threads.@threads for I in collected_iterator
-        id = Base.Threads.threadid()
-        @inbounds any_above_threshold[id] = solve_at_layer_node!(fixed_vals[id], grid, I, sub_cache[id], other_mle, layer, restricted_prob[id],
-            next_initial_estimate_method, cache[id], alg, profile_vals, ℓmax, normalise, any_above_threshold[id], threshold, n)
+    Base.Threads.@threads for (I_range, id) in chunks(collected_iterator, Base.Threads.nthreads())
+        for _I in I_range
+            I = collected_iterator[_I]
+            @inbounds any_above_threshold[id] = solve_at_layer_node!(fixed_vals[id], grid, I, sub_cache[id], other_mle, layer, restricted_prob[id],
+                next_initial_estimate_method, cache[id], alg, profile_vals, ℓmax, normalise, any_above_threshold[id], threshold, n)
+        end
     end
     return any_above_threshold
 end

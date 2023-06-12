@@ -2,7 +2,7 @@ using ProfileLikelihood
 using Test
 using SafeTestsets
 
-@testset "ProfileLikelihood" begin
+#@testset "ProfileLikelihood" begin
     @safetestset "Utilities" begin
         include("utils.jl")
     end
@@ -53,4 +53,4 @@ using SafeTestsets
     @safetestset "Evample V: Lotka-Volterra ODE" begin
         include("lotka_volterra_example.jl")
     end
-end
+#end
