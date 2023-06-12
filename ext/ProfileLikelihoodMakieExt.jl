@@ -1,7 +1,7 @@
 module ProfileLikelihoodMakieExt
 
  using ProfileLikelihood
-@static if isdefined(Base, :get_extension) && !CIMIP
+@static if isdefined(Base, :get_extension)
     using Makie
 else
     using ..Makie
