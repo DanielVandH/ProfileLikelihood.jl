@@ -1,26 +1,27 @@
-using ..ProfileLikelihood 
-using Random 
-using PreallocationTools 
-using Distributions 
-using CairoMakie 
-using LaTeXStrings 
+using ..ProfileLikelihood
+using Random
+using PreallocationTools
+using Distributions
+using CairoMakie
+using LaTeXStrings
 using LinearAlgebra
-using Optimization 
+using Optimization
 using OptimizationOptimJL
-const SAVE_FIGURE = false
+using ReferenceTests
+using StableRNGs
 
 ######################################################
 ## Example I: Multiple Linear Regression 
 ######################################################
 ## Step 1: Generate some data for the problem and define the likelihood
-Random.seed!(98871)
+rng = StableRNG(98871)
 n = 600
 β = [-1.0, 1.0, 0.5, 3.0]
 σ = 0.05
-x₁ = rand(Uniform(-1, 1), n)
-x₂ = rand(Normal(1.0, 0.5), n)
+x₁ = rand(rng, Uniform(-1, 1), n)
+x₂ = rand(rng, Normal(1.0, 0.5), n)
 X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
-ε = rand(Normal(0.0, σ), n)
+ε = rand(rng, Normal(0.0, σ), n)
 y = X * β + ε
 sse = DiffCache(zeros(n))
 β_cache = DiffCache(similar(β), 10)
@@ -127,6 +128,7 @@ prof[:β₂] # This is a ProfileLikelihoodSolutionView
 prof[:β₂](0.50)
 prof(0.50, :β₂)
 prof(0.50, 4)
+@test prof[:β₂](0.50) == prof(0.50, :β₂) == prof(0.50, 4)
 
 ## Step 5: Visualise 
 using CairoMakie, LaTeXStrings
@@ -135,15 +137,18 @@ fig = plot_profiles(prof;
     show_mles=true,
     shade_ci=true,
     true_vals=[σ, β...],
-    fig_kwargs=(fontsize=30, resolution=(2134.0f0, 906.0f0)),
+    fig_kwargs=(fontsize=41,),
     axis_kwargs=(width=600, height=300))
 xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
 xlims!(fig.content[2], -1.025, -0.975)
 xlims!(fig.content[4], 0.475, 0.525)
-SAVE_FIGURE && save("figures/regression_profiles.png", fig)
+resize_to_layout!(fig)
+fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
+@test_reference joinpath(fig_path, "regression_profiles.png") fig
 
 # You can also plot specific parameters 
-plot_profiles(prof, [1, 3]) # plot σ and β₁
-plot_profiles(prof, [:σ, :β₁, :β₃]) # can use symbols 
-plot_profiles(prof, 1) # can just provide an integer 
-plot_profiles(prof, :β₂) # symbols work
+fig_path = normpath(@__DIR__, "..", "test", "figures")
+@test_reference joinpath(fig_path, "regression_profiles_a.png") plot_profiles(prof, [1, 3]) # plot σ and β₁
+@test_reference joinpath(fig_path, "regression_profiles_b.png") plot_profiles(prof, [:σ, :β₁, :β₃]) # can use symbols 
+@test_reference joinpath(fig_path, "regression_profiles_c.png") plot_profiles(prof, 1) # can just provide an integer 
+@test_reference joinpath(fig_path, "regression_profiles_d.png") plot_profiles(prof, :β₂) # symbols work

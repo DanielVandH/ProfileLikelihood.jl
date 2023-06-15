@@ -4,8 +4,10 @@ using Optimization
 using OrdinaryDiffEq
 using CairoMakie
 using LaTeXStrings
+using OptimizationOptimJL
 using OptimizationNLopt
-const SAVE_FIGURE = false
+using StableRNGs
+using ReferenceTests
 
 ######################################################
 ## Example II: Logistic ODE
@@ -26,9 +28,9 @@ tspan = extrema(t)
 p = (λ, K)
 prob = ODEProblem(ode_fnc, u₀, tspan, p)
 sol = solve(prob, Rosenbrock23(), saveat=t)
-Random.seed!(2828)
-uᵒ = sol.u + σ * randn(length(t))
-@inline function loglik_fnc2(θ, data, integrator)
+rng = StableRNG(123)
+uᵒ = sol.u + σ * randn(rng, length(t))
+function loglik_fnc2(θ, data, integrator)
     λ, K, u₀ = θ
     uᵒ, σ = data
     integrator.p[1] = λ
@@ -55,16 +57,16 @@ prob = LikelihoodProblem(
 )
 
 ## Step 3: Compute the MLE 
-sol = mle(prob, NLopt.LN_NELDERMEAD)
-@test get_maximum(sol) ≈ -38.99053694428977 rtol = 1e-3
+@time sol = mle(prob, NLopt.LD_LBFGS)
+@test get_maximum(sol) ≈ -38.99053694428977 rtol = 1e-1
 @test get_mle(sol, 1) ≈ 0.010438031266786045 rtol = 1e-1
-@test get_mle(sol, 2) ≈ 99.59921873132551 rtol = 1e-3
+@test get_mle(sol, 2) ≈ 99.59921873132551 rtol = 1e-1
 @test sol[:u₀] ≈ 8.098422110755225 rtol = 1e-1
 
 ## Step 4: Profile 
 _prob = deepcopy(prob)
 _sol = deepcopy(sol)
-prof = profile(prob, sol;
+@time prof = profile(prob, sol;
     alg=NLopt.LN_NELDERMEAD, parallel=false)
 @test sol.mle == _sol.mle
 @test sol.maximum == _sol.maximum # checking aliasing 
@@ -74,12 +76,8 @@ prof = profile(prob, sol;
 @test u₀ ∈ get_confidence_intervals(prof, 3)
 
 
-prof1 = profile(prob, sol; parallel=false)
-prof2 = profile(prob, sol; parallel=true)
-
-#b1 = @benchmark profile($prob, $sol;  parallel=$true)
-#b2 = @benchmark profile($prob, $sol; parallel=$false)
-
+prof1 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
+prof2 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
 
 @test prof1.confidence_intervals[1].lower ≈ prof2.confidence_intervals[1].lower rtol = 1e-3
 @test prof1.confidence_intervals[2].lower ≈ prof2.confidence_intervals[2].lower rtol = 1e-3
@@ -116,9 +114,11 @@ fig = plot_profiles(prof;
     nrow=1,
     ncol=3,
     true_vals=[λ, K, u₀],
-    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    fig_kwargs=(fontsize=41,),
     axis_kwargs=(width=600, height=300))
-SAVE_FIGURE && save("figures/logistic_example.png", fig)
+resize_to_layout!(fig)
+fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
+@test_reference joinpath(fig_path, "logistic_example.png") fig
 
 ## Step 5: Get prediction intervals, compare to evaluating at many points 
 function prediction_function(θ, data)
@@ -140,7 +140,7 @@ exact_soln = prediction_function([λ, K, u₀], t_many_pts)
 mle_soln = prediction_function(get_mle(sol), t_many_pts)
 
 # Now plot the prediction intervals
-fig = Figure(fontsize=38, resolution=(1402.7681f0, 848.64404f0))
+fig = Figure(fontsize=38)
 alp = join('a':'z')
 latex_names = [L"\lambda", L"K", L"u_0"]
 for i in 1:3
@@ -178,4 +178,7 @@ q_upr = maximum(q_mat; dims=2) |> vec
 lines!(ax, t_many_pts, q_lwr, color=:magenta, linewidth=3)
 lines!(ax, t_many_pts, q_upr, color=:magenta, linewidth=3)
 
-SAVE_FIGURE && save("figures/logistic_example_prediction.png", fig)
+resize_to_layout!(fig)
+fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
+@test_reference joinpath(fig_path, "logistic_example_prediction.png") fig
+

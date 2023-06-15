@@ -11,7 +11,7 @@ using LatinHypercubeSampling
 using OptimizationOptimJL
 using OptimizationNLopt
 using StableRNGs
-const SAVE_FIGURE = false
+using ReferenceTests
 
 ######################################################
 ## Example III: Linear Exponential ODE with Grid Search
@@ -28,13 +28,11 @@ t = [j * Δt for j in 0:n]
 y = y₀ * exp.(λ * t)
 yᵒ = y .+ [0.0, rand(rng, Normal(0, σ), n)...]
 @inline function ode_fnc(u, p, t)
-    local λ
     λ = p
     du = λ * u
     return du
 end
-@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
-    local yᵒ, n, λ, σ, u0
+function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
     yᵒ, n = data
     λ, σ, u0 = θ
     integrator.p = λ
@@ -89,7 +87,7 @@ gs2, L2 = grid_search(prob, regular_grid; parallel=Val(false), save_vals=Val(tru
 # the parameter space. An example is below.
 d = 3
 gens = 1000
-plan, _ = LHCoptim(500, d, gens)
+plan, _ = LHCoptim(500, d, gens; rng)
 new_lb = [-2.0, 0.05, 10.0]
 new_ub = [2.0, 0.2, 20.0]
 bnds = [(new_lb[i], new_ub[i]) for i in 1:d]
@@ -106,9 +104,6 @@ _max_lik, _max_idx = findmax(_loglik_vals_ir)
 @test parameter_vals[:, _max_idx] ≈ ProfileLikelihood.get_mle(_gs_ir)
 @test loglik_vals_ir ≈ _loglik_vals_ir
 @test _max_idx == max_idx
-
-#bpar = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(true), save_vals=$Val(true))
-#bser = @benchmark grid_search($prob, $irregular_grid; parallel=$Val(false), save_vals=$Val(true))
 
 # Also see MultistartOptimization.jl
 
@@ -163,6 +158,9 @@ using CairoMakie, LaTeXStrings
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"\lambda", L"\sigma", L"y_0"],
     true_vals=[λ, σ, y₀],
-    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    fig_kwargs=(fontsize=41,),
     axis_kwargs=(width=600, height=300))
-SAVE_FIGURE && save("figures/linear_exponential_example.png", fig)
+resize_to_layout!(fig)
+fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
+@test_reference joinpath(fig_path, "linear_exponential_example.png") fig
+

@@ -12,7 +12,7 @@ using Distributions
     x = [[[[[[[[[[[[[5.0]]]]]]]]]]]]]
     @test ProfileLikelihood.number_type(x) == Float64
     x = [[2, 3, 4], [2, 3, 5]]
-    @test ProfileLikelihood.number_type(x) == Int64
+    @test ProfileLikelihood.number_type(x) == Int
 
     x = rand(5, 8)
     @test ProfileLikelihood.number_type(x) == Float64
@@ -21,7 +21,7 @@ using Distributions
     @test ProfileLikelihood.number_type(x) == Float64
 
     x = ((5, 3), (2, 3), (5, 1), (2, 5))
-    @test ProfileLikelihood.number_type(x) == Int64
+    @test ProfileLikelihood.number_type(x) == Int
 end
 
 @testset "get_default_extremum" begin

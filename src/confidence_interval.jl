@@ -76,13 +76,13 @@ Base.eltype(::Type{ConfidenceRegion{T,F}}) where {T,F} = NTuple{2,number_type(T)
 function get_nodes_and_edges(x, y)
     if x[end] ≠ x[1] || y[end] ≠ y[1]
         nodes = [x y]
-        edges = zeros(Int64, length(x), 2)
+        edges = zeros(Int, length(x), 2)
         edges[:, 1] .= 1:length(x)
         edges[1:end-1, 2] .= 2:length(x)
         edges[end, 2] = 1
     else
         nodes = [x[1:end-1] y[1:end-1]]
-        edges = zeros(Int64, length(x) - 1, 2)
+        edges = zeros(Int, length(x) - 1, 2)
         edges[:, 1] .= 1:length(x)-1
         edges[1:end-1, 2] .= 2:length(x)-1
         edges[end, 2] = 1

@@ -51,7 +51,7 @@ end
 
 @inline function prepare_prediction_grid(prof::ProfileLikelihoodSolution, resolution)
     prof_idx = profiled_parameters(prof)
-    param_ranges = Dict{Int64,LinRange{Float64,Int64}}(prof_idx .=> [LinRange(get_confidence_intervals(prof[i])..., resolution) for i in prof_idx])
+    param_ranges = Dict{Int,LinRange{Float64,Int}}(prof_idx .=> [LinRange(get_confidence_intervals(prof[i])..., resolution) for i in prof_idx])
     splines = spline_other_mles(prof)
     return prof_idx, param_ranges, splines, resolution
 end

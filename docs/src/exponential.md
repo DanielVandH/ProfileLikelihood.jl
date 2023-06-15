@@ -16,6 +16,7 @@ using LatinHypercubeSampling
 using OptimizationOptimJL
 using OptimizationNLopt
 using Test
+using StableRNGs
 ```
 
 ## Setting up the problem 
@@ -24,7 +25,7 @@ Let us start by defining the data and the likelihood problem:
 
 ```julia
 ## Step 1: Generate some data for the problem and define the likelihood
-Random.seed!(2992999)
+rng = StableRNG(2992999)
 λ = -0.5
 y₀ = 15.0
 σ = 0.5
@@ -33,16 +34,14 @@ n = 450
 Δt = T / n
 t = [j * Δt for j in 0:n]
 y = y₀ * exp.(λ * t)
-yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
+yᵒ = y .+ [0.0, rand(rng, Normal(0, σ), n)...]
 @inline function ode_fnc(u, p, t)
-    local λ
     λ = p
     du = λ * u
     return du
 end
 using LoopVectorization, MuladdMacro
-@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
-    local yᵒ, n, λ, σ, u0
+function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
     yᵒ, n = data
     λ, σ, u0 = θ
     integrator.p = λ
@@ -90,7 +89,7 @@ We can now use this grid to evaluate the likelihood function at each point, and 
 ```julia
 gs = grid_search(prob, regular_grid)
 LikelihoodSolution. retcode: Success
-Maximum likelihood: -547.9579886200935
+Maximum likelihood: -548.3068396174556
 Maximum likelihood estimates: 3-element Vector{Float64}
      λ: -0.612244897959183
      σ: 0.816327448979592
@@ -103,7 +102,7 @@ You could also use an irregular grid, defining some grid as a matrix where each 
 using LatinHypercubeSampling
 d = 3
 gens = 1000
-plan, _ = LHCoptim(500, d, gens)
+plan, _ = LHCoptim(500, d, gens; rng)
 new_lb = [-2.0, 0.05, 10.0]
 new_ub = [2.0, 0.2, 20.0]
 bnds = [(new_lb[i], new_ub[i]) for i in 1:d]
@@ -112,12 +111,13 @@ irregular_grid = IrregularGrid(lb, ub, parameter_vals)
 gs_ir, loglik_vals_ir = grid_search(prob, irregular_grid; save_vals=Val(true), parallel = Val(true))
 ```
 ```julia
+julia> gs_ir
 LikelihoodSolution. retcode: Success
-Maximum likelihood: -1729.7407123603484
+Maximum likelihood: -2611.078183576969
 Maximum likelihood estimates: 3-element Vector{Float64}
-     λ: -0.5090180360721444
-     σ: 0.19368737474949904
-     y₀: 15.791583166332664
+     λ: -0.5170340681362726
+     σ: 0.18256513026052107
+     y₀: 14.348697394789578
 ```
 ```julia
 max_lik, max_idx = findmax(loglik_vals_ir)
@@ -125,7 +125,7 @@ max_lik, max_idx = findmax(loglik_vals_ir)
 @test parameter_vals[:, max_idx] ≈ PL.get_mle(gs_ir)
 ```
 
-(If you just want to try many points for starting your optimiser, see the optimiser in MultistartOptimization.jl.)
+(If you just want to try many points for starting your optimiser, see e.g. the optimiser in MultistartOptimization.jl.)
 
 ## Parameter estimation 
 
@@ -143,10 +143,10 @@ prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel = true)
 ```
 ```julia
 ProfileLikelihoodSolution. MLE retcode: Success
-Confidence intervals: 
-     95.0% CI for λ: (-0.51091362373969, -0.49491369219060505)
-     95.0% CI for σ: (0.49607205632240814, 0.5652591835193789)
-     95.0% CI for y₀: (14.98587355568687, 15.305179849533756)
+Confidence intervals:
+     95.0% CI for λ: (-0.5092192953535792, -0.49323747169071175)
+     95.0% CI for σ: (0.4925813447124647, 0.5612815283609663)
+     95.0% CI for y₀: (14.856528827532468, 15.173375766524025)
 ```
 ```julia
 @test λ ∈ get_confidence_intervals(prof, :λ)
@@ -162,90 +162,13 @@ Finally, we can visualise the profiles:
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"\lambda", L"\sigma", L"y_0"],
     true_vals=[λ, σ, y₀],
-    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
+    fig_kwargs=(fontsize=41,),
     axis_kwargs=(width=600, height=300))
+resize_to_layout!(fig)
 ```
 
-![Linear exponential profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/linear_exponential_example.png?raw=true)
-
-## Just the code
-
-Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
-
-```julia 
-## Step 1: Generate some data for the problem and define the likelihood
-using OrdinaryDiffEq, Random, Distributions, LoopVectorization, MuladdMacro
-Random.seed!(2992999)
-λ = -0.5
-y₀ = 15.0
-σ = 0.5
-T = 5.0
-n = 450
-Δt = T / n
-t = [j * Δt for j in 0:n]
-y = y₀ * exp.(λ * t)
-yᵒ = y .+ [0.0, rand(Normal(0, σ), n)...]
-@inline function ode_fnc(u, p, t)
-    local λ
-    λ = p
-    du = λ * u
-    return du
-end
-@inline function _loglik_fnc(θ::AbstractVector{T}, data, integrator) where {T}
-    local yᵒ, n, λ, σ, u0
-    yᵒ, n = data
-    λ, σ, u0 = θ
-    integrator.p = λ
-    ## Now solve the problem 
-    reinit!(integrator, u0)
-    solve!(integrator)
-    if !SciMLBase.successful_retcode(integrator.sol)
-        return typemin(T)
-    end
-    ℓ = -0.5(n + 1) * log(2π * σ^2)
-    s = zero(T)
-    @turbo @muladd for i in eachindex(yᵒ, integrator.sol.u)
-        s = s + (yᵒ[i] - integrator.sol.u[i]) * (yᵒ[i] - integrator.sol.u[i])
-    end
-    ℓ = ℓ - 0.5s / σ^2
-end
-
-## Step 2: Define the problem
-using Optimization
-θ₀ = [-1.0, 0.5, 19.73] # will be replaced anyway
-lb = [-10.0, 1e-6, 0.5]
-ub = [10.0, 10.0, 25.0]
-syms = [:λ, :σ, :y₀]
-prob = LikelihoodProblem(
-    _loglik_fnc, θ₀, ode_fnc, y₀, (0.0, T);
-    syms=syms,
-    data=(yᵒ, n),
-    ode_parameters=1.0, # temp value for λ
-    ode_kwargs=(verbose=false, saveat=t),
-    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
-    prob_kwargs=(lb=lb, ub=ub),
-    ode_alg=Tsit5()
-)
-
-## Step 3: Grid search
-regular_grid = RegularGrid(lb, ub, 50) # resolution can also be given as a vector for each parameter
-gs = grid_search(prob, regular_grid)
-
-## Step 4: Compute the MLE, starting at the grid search solution 
-using OptimizationOptimJL
-prob = ProfileLikelihood.update_initial_estimate(prob, gs)
-sol = mle(prob, Optim.LBFGS())
-
-## Step 5: Profile 
-using OptimizationNLopt
-prof = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
-
-
-## Step 6: Visualise 
-using CairoMakie, LaTeXStrings
-fig = plot_profiles(prof; nrow=1, ncol=3,
-    latex_names=[L"\lambda", L"\sigma", L"y_0"],
-    true_vals=[λ, σ, y₀],
-    fig_kwargs=(fontsize=30, resolution=(2109.644f0, 444.242f0)),
-    axis_kwargs=(width=600, height=300))
+```@raw html
+<figure>
+    <img src='../figures/linear_exponential_example.png', alt'Linear exponential profiles'><br>
+</figure>
 ```

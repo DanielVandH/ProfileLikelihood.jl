@@ -65,10 +65,10 @@ end
     T = Float64
     F = Float64
     _θ, _prof, _other_mles, _splines, _confidence_intervals = ProfileLikelihood.prepare_profile_results(N, T, F)
-    @test _θ == Dict{Int64,Vector{T}}([])
-    @test _prof == Dict{Int64,Vector{T}}([])
-    @test _other_mles == Dict{Int64,Vector{Vector{T}}}([])
-    @test _confidence_intervals == Dict{Int64,ProfileLikelihood.ConfidenceInterval{T,F}}([])
+    @test _θ == Dict{Int,Vector{T}}([])
+    @test _prof == Dict{Int,Vector{T}}([])
+    @test _other_mles == Dict{Int,Vector{Vector{T}}}([])
+    @test _confidence_intervals == Dict{Int,ProfileLikelihood.ConfidenceInterval{T,F}}([])
 end
 
 @testset "Test that we can correctly normalise the objective function" begin

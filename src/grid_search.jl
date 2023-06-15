@@ -148,7 +148,7 @@ function get_resolution_tuples(resolutions, N)
     if typeof(resolutions) <: Number
         return [(resolutions, resolutions) for _ in 1:N]
     elseif typeof(resolutions) <: Base.AbstractVecOrTuple
-        res = Vector{NTuple{2,Int64}}(undef, N)
+        res = Vector{NTuple{2,Int}}(undef, N)
         for i in 1:N
             if typeof(resolutions[i]) <: Number
                 res[i] = (resolutions[i], resolutions[i])

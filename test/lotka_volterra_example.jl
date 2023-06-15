@@ -10,7 +10,8 @@ using PreallocationTools
 using LoopVectorization
 using PolygonOps
 using DelaunayTriangulation
-const SAVE_FIGURE = false
+using StableRNGs
+using ReferenceTests
 
 ######################################################
 ## Example V: Lotka-Volterra ODE
@@ -35,12 +36,12 @@ p = [α, β]
 u₀ = [a₀, b₀]
 prob = ODEProblem(ode_fnc!, u₀, tspan, p)
 sol = solve(prob, Rosenbrock23(), saveat=t)
-Random.seed!(252800)
-noise_vec = [σ * randn(2) for _ in eachindex(t)]
+rng = StableRNG(2828881)
+noise_vec = [σ * randn(rng, 2) for _ in eachindex(t)]
 uᵒ = sol.u .+ noise_vec
-@inline function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
+function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
     α, β, a₀, b₀ = θ
-    uᵒ, σ, u₀_cache, αβ_cache, n = data
+    uᵒ, σ, u₀_cache, n = data
     u₀ = get_tmp(u₀_cache, θ)
     integrator.p[1] = α
     integrator.p[2] = β
@@ -66,69 +67,27 @@ ub = [1.2, 1.4, 1.2, 0.5]
 θ₀ = [0.75, 1.23, 0.76, 0.292]
 syms = [:α, :β, :a₀, :b₀]
 u₀_cache = DiffCache(zeros(2), 12)
-αβ_cache = DiffCache(zeros(2), 12)
 n = findlast(t .≤ 7) # Using t ≤ 7 for estimation
-lbc = @inline (f, u, p, tspan, ode_alg; kwargs...) -> GeneralLazyBufferCache(
-    @inline function ((cache, u₀_cache, α, β, a₀, b₀),) # Needs to be a 1-argument function
-        αβ = get_tmp(cache, α)
-        αβ[1] = α
-        αβ[2] = β
-        u₀ = get_tmp(u₀_cache, a₀)
-        u₀[1] = a₀
-        u₀[2] = b₀
-        int = construct_integrator(f, u₀, tspan, αβ, ode_alg; kwargs...)
-        return int
-    end
-)
-lbc_index = @inline (θ, p) -> (p[4], p[3], θ[1], θ[2], θ[3], θ[4])
 prob = LikelihoodProblem(
-    loglik_fnc2, θ₀, ode_fnc!, u₀, tspan, lbc, lbc_index;
-    syms=syms,
-    data=(uᵒ, σ, u₀_cache, αβ_cache, n),
-    ode_parameters=[1.0, 1.0],
-    ode_kwargs=(verbose=false, saveat=t),
-    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
-    prob_kwargs=(lb=lb, ub=ub),
-    ode_alg=Rosenbrock23()
-)
-_prob = LikelihoodProblem(
     loglik_fnc2, θ₀, ode_fnc!, u₀, tspan;
     syms=syms,
-    data=(uᵒ, σ, u₀_cache, αβ_cache, n),
+    data=(uᵒ, σ, u₀_cache, n),
     ode_parameters=[1.0, 1.0],
     ode_kwargs=(verbose=false, saveat=t),
-    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
-    prob_kwargs=(lb=lb, ub=ub),
+    prob_kwargs = (lb=lb, ub=ub),
     ode_alg=Rosenbrock23()
 )
 
 ## Step 3: Compute the MLE 
-mle(prob, Optim.LBFGS())
-mle(_prob, Optim.LBFGS())
-mle(prob, NLopt.LN_NELDERMEAD())
-mle(_prob, NLopt.LN_NELDERMEAD())
-
-@time sol = mle(prob, NLopt.LN_NELDERMEAD())
-@time _sol = mle(_prob, NLopt.LN_NELDERMEAD())
-
-@test get_mle(sol) ≈ get_mle(_sol) rtol = 1e-2
-@test get_maximum(sol) ≈ get_maximum(_sol) rtol = 1e-3
+@time sol = mle(prob, NLopt.LD_LBFGS)
 
 ## Step 4: Profile 
-profile(prob, sol; parallel=true)
-profile(_prob, _sol; parallel=true)
-
 @time prof = profile(prob, sol; parallel=true)
-@time _prof = profile(_prob, _sol; parallel=true)
 
 @test α ∈ get_confidence_intervals(prof, :α)
 @test β ∈ get_confidence_intervals(prof, :β)
 @test a₀ ∈ get_confidence_intervals(prof, :a₀)
 @test b₀ ∈ get_confidence_intervals(prof, :b₀)
-for s in [:α, :β, :a₀, :b₀]
-    @test collect(ProfileLikelihood.get_bounds(get_confidence_intervals(prof, s))) ≈
-          collect(ProfileLikelihood.get_bounds(get_confidence_intervals(_prof, s))) rtol = 1e-3
-end
 
 ## Step 5: Plot 
 fig = plot_profiles(prof;
@@ -138,7 +97,8 @@ fig = plot_profiles(prof;
     nrow=2,
     ncol=2,
     true_vals=[α, β, a₀, b₀])
-SAVE_FIGURE && save("figures/lokta_example_profiles.png", fig)
+fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
+@test_reference joinpath(fig_path, "lokta_example_profiles.png") fig
 
 ## Step 6: Obtain the bivariate profiles 
 param_pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
@@ -158,16 +118,8 @@ integer_n = ntuple(i -> (SciMLBase.sym_to_index(param_pairs[i][1], prob), SciMLB
 @test (2, 4) == ProfileLikelihood.convert_symbol_tuples((:β, :b₀), prof)
 
 @time prof_2 = bivariate_profile(prob, sol, param_pairs; parallel=true, resolution=25, outer_layers=10) # Multithreading highly recommended for bivariate profiles - even a resolution of 25 is an upper bound of 2,601 optimisation problems for each pair (in general, this number is 4N(N+1) + 1 for a resolution of N).
-@time _prof_2 = bivariate_profile(_prob, _sol, param_pairs; parallel=true, resolution=25, outer_layers=10)
 
 @test all(collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) == collect(ProfileLikelihood.get_bounding_box(prof_2, i, j)) for (i, j) in param_pairs)
-for (i, j) in param_pairs
-    CR_1 = get_confidence_regions(prof_2, i, j)
-    CR_2 = get_confidence_regions(_prof_2, i, j)
-    A_1 = PolygonOps.area([[x, y] for (x, y) in CR_1])
-    A_2 = PolygonOps.area([[x, y] for (x, y) in CR_2])
-    @test A_1 ≈ A_2 rtol = 1e-2
-end
 
 fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this ensures we get the same order as above
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
@@ -178,7 +130,8 @@ fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this en
     xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
     ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
     fig_kwargs=(fontsize=24,))
-SAVE_FIGURE && save("figures/lokta_example_bivariate_profiles_low_quality.png", fig_2)
+@test_reference joinpath(fig_path, "lokta_example_bivariate_profiles_low_quality.png") fig_2
+
 
 fig_3 = plot_profiles(prof_2, param_pairs;
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
@@ -190,7 +143,7 @@ fig_3 = plot_profiles(prof_2, param_pairs;
     xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
     ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
     fig_kwargs=(fontsize=24,))
-SAVE_FIGURE && save("figures/lokta_example_bivariate_profiles_smoothed_quality.png", fig_3)
+@test_reference joinpath(fig_path, "lokta_example_bivariate_profiles_smoothed_quality.png") fig_3
 
 ## Step 7: Get prediction intervals
 function prediction_function!(q, θ::AbstractVector{T}, data) where {T}
@@ -268,7 +221,7 @@ for (k, idx) in enumerate((a_idx, b_idx))
     lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
     lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
 end
-SAVE_FIGURE && save("figures/lokta_example_univariate_predictions.png", fig)
+@test_reference joinpath(fig_path, "lokta_example_univariate_predictions.png") fig
 
 ## Bivariate prediction intervals 
 individual_intervals, union_intervals, q_vals, param_ranges =
@@ -308,4 +261,4 @@ for (k, idx) in enumerate((a_idx, b_idx))
     lines!(_ax[k], t_many_pts, q_lwr[idx], color=:magenta, linewidth=3)
     lines!(_ax[k], t_many_pts, q_upr[idx], color=:magenta, linewidth=3)
 end
-SAVE_FIGURE && save("figures/lokta_example_bivariate_predictions.png", fig)
+@test_reference joinpath(fig_path, "lokta_example_bivariate_predictions.png") fig

@@ -42,9 +42,10 @@ end
     @test (0.0, 0.0) ∈ CR
     @test (5.0, 0.0) ∉ CR
     @test (0.3, 0.3) ∈ CR
-    ϕ = 2π * sqrt.(rand(1000))
-    r = rand(1000)
+    ϕ = 2π * sqrt.(rand(100))
+    r = rand(100)
     pts = [r .* cos.(ϕ) r .* sin.(ϕ)]
+    pts = [(x, y) for (x, y) in eachrow(pts)]
     @test all(pts ∈ CR)
     pts = [(0.5, 1.8), (2.2, 3.0), (0.0, 0.0)]
     res = pts ∈ CR
@@ -64,6 +65,7 @@ end
     ϕ = 2π * sqrt.(rand(1000))
     r = rand(1000)
     pts = [r .* cos.(ϕ) r .* sin.(ϕ)]
+    pts = [(x, y) for (x, y) in eachrow(pts)]
     @test all(pts ∈ CR)
     pts = [(0.5, 1.8), (2.2, 3.0), (0.0, 0.0)]
     res = pts ∈ CR

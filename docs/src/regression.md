@@ -12,6 +12,8 @@ using LaTeXStrings
 using LinearAlgebra
 using Optimization 
 using OptimizationOptimJL
+using Test
+using StableRNGs
 ```
 
 We perform a simulation study where we try and estimate the parameters in a regression of the form 
@@ -27,15 +29,15 @@ We also try and estimate $\sigma$.
 Let us start by simulating the data:
 
 ```julia 
-using Random, Distributions 
-Random.seed!(98871) 
+using Random, Distributions, StableRNGs
+rng = StableRNG(98871)
 n = 600
 β = [-1.0, 1.0, 0.5, 3.0]
 σ = 0.05
-x₁ = rand(Uniform(-1, 1), n)
-x₂ = rand(Normal(1.0, 0.5), n)
+x₁ = rand(rng, Uniform(-1, 1), n)
+x₂ = rand(rng, Normal(1.0, 0.5), n)
 X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
-ε = rand(Normal(0.0, σ), n)
+ε = rand(rng, Normal(0.0, σ), n)
 y = X * β + ε
 ```
 
@@ -100,13 +102,13 @@ Now we can compute the MLEs.
 using OptimizationOptimJL
 sol = mle(prob, Optim.LBFGS())
 LikelihoodSolution. retcode: Success
-Maximum likelihood: 957.6376683220673
+Maximum likelihood: 953.0592307643246
 Maximum likelihood estimates: 5-element Vector{Float64}
-     σ: 0.049045771053511954
-     β₀: -1.0041730424101303
-     β₁: 1.006051999753723
-     β₂: 0.5041343138021581
-     β₃: 2.9922041467801934
+     σ: 0.04942145761216433
+     β₀: -1.003655020311133
+     β₁: 0.9980076846106273
+     β₂: 0.5030706527702703
+     β₃: 2.9989096752667272
 ```
 
 We can compare these MLEs to the true MLES $\hat{\beta} = (\boldsymbol X^{\mathsf T}\boldsymbol X)^{-1}\boldsymbol X^{\mathsf T}\boldsymbol y$ and $\hat\sigma^2 = (1/n_d)(\boldsymbol y - \boldsymbol X\boldsymbol \beta)^{\mathsf T}(\boldsymbol y - \boldsymbol X\boldsymbol \beta)$, where $n_d$ is the degrees of freedom, as follows (note the indexing):
@@ -130,12 +132,12 @@ resolutions = [600, 200, 200, 200, 200] # use many points for σ
 param_ranges = construct_profile_ranges(sol, lb, ub, resolutions)
 prof = profile(prob, sol; param_ranges, parallel=true)
 ProfileLikelihoodSolution. MLE retcode: Success
-Confidence intervals: 
-     95.0% CI for σ: (0.04639652142575396, 0.05196200098682017)
-     95.0% CI for β₀: (-1.013328678265197, -0.9950163004240635)
-     95.0% CI for β₁: (0.9906172772152076, 1.0214865014037124)
-     95.0% CI for β₂: (0.4960199617761395, 0.5122490969333844)
-     95.0% CI for β₃: (2.978618197988093, 3.0057902255444136)
+Confidence intervals:
+     95.0% CI for σ: (0.04675191495089245, 0.052360551143196946)
+     95.0% CI for β₀: (-1.0121607844224445, -0.9951520336370397)
+     95.0% CI for β₁: (0.9826173262148143, 1.0133977395553302)
+     95.0% CI for β₂: (0.4954041345031461, 0.5107344459064201)
+     95.0% CI for β₃: (2.9847775716187175, 3.013042187605372)
 ```
 
 These confidence intervals can be compared to the true confidence intervals as follows, noting that the variance-covariance matrix for the $\beta_i$ coefficients is $\boldsymbol\Sigma = \sigma^2(\boldsymbol X^{\mathsf T}\boldsymbol X)^{-1}$ so that their confidence interval is $\hat\beta_i \pm 1.96\sqrt{\boldsymbol\Sigma_{ii}}$. Additionally, a confidence interval for $\sigma$ is $\sqrt{(\boldsymbol y - \boldsymbol X\boldsymbol \beta)^{\mathsf T}(\boldsymbol y - \boldsymbol X\boldsymbol \beta)}(1/\sqrt{\chi_{0.975, n_d}}, 1/\sqrt{\chi_{0.025, n_d}})$.
@@ -156,11 +158,11 @@ rss = sum(resids .^ 2)
 
 You can use `prof` to view a single parameter's results, e.g.
 
-```julia
-prof[:β₂]
+```julia-repl
+julia> prof[:β₂] # This is a ProfileLikelihoodSolutionView
 Profile likelihood for parameter β₂. MLE retcode: Success
-MLE: 0.5041343138021581
-95.0% CI for β₂: (0.4960199617761438, 0.5122490969333844)
+MLE: 0.5030706527702703
+95.0% CI for β₂: (0.4954041345031461, 0.5107344459064201)
 ```
 
 You can also evaluate the profile at a point inside its confidence interval. (If you want to evaluate outside the confidence interval, you need to use a non-`Throw` `extrap` in the `profile` function's keyword argument [see also Interpolations.jl].) The following are all the same, evaluating the profile for $\beta_2$ at $\beta_2=0.5$:
@@ -182,14 +184,19 @@ fig = plot_profiles(prof;
     show_mles=true,
     shade_ci=true,
     true_vals=[σ, β...],
-    fig_kwargs=(fontsize=30, resolution=(2134.0f0, 906.0f0)),
+    fig_kwargs=(fontsize=41,),
     axis_kwargs=(width=600, height=300))
 xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
 xlims!(fig.content[2], -1.025, -0.975)
 xlims!(fig.content[4], 0.475, 0.525)
+resize_to_layout!9fig)
 ```
 
-![Regression profiles](https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/test/figures/regression_profiles.png?raw=true)
+```@raw html
+<figure>
+    <img src='../figures/regression_profiles.png', alt'Regression profiles'><br>
+</figure>
+```
 
 You could also plot individual or specific parameters:
 
@@ -198,78 +205,4 @@ plot_profiles(prof, [1, 3]) # plot σ and β₁
 plot_profiles(prof, [:σ, :β₁, :β₃]) # can use symbols 
 plot_profiles(prof, 1) # can just provide an integer 
 plot_profiles(prof, :β₂) # symbols work
-```
-
-## Just the code
-
-Here is all the code used for obtaining the results in this example, should you want a version that you can directly copy and paste.
-
-```julia 
-using Random, Distributions, PreallocationTools, LinearAlgebra
-## Step 1: Generate some data for the problem and define the likelihood
-Random.seed!(98871)
-n = 600
-β = [-1.0, 1.0, 0.5, 3.0]
-σ = 0.05
-x₁ = rand(Uniform(-1, 1), n)
-x₂ = rand(Normal(1.0, 0.5), n)
-X = hcat(ones(n), x₁, x₂, x₁ .* x₂)
-ε = rand(Normal(0.0, σ), n)
-y = X * β + ε
-sse = DiffCache(zeros(n))
-β_cache = DiffCache(similar(β), 10)
-dat = (y, X, sse, n, β_cache)
-@inline function loglik_fnc(θ, data)
-    σ, β₀, β₁, β₂, β₃ = θ
-    y, X, sse, n, β = data
-    _sse = get_tmp(sse, θ)
-    _β = get_tmp(β, θ)
-    _β[1] = β₀
-    _β[2] = β₁
-    _β[3] = β₂
-    _β[4] = β₃
-    ℓℓ = -0.5n * log(2π * σ^2)
-    mul!(_sse, X, _β)
-    for i in eachindex(y)
-        ℓℓ = ℓℓ - 0.5 / σ^2 * (y[i] - _sse[i])^2
-    end
-    return ℓℓ
-end
-
-## Step 2: Define the problem 
-using Optimization
-θ₀ = ones(5)
-prob = LikelihoodProblem(loglik_fnc, θ₀;
-    data=dat,
-    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
-    prob_kwargs=(
-        lb=[0.0, -Inf, -Inf, -Inf, -Inf],
-        ub=Inf * ones(5)
-    ),
-    syms=[:σ, :β₀, :β₁, :β₂, :β₃]
-)
-
-## Step 3: Compute the MLE
-using OptimizationOptimJL
-sol = mle(prob, Optim.LBFGS())
-
-## Step 4: Profile 
-lb = [1e-12, -5.0, -5.0, -5.0, -5.0]
-ub = [15.0, 15.0, 15.0, 15.0, 15.0]
-resolutions = [600, 200, 200, 200, 200] # use many points for σ
-param_ranges = construct_profile_ranges(sol, lb, ub, resolutions)
-prof = profile(prob, sol; param_ranges, parallel=true)
-
-## Step 5: Visualise 
-using CairoMakie, LaTeXStrings
-fig = plot_profiles(prof;
-    latex_names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"], # default names would be of the form θᵢ
-    show_mles=true,
-    shade_ci=true,
-    true_vals=[σ, β...],
-    fig_kwargs=(fontsize=30, resolution=(2134.0f0, 906.0f0)),
-    axis_kwargs=(width=600, height=300))
-xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
-xlims!(fig.content[2], -1.025, -0.975)
-xlims!(fig.content[4], 0.475, 0.525)
 ```
