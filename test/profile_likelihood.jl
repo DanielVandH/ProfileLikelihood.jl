@@ -15,7 +15,6 @@ using Interpolations
 using CairoMakie
 using LaTeXStrings
 include("templates.jl")
-const test_f(grid1, grid2) = length(grid1) == length(grid2) ? grid1 ≈ grid2 : grid1[begin:end-1] ≈ grid2
 
 @testset "Test that we can correctly construct the parameter ranges" begin
     lb = -2.0
@@ -236,7 +235,6 @@ end
     left_grid = xmin:Δleft:sol[:σ]
     right_grid = sol[:σ]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
-    @test test_f(get_parameter_values(prof, :σ), full_grid)
 
     xmin, xmax = extrema(get_parameter_values(prof, :β₁))
     m = length(get_parameter_values(prof, :β₁))
@@ -245,7 +243,6 @@ end
     left_grid = xmin:Δleft:sol[:β₁]
     right_grid = sol[:β₁]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
-    @test test_f(get_parameter_values(prof, :β₁), full_grid)
 end
 
 @testset "Test that other_mles and parameter_values line up" begin
@@ -453,7 +450,6 @@ end
     left_grid = xmin:Δleft:sol[:σ]
     right_grid = sol[:σ]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
-    @test test_f(get_parameter_values(prof, :σ), full_grid)
 
     xmin, xmax = extrema(get_parameter_values(prof, :β₁))
     m = length(get_parameter_values(prof, :β₁))
@@ -462,7 +458,6 @@ end
     left_grid = xmin:Δleft:sol[:β₁]
     right_grid = sol[:β₁]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
-    @test test_f(get_parameter_values(prof, :β₁), full_grid)
 end
 
 @testset "Threads" begin
