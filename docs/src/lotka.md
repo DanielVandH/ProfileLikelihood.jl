@@ -9,7 +9,6 @@ using OrdinaryDiffEq
 using CairoMakie
 using ProfileLikelihood
 using OptimizationNLopt
-using PreallocationTools
 using StableRNGs
 ```
 
@@ -69,8 +68,7 @@ We now define the likelihood function.
 ```julia
 function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
     α, β, a₀, b₀ = θ
-    uᵒ, σ, u₀_cache, n = data
-    u₀ = get_tmp(u₀_cache, θ)
+    uᵒ, σ, u₀, n = data
     integrator.p[1] = α
     integrator.p[2] = β
     u₀[1] = a₀
@@ -93,12 +91,12 @@ end
 Now we define our problem, constraining the parameters so that $0.7 \leq \alpha \leq 1.2$, $0.7 \leq \beta \leq 1.4$, $0.5 \leq a_0 \leq 1.2$, and $0.1 \leq b_0 \leq 0.5$. 
 
 ```julia
-using PreallocationTools, Optimization, OrdinaryDiffEq, ProfileLikelihood
+using Optimization, OrdinaryDiffEq, ProfileLikelihood
 lb = [0.7, 0.7, 0.5, 0.1]
 ub = [1.2, 1.4, 1.2, 0.5]
 θ₀ = [0.75, 1.23, 0.76, 0.292]
 syms = [:α, :β, :a₀, :b₀]
-u₀_cache = DiffCache(zeros(2), 12)
+u₀_cache = zeros(2)
 n = findlast(t .≤ 7) # Using t ≤ 7 for estimation
 prob = LikelihoodProblem(
     loglik_fnc2, θ₀, ode_fnc!, u₀, tspan;
@@ -106,25 +104,11 @@ prob = LikelihoodProblem(
     data=(uᵒ, σ, u₀_cache, n),
     ode_parameters=[1.0, 1.0],
     ode_kwargs=(verbose=false, saveat=t),
-    prob_kwargs=(lb=lb, ub=ub),
+    prob_kwargs = (lb=lb, ub=ub),
     ode_alg=Rosenbrock23()
 )
 ```
 
-With these ingredients, we can now define our `LikelihoodProblem`.
-
-```julia 
-prob = LikelihoodProblem(
-    loglik_fnc2, θ₀, ode_fnc!, u₀, tspan;
-    syms=syms,
-    data=(uᵒ, σ, u₀_cache, αβ_cache, n),
-    ode_parameters=[1.0, 1.0],
-    ode_kwargs=(verbose=false, saveat=t),
-    f_kwargs=(adtype=Optimization.AutoForwardDiff(),),
-    prob_kwargs=(lb=lb, ub=ub),
-    ode_alg=Rosenbrock23()
-)
-```
 ```julia
 LikelihoodProblem. In-place: true
 θ₀: 4-element Vector{Float64}
@@ -138,8 +122,9 @@ LikelihoodProblem. In-place: true
 
 Let us now proceed as usual, computing the MLEs and obtaining the profiles. 
 
-```julia
-julia> @time sol = mle(prob, NLopt.LN_NELDERMEAD())
+```julia-repl
+julia> using OptimizationNLopt
+julia> @time sol = mle(prob, NLopt.LN_NELDERMEAD)
   0.022843 seconds (266.05 k allocations: 10.547 MiB)
 LikelihoodSolution. retcode: Success
 Maximum likelihood: 7.083346779938254

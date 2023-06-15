@@ -198,7 +198,7 @@ end
     @test ProfileLikelihood.get_log_likelihood_function(prob).loglik == loglik
     @test ProfileLikelihood.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
     @test ProfileLikelihood.get_syms(prob) == syms
-    @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg == Rosenbrock23{1,false,OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum},typeof(OrdinaryDiffEq.DEFAULT_PRECS),Val{:forward},true,nothing}(OrdinaryDiffEq.LinearSolve.GenericLUFactorization{OrdinaryDiffEq.LinearAlgebra.RowMaximum}(OrdinaryDiffEq.LinearAlgebra.RowMaximum()), OrdinaryDiffEq.DEFAULT_PRECS)
+    @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg ==  init(ODEProblem(f, u₀, tspan, p), ode_alg).alg
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.p == p
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.f.f == f

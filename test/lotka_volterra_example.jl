@@ -4,9 +4,7 @@ using Optimization
 using OrdinaryDiffEq
 using CairoMakie
 using LaTeXStrings
-using OptimizationOptimJL
 using OptimizationNLopt
-using PreallocationTools
 using LoopVectorization
 using PolygonOps
 using DelaunayTriangulation
@@ -41,8 +39,7 @@ noise_vec = [σ * randn(rng, 2) for _ in eachindex(t)]
 uᵒ = sol.u .+ noise_vec
 function loglik_fnc2(θ::AbstractVector{T}, data, integrator) where {T}
     α, β, a₀, b₀ = θ
-    uᵒ, σ, u₀_cache, n = data
-    u₀ = get_tmp(u₀_cache, θ)
+    uᵒ, σ, u₀, n = data
     integrator.p[1] = α
     integrator.p[2] = β
     u₀[1] = a₀
@@ -66,7 +63,7 @@ lb = [0.7, 0.7, 0.5, 0.1]
 ub = [1.2, 1.4, 1.2, 0.5]
 θ₀ = [0.75, 1.23, 0.76, 0.292]
 syms = [:α, :β, :a₀, :b₀]
-u₀_cache = DiffCache(zeros(2), 12)
+u₀_cache = zeros(2)
 n = findlast(t .≤ 7) # Using t ≤ 7 for estimation
 prob = LikelihoodProblem(
     loglik_fnc2, θ₀, ode_fnc!, u₀, tspan;
@@ -79,7 +76,7 @@ prob = LikelihoodProblem(
 )
 
 ## Step 3: Compute the MLE 
-@time sol = mle(prob, NLopt.LD_LBFGS)
+@time sol = mle(prob, NLopt.LN_NELDERMEAD)
 
 ## Step 4: Profile 
 @time prof = profile(prob, sol; parallel=true)
@@ -131,7 +128,6 @@ fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this en
     ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
     fig_kwargs=(fontsize=24,))
 @test_reference joinpath(fig_path, "lokta_example_bivariate_profiles_low_quality.png") fig_2
-
 
 fig_3 = plot_profiles(prof_2, param_pairs;
     latex_names=[L"\alpha", L"\beta", L"a_0", L"b_0"],
