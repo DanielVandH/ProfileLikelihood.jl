@@ -87,8 +87,8 @@ function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of
                 spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
         end
     else
-        @sync for _n in n
-            Base.Threads.@spawn profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
+        Base.Threads.@threads for _n in n
+           profile_single_parameter!(θ, prof, other_mles, splines, confidence_intervals,
                 _n, num_params, param_ranges, deepcopy(mles),
                 deepcopy(shifted_opt_prob), alg, deepcopy(ℓmax), normalise, threshold, min_steps,
                 spline_alg, extrap, confidence_interval_method, conf_level; next_initial_estimate_method, min_steps_fallback, parallel, kwargs...)
@@ -282,7 +282,7 @@ function construct_profile_ranges(lower_bound, upper_bound, midpoint, resolution
     return param_ranges
 end
 function construct_profile_ranges(sol::LikelihoodSolution{N,Θ,P,M,R,A}, lower_bounds, upper_bounds, resolutions) where {N,Θ,P,M,R,A}
-    param_ranges = Vector{NTuple{2,LinRange{Float64,Int64}}}(undef, number_of_parameters(sol))
+    param_ranges = Vector{NTuple{2,LinRange{Float64,Int}}}(undef, number_of_parameters(sol))
     mles = get_mle(sol)
     for i in 1:N
         param_ranges[i] = construct_profile_ranges(lower_bounds[i], upper_bounds[i], mles[i], resolutions isa Number ? resolutions : resolutions[i])
@@ -298,17 +298,17 @@ function extract_problem_and_solution(prob::LikelihoodProblem, sol::LikelihoodSo
 end
 
 function prepare_profile_results(N, T, F, spline_alg=FritschCarlsonMonotonicInterpolation, extrap=Line)
-    θ = Dict{Int64,Vector{T}}([])
-    prof = Dict{Int64,Vector{T}}([])
-    other_mles = Dict{Int64,Vector{Vector{T}}}([])
+    θ = Dict{Int,Vector{T}}([])
+    prof = Dict{Int,Vector{T}}([])
+    other_mles = Dict{Int,Vector{Vector{T}}}([])
     spline_alg = take_val(spline_alg)
     if typeof(spline_alg) <: Gridded
         spline_type = typeof(extrapolate(interpolate((T.(collect(1:20)),), T.(collect(1:20)), spline_alg isa Type ? spline_alg() : spline_alg), extrap isa Type ? extrap() : extrap))
     else
         spline_type = typeof(extrapolate(interpolate(T.(collect(1:20)), T.(collect(1:20)), spline_alg isa Type ? spline_alg() : spline_alg), extrap isa Type ? extrap() : extrap))
     end
-    splines = Dict{Int64,spline_type}([])
-    confidence_intervals = Dict{Int64,ConfidenceInterval{T,F}}([])
+    splines = Dict{Int,spline_type}([])
+    confidence_intervals = Dict{Int,ConfidenceInterval{T,F}}([])
     sizehint!(θ, N)
     sizehint!(prof, N)
     sizehint!(other_mles, N)
@@ -576,11 +576,13 @@ function _reach_min_steps_parallel_refine!(param_vals, profile_vals, other_mles,
     nt = Base.Threads.nthreads()
     _restricted_prob = [deepcopy(restricted_prob) for _ in 1:nt]
     _cache = [deepcopy(cache) for _ in 1:nt]
-    Base.Threads.@threads for i in 1:(min_steps - original_length)
-        j = original_length + i
-        θₙ = param_vals[j]
-        id = Base.Threads.threadid()
-        add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
+    chunked_step_itr = chunks(1:(min_steps-original_length), Base.Threads.nthreads())
+    Base.Threads.@threads for (chunk_range, id) in chunked_step_itr
+        for i in chunk_range
+            j = original_length + i
+            θₙ = param_vals[j]
+            add_point!(profile_vals, other_mles, _restricted_prob[id], n, i, original_length, θₙ, _cache[id], alg, ℓmax, normalise; kwargs...)
+        end
     end
     return nothing
 end

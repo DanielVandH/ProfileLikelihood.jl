@@ -26,8 +26,6 @@ LikelihoodProblem(loglik::Function, θ₀,
 
 Importantly, `loglik` in this case is now a function of the form `ℓ(θ, p, integrator)`, where `integrator` is the same integrator as in the integrator interface from DifferentialEquations.jl; see the documentation at DifferentialEquations.jl for more detail on using the integrator. Furthermore, `ode_function` is the function for the ODE, `u₀` its initial condition, and `tspan` its time span. Additionally, the parameters for the `ode_function` (e.g. the `p` in `ode_function(du, u, p, t)` or `ode_function(u, p, t)`) can be passed using the keyword argument `ode_parameters`. The algorithm used to solve the differential equation is passed with `ode_alg`, and lastly any additional keyword arguments for solving the problem are to be passed through `ode_kwargs`. 
 
-There is also a method that makes it easier to use automatic differentiation when considering ODE problems by using a `GeneralLazyBufferCache` from PreallocationTools.jl - see Example V.
-
 The full docstrings for the methods available are given in the sidebar.
 
 ## LikelihoodSolution: Obtaining an MLE
@@ -103,11 +101,10 @@ The full docstring for `get_prediction_intervals` is given in the sidebar.
 We provide a function `plot_profiles` that can be useful for plotting profile likelihoods. It requires that you have done 
 
 ```julia
-using CairoMakie
-using LaTeXString 
+using CairoMakie # (or any other Makie backend)
 ```
 
-(else the function does not exist, thanks to Requires.jl). A full description of this function is given in the corresponding docstring in the sidebar.
+(else the function does not exist, thanks to Requires.jl and package extensions from Julia v1.9). A full description of this function is given in the corresponding docstring in the sidebar.
 
 ## GridSearch
 
@@ -123,4 +120,4 @@ grid_search(prob::LikelihoodProblem, grid::AbstractGrid; save_vals=Val(false), p
 
 Here, `grid` could be either a `RegularGrid` or an `IrregularGrid`. You can set `save_vals=Val(true)` if you want an array with all the likelihood function values, `Val(false)` otherwise. To enable multithreading, allowing for the evaluation of the function across different points via multiple threads, set `parallel=Val(true)`, otherwise leave it as `Val(false)`. The result of this grid search, if `save_vals=Val(true)`, will be `(sol, f_vals)`, where `sol` is a likelihood solution giving the parameters that gave to the highest likelihood, and `f_res` is the array of likelihoods at the corresponding parameters. If `save_vals=Val(false)`, only `sol` is returned.
 
-More example is given in the examples, and complete docstrings are provided in the sidebar.
+More detail is given in the examples, and complete docstrings are provided in the sidebar.

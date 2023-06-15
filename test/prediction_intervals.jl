@@ -304,18 +304,13 @@ ____individual_intervals, ____union_intervals, ____q_vals, ____param_ranges = ge
 q = prediction_function
 iip = isinplace(q, 3)
 data = t
-@code_warntype isinplace(q, 3)
 q_prototype = ProfileLikelihood.build_q_prototype(q, prof, data)
-@code_warntype ProfileLikelihood.build_q_prototype(q, prof, data)
 @inferred ProfileLikelihood.build_q_prototype(q, prof, data)
 prof_idx, param_ranges, splines = ProfileLikelihood.prepare_prediction_grid(prof, resolution)
-@code_warntype ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 @inferred ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 θ, q_vals, q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds = ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
 @inferred ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
-@code_warntype ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
 ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
-@code_warntype ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
 ProfileLikelihood.evaluate_prediction_function!(q_vals[1], param_ranges[1], splines[1], θ, 1, q, data, Val(iip))
 n = 1
 q_n = q_vals[n]
@@ -323,31 +318,22 @@ range = param_ranges[n]
 spline = splines[n]
 iip = Val(false)
 g = ProfileLikelihood.evaluate_prediction_function!
-@code_warntype g(q_n, range, spline, θ, n, q, data, iip)
 ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
-@code_warntype ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
 individual_intervals, union_intervals = ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
-@code_warntype ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
-    q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
-@code_warntype get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
 
 q = prediction_function!
 iip = isinplace(q, 3)
 data = t
-@code_warntype isinplace(q, 3)
 q_prototype = zeros(Float64, length(t))
 prof_idx, param_ranges, splines = ProfileLikelihood.prepare_prediction_grid(prof, resolution)
-@code_warntype ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 @inferred ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 θ, q_vals, q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds = ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
 @inferred ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
-@code_warntype ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(false))
 ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
-@code_warntype ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
 ProfileLikelihood.evaluate_prediction_function!(q_vals[1], param_ranges[1], splines[1], θ, 1, q, data, Val(iip))
 n = 1
 q_n = q_vals[n]
@@ -355,31 +341,22 @@ range = param_ranges[n]
 spline = splines[n]
 iip = Val(false)
 g = ProfileLikelihood.evaluate_prediction_function!
-@code_warntype g(q_n, range, spline, θ, n, q, data, iip)
 ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
-@code_warntype ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
 individual_intervals, union_intervals = ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
-@code_warntype ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
-    q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
-@code_warntype get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
 
 q = prediction_function!
 iip = isinplace(q, 3)
 data = t
-@code_warntype isinplace(q, 3)
 q_prototype = zeros(Float64, length(t))
 prof_idx, param_ranges, splines = ProfileLikelihood.prepare_prediction_grid(prof, resolution)
-@code_warntype ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 @inferred ProfileLikelihood.prepare_prediction_grid(prof, resolution)
 θ, q_vals, q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds = ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(true))
 @inferred ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(true))
-@code_warntype ProfileLikelihood.prepare_prediction_cache(prof, prof_idx, q_prototype, resolution, Val(true))
 ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
-@code_warntype ProfileLikelihood.evaluate_prediction_function!(q_vals, param_ranges, splines, θ, prof_idx, q, data, Val(iip))
 ProfileLikelihood.evaluate_prediction_function!(q_vals[1], param_ranges[1], splines[1], θ[1], 1, q, data, Val(iip))
 n = 1
 q_n = q_vals[n]
@@ -387,17 +364,12 @@ range = param_ranges[n]
 spline = splines[n]
 iip = Val(false)
 g = ProfileLikelihood.evaluate_prediction_function!
-@code_warntype g(q_n, range, spline, θ, n, q, data, iip)
 ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
-@code_warntype ProfileLikelihood.update_interval_bounds!(q_lower_bounds, q_upper_bounds, q_union_lower_bounds, q_union_upper_bounds, q_vals, prof_idx)
 individual_intervals, union_intervals = ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
     q_union_lower_bounds, q_union_upper_bounds, 0.95)
-@code_warntype ProfileLikelihood.get_prediction_intervals(prof_idx, q_lower_bounds, q_upper_bounds,
-    q_union_lower_bounds, q_union_upper_bounds, 0.95)
 @inferred get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
-@code_warntype get_prediction_intervals(prediction_function, prof, t; resolution=resolution)
 
 ## Test the bivariate problem 
 prof = bivariate_profile(prob, sol, ((1, 2), (2, 3)); alg=NLopt.LN_NELDERMEAD, conf_level=0.95, parallel=true)

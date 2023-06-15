@@ -1,5 +1,5 @@
 """
-    bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
+    bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int}};
         alg=get_optimiser(sol),
         conf_level::F=0.95,
         confidence_region_method=Val(:contour),
@@ -23,7 +23,7 @@ LaTeXStrings.jl to access the function).
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
 - `sol::LikelihoodSolution`: The [`LikelihoodSolution`](@ref). See also [`mle`](@ref).
-- `n::NTuple{M,NTuple{2,Int64}}`: The parameter indices to compute the profile likelihoods for. These should be tuples of indices, e.g. `n = ((1, 2),)` will compute the bivariate profile between the parameters `1` and `2`.
+- `n::NTuple{M,NTuple{2,Int}}`: The parameter indices to compute the profile likelihoods for. These should be tuples of indices, e.g. `n = ((1, 2),)` will compute the bivariate profile between the parameters `1` and `2`.
 
 # Keyword Arguments 
 - `alg=get_optimiser(sol)`: The optimiser to use for solving each optimisation problem. 
@@ -42,7 +42,7 @@ LaTeXStrings.jl to access the function).
 # Output 
 Returns a [`BivariateProfileLikelihoodSolution`](@ref).
 """
-function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int64}};
+function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int}};
     alg=get_optimiser(sol),
     conf_level::F=0.95,
     confidence_region_method=Val(:contour),
@@ -157,11 +157,11 @@ function construct_profile_grids(n::NTuple{N,NTuple{2,I}}, sol, lower_bounds, up
 end
 
 function prepare_bivariate_profile_results(N, T, F)
-    θ = Dict{NTuple{2,Int64},NTuple{2,OffsetVector{T,Vector{T}}}}([])
-    prof = Dict{NTuple{2,Int64},OffsetMatrix{T,Matrix{T}}}([])
-    other_mles = Dict{NTuple{2,Int64},OffsetMatrix{Vector{T},Matrix{Vector{T}}}}([])
-    interpolants = Dict{NTuple{2,Int64},Interpolations.Extrapolation{T,2,Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}},Gridded{Linear{Throw{OnGrid}}},Line{Nothing}}}([])
-    confidence_regions = Dict{NTuple{2,Int64},ConfidenceRegion{Vector{T},F}}([])
+    θ = Dict{NTuple{2,Int},NTuple{2,OffsetVector{T,Vector{T}}}}([])
+    prof = Dict{NTuple{2,Int},OffsetMatrix{T,Matrix{T}}}([])
+    other_mles = Dict{NTuple{2,Int},OffsetMatrix{Vector{T},Matrix{Vector{T}}}}([])
+    interpolants = Dict{NTuple{2,Int},Interpolations.Extrapolation{T,2,Interpolations.GriddedInterpolation{T,2,OffsetMatrix{T,Matrix{T}},Gridded{Linear{Throw{OnGrid}}},Tuple{OffsetVector{T,Vector{T}},OffsetVector{T,Vector{T}}}},Gridded{Linear{Throw{OnGrid}}},Line{Nothing}}}([])
+    confidence_regions = Dict{NTuple{2,Int},ConfidenceRegion{Vector{T},F}}([])
     sizehint!(θ, N)
     sizehint!(prof, N)
     sizehint!(other_mles, N)
@@ -251,10 +251,14 @@ end
     ℓmax, normalise, threshold, sub_cache, next_initial_estimate_method, any_above_threshold, layer_iterator; kwargs...)
     fill!(any_above_threshold, false)
     collected_iterator = collect(layer_iterator) # can we do better than collect()? -
-    Base.Threads.@threads for I in collected_iterator
-        id = Base.Threads.threadid()
-        @inbounds any_above_threshold[id] = solve_at_layer_node!(fixed_vals[id], grid, I, sub_cache[id], other_mle, layer, restricted_prob[id],
-            next_initial_estimate_method, cache[id], alg, profile_vals, ℓmax, normalise, any_above_threshold[id], threshold, n)
+    nt = Base.Threads.nthreads()
+    chunked_iterator = chunks(collected_iterator, nt)
+    Base.Threads.@threads for (itr_range, id) in chunked_iterator
+        for I_idx in itr_range
+            I = collected_iterator[I_idx]
+            @inbounds any_above_threshold[id] = solve_at_layer_node!(fixed_vals[id], grid, I, sub_cache[id], other_mle, layer, restricted_prob[id],
+                next_initial_estimate_method, cache[id], alg, profile_vals, ℓmax, normalise, any_above_threshold[id], threshold, n)
+        end
     end
     return any_above_threshold
 end

@@ -68,7 +68,7 @@ get_other_mles(prof::ProfileLikelihoodSolution, i) = get_other_mles(prof)[i]
 get_other_mles(prof::ProfileLikelihoodSolution, sym::Symbol) = get_other_mles(prof, SciMLBase.sym_to_index(sym, prof))
 get_syms(prof::ProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
 get_syms(prof::ProfileLikelihoodSolution, i) = get_syms(prof)[i]
-profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)::Vector{Int64}
+profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)::Vector{Int}
 number_of_profiled_parameters(prof::ProfileLikelihoodSolution) = length(profiled_parameters(prof))
 
 struct ProfileLikelihoodSolutionView{N,PLS}
@@ -205,7 +205,7 @@ get_other_mles(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Sym
 get_other_mles(prof::BivariateProfileLikelihoodSolution, i, j, k, ℓ) = get_other_mles(prof, i, j)[k, ℓ]
 get_syms(prof::BivariateProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
 get_syms(prof::BivariateProfileLikelihoodSolution, i, j) = (get_syms(prof)[i], get_syms(prof)[j])
-profiled_parameters(prof::BivariateProfileLikelihoodSolution) = (collect ∘ keys ∘ get_confidence_regions)(prof)::Vector{NTuple{2,Int64}}
+profiled_parameters(prof::BivariateProfileLikelihoodSolution) = (collect ∘ keys ∘ get_confidence_regions)(prof)::Vector{NTuple{2,Int}}
 number_of_profiled_parameters(prof::BivariateProfileLikelihoodSolution) = length(profiled_parameters(prof))
 number_of_layers(prof::BivariateProfileLikelihoodSolution, i, j) = length(get_parameter_values(prof, i, j, 1)) ÷ 2
 function get_bounding_box(prof::BivariateProfileLikelihoodSolution, i, j)

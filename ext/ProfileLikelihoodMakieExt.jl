@@ -1,7 +1,6 @@
 module ProfileLikelihoodMakieExt
 
-using ProfileLikelihood
-
+ using ProfileLikelihood
 @static if isdefined(Base, :get_extension)
     using Makie
 else
@@ -11,42 +10,6 @@ using Printf
 
 const ALPHABET = join('a':'z')
 
-"""
-    plot_profiles(prof::ProfileLikelihoodSolution, vars = profiled_parameters(prof); 
-        ncol=nothing, 
-        nrow=nothing,
-        true_vals=Dict(vars .=> nothing), 
-        spline=true, 
-        show_mles=true, 
-        shade_ci=true, 
-        fig_kwargs=nothing, 
-        axis_kwargs=nothing,
-        show_points=false,
-        markersize=9,
-        latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
-     
-Plot results from a profile likelihood solution `prof`.
-
-# Arguments 
-- `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`profile`](@ref).
-- `vars = profiled_parameters(prof)`: The parameters to plot.
-
-# Keyword Arguments 
-- `ncol=nothing`: The number of columns to use. If `nothing`, chosen automatically via `choose_grid_layout`.
-- `nrow=nothing`: The number of rows to use. If `nothing`, chosen automatically via `choose_grid_layout`
-- `true_vals=Dict(vars .=> nothing)`: A dictionary mapping parameter indices to their true values, if they exist. If `nothing`, nothing is plotted, otherwise a black line is plotted at the true value for the profile. 
-- `spline=true`: Whether the curve plotted should come from a spline through the results, or if the data itself should be plotted. 
-- `show_mles=true`: Whether to put a red line at the MLEs. 
-- `shade_ci=true`: Whether to shade the area under the profile between the confidence interval.
-- `fig_kwargs=nothing`: Extra keyword arguments for `Figure` (see the Makie docs).
-- `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
-- `show_points=false`: Whether to show the profile data. 
-- `markersize=9`: The marker size used for `show_points`.
-- `latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
-
-# Output 
-The `Figure()` is returned.
-"""
 function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikelihoodSolution, vars=ProfileLikelihood.profiled_parameters(prof);
     ncol=nothing,
     nrow=nothing,
@@ -78,42 +41,6 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikeliho
     return fig
 end
 
-"""
-    plot_profiles(prof::BivariateProfileLikelihoodSolution, vars = profiled_parameters(prof); 
-        ncol=nothing,
-        nrow=nothing,
-        true_vals=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> nothing),
-        show_mles=true,
-        fig_kwargs=nothing,
-        axis_kwargs=nothing,
-        interpolation=false,
-        smooth_confidence_boundary=false,
-        close_contour=true,
-        latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))
-     
-Plot results from a bivariate profile likelihood solution `prof`.
-
-# Arguments 
-- `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`profile`](@ref).
-- `vars = profiled_parameters(prof)`: The parameters to plot.
-
-# Keyword Arguments 
-- `ncol=nothing`: The number of columns to use. If `nothing`, chosen automatically via `choose_grid_layout`.
-- `nrow=nothing`: The number of rows to use. If `nothing`, chosen automatically via `choose_grid_layout`
-- `true_vals=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> nothing)`: A dictionary mapping parameter indices to their true values, if they exist. If `nothing`, nothing is plotted, otherwise a black dot is plotted at the true value on the bivariate profile's plot.
-- `show_mles=true`: Whether to put a red dot at the MLEs. 
-- `fig_kwargs=nothing`: Extra keyword arguments for `Figure` (see the Makie docs).
-- `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
-- `interpolation=false`: Whether to plot the profile using the interpolant (`true`), or to use the data from `prof` directly (`false`).
-- `smooth_confidence_boundary=false`: Whether to smooth the confidence region boundary when plotting (`true`) or not (`false`). The smoothing is done with a spline.
-- `close_contour=true`: Whether to connect the last part of the confidence region boundary to the beginning (`true`) or not (`false`).
-- `latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))`: LaTeX names to use for the parameters. Defaults to the `syms` names.
-- `xlim_tuples=nothing`: `xlims` to use for each plot. `nothing` if the `xlims` should be set automatically.
-- `ylim_tuples=nothing`: `ylims` to use for each plot. `nothing` if the `ylims` should be set automatically.
-
-# Output 
-The `Figure()` is returned.
-"""
 function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.BivariateProfileLikelihoodSolution, vars=ProfileLikelihood.profiled_parameters(prof);
     ncol=nothing,
     nrow=nothing,
@@ -128,14 +55,14 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.BivariateProfil
     xlim_tuples=nothing,
     ylim_tuples=nothing)
     vars = ProfileLikelihood.convert_symbol_tuples(vars, prof)
-    num_plots = (vars isa NTuple{2,Symbol} || vars isa NTuple{2,Int64}) ? 1 : length(vars)
+    num_plots = (vars isa NTuple{2,Symbol} || vars isa NTuple{2,Int}) ? 1 : length(vars)
     nr, nc, plot_positions = ProfileLikelihood.choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
         fig = Makie.Figure(; fig_kwargs...)
     else
         fig = Makie.Figure()
     end
-    itr = (vars isa NTuple{2,Symbol} || vars isa NTuple{2,Int64}) ? [(1, Tuple(vars))] : pairs(vars)
+    itr = (vars isa NTuple{2,Symbol} || vars isa NTuple{2,Int}) ? [(1, Tuple(vars))] : pairs(vars)
     for (ℓ, (k, r)) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
@@ -155,12 +82,12 @@ end
 
 function ProfileLikelihood.choose_grid_layout(num_plots, cols, rows)
     if isnothing(cols) && isnothing(rows)
-        cols = ceil(Int64, sqrt(num_plots))
-        rows = ceil(Int64, num_plots / cols)
+        cols = ceil(Int, sqrt(num_plots))
+        rows = ceil(Int, num_plots / cols)
     elseif isnothing(cols)
-        cols = ceil(Int64, num_plots / rows)
+        cols = ceil(Int, num_plots / rows)
     elseif isnothing(rows)
-        rows = ceil(Int64, num_plots / cols)
+        rows = ceil(Int, num_plots / cols)
     end
     plot_positions = vec([(j, i) for i in 1:cols, j in 1:rows])
     return rows, cols, plot_positions
@@ -225,7 +152,7 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.BivariateProfi
     if !interpolation
         grid_1 = ProfileLikelihood.get_parameter_values(prof, 1).parent
         grid_2 = ProfileLikelihood.get_parameter_values(prof, 2).parent
-        prof_vals = ProfileLikelihood.get_profile_values(prof).parent
+        prof_vals = ProfileLikelihood.get_profile_values(prof).parent |> deepcopy
     else
         if isnothing(xlim_tuple) && isnothing(ylim_tuple)
             grid_1 = ProfileLikelihood.get_parameter_values(prof, 1).parent
@@ -257,7 +184,8 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.BivariateProfi
     conf = ProfileLikelihood.get_confidence_regions(prof)
     conf_x = conf.x
     conf_y = conf.y
-    Makie.heatmap!(ax, grid_1, grid_2, prof_vals, colorrange=(-16, 0))
+    prof_vals[isnan.(prof_vals)] .= minimum(prof_vals[.!isnan.(prof_vals)])
+    Makie.heatmap!(ax, grid_1, grid_2, prof_vals, colorrange=(-12, 0))
     if !smooth_confidence_boundary
         if close_contour
             Makie.lines!(ax, [conf_x..., conf_x[begin]], [conf_y..., conf_y[begin]], color=:red, linewidth=3)

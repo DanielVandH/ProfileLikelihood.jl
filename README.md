@@ -2,8 +2,10 @@
 
 
 [![DOI](https://zenodo.org/badge/508701126.svg)](https://zenodo.org/badge/latestdoi/508701126)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/dev)
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://DanielVandH.github.io/ProfileLikelihood.jl/stable)
+[![Build Status](https://github.com/DanielVandH/ProfileLikelihood.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/DanielVandH/ProfileLikelihood.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/DanielVandH/ProfileLikelihood.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/DanielVandH/ProfileLikelihood.jl)
 
 This package defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. Below we list the definitions we are using for likelihoods and profile likelihoods. This code works for univariate and bivariate profiles.
 

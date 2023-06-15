@@ -9,7 +9,7 @@ end
 
 @inline threshold_intersection(τ, uᵢ, uⱼ) = (τ - uᵢ) / (uⱼ - uᵢ)
 @inline threshold_intersection_exists(τ, uᵢ, uⱼ) = (uᵢ < τ && uⱼ > τ) || (uᵢ > τ && uⱼ < τ)
-function _get_confidence_regions_delaunay!(confidence_regions, n, range_1::AbstractArray{T}, range_2, profile_values, threshold, conf_level) where {T}
+function ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions, n, range_1::AbstractArray{T}, range_2, profile_values, threshold, conf_level) where {T}
     grid_xy = vec([(x, y) for x in range_1, y in range_2])
     tri = DelaunayTriangulation.triangulate(grid_xy)
     conf_contour = NTuple{2,T}[]
@@ -31,7 +31,7 @@ function _get_confidence_regions_delaunay!(confidence_regions, n, range_1::Abstr
     end
     sort_idx = sortperm(θ)
     permute!(conf_contour, sort_idx)
-    confidence_regions[n] = ConfidenceRegion(getindex.(conf_contour, 1), getindex.(conf_contour, 2), conf_level)
+    confidence_regions[n] = ProfileLikelihood.ConfidenceRegion(getindex.(conf_contour, 1), getindex.(conf_contour, 2), conf_level)
     return nothing
 end
 

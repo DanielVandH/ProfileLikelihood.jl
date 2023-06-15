@@ -12,4 +12,4 @@ From Wilk's theorem, we know that $2\hat{\ell}\_p(\boldsymbol\theta \mid \boldsy
 
 We compute the profile log-likelihood in this package by starting at the MLE, and stepping left/right until we reach a given threshold. The code is iterative to not waste time in so much of the parameter space. In the bivariate case, we start at the MLE and expand outwards in layers. This implementation is described in the documentation.
 
-More detail about the methods we use in this package is given in the sections in the sidebar, with extra detail in the tests.
+More detail about the methods we use in this package is given in the sections in the sidebar, with extra detail in the tests. All of the examples in the sidebar use a Gaussian likelihood, but of course the tools here work for any likelihood problem (e.g. some good examples that might be good to show are the Poisson problems [here](https://www.slac.stanford.edu/econf/C030908/papers/THAT001.pdf)).
