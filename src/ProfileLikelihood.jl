@@ -145,7 +145,6 @@ end
     function __init__()
         @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/ProfileLikelihoodMakieExt.jl")
         @require DelaunayTriangulation = "927a84f5-c5f4-47a5-9785-b46e178433df" include("../ext/ProfileLikelihoodDelaunayTriangulationExt.jl")
-        @require Contour = "d38c429a-6771-53c6-b99e-75d170b6e991" include("../ext/ProfileLikelihoodContourExt.jl")
     end
 end
 
