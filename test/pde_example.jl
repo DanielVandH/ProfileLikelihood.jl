@@ -126,12 +126,12 @@ likprob = LikelihoodProblem(
 
 ## Step 4: Parameter estimation 
 @time mle_sol = mle(likprob, NLopt.LN_NELDERMEAD();
-    x_abstol=1e-4, x_reltol=1e-4,
-    f_abstol=1e-4, f_reltol=1e-4)
+    xtol_abs=1e-11, xtol_rel=1e-11,
+    ftol_abs=1e-11, ftol_rel=1e-11)
 
 @time prof = profile(likprob, mle_sol;
-    x_abstol=1e-4, x_reltol=1e-4,
-    f_abstol=1e-4, f_reltol=1e-4,
+    xtol_abs=1e-4, xtol_rel=1e-4,
+    ftol_abs=1e-4, ftol_rel=1e-4,
     maxiters=100, maxtime=600,
     parallel=true, resolution=60,
     min_steps=20,

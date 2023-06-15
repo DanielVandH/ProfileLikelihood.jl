@@ -183,31 +183,32 @@ Now let us do our parameter estimation.
 
 ```julia
 @time mle_sol = mle(likprob, NLopt.LN_NELDERMEAD();
-    x_abstol=1e-4, x_reltol=1e-4,
-    f_abstol=1e-4, f_reltol=1e-4)
- 99.151110 seconds (420.09 M allocations: 163.733 GiB, 9.07% gc time, 0.90% compilation time)
+    xtol_abs=1e-4, xtol_rel=1e-4,
+    ftol_abs=1e-4, ftol_rel=1e-4)
+ 96.699999 seconds (334.11 M allocations: 131.859 GiB, 7.00% gc time)
 LikelihoodSolution. retcode: Success
-Maximum likelihood: -383.69354967227554
+Maximum likelihood: -383.6935496726186
 Maximum likelihood estimates: 4-element Vector{Float64}
-     λ: 1.1516248252527443
-     K: 2.988421184388314
-     D: 1.1637069235543511
-     κ: 11.443256929420631
+     λ: 1.1516248308036685
+     K: 2.9884211752858167
+     D: 1.1637069323254954
+     κ: 11.443256674364815
 ```
 
 ```julia
 @time prof = profile(likprob, mle_sol;
-    x_abstol=1e-4, x_reltol=1e-4,
-    f_abstol=1e-4, f_reltol=1e-4,
+    xtol_abs=1e-4, xtol_rel=1e-4,
+    ftol_abs=1e-4, ftol_rel=1e-4,
     maxiters=100, maxtime=600,
-    parallel=true, resolution=40,
+    parallel=true, resolution=60,
+    min_steps=20,
     next_initial_estimate_method=:interp)
-6243.969133 seconds (19.04 G allocations: 7.329 TiB, 4.52% gc time, 0.08% compilation time)
+5087.412720 seconds (14.11 G allocations: 5.435 TiB, 4.59% gc time)
 ProfileLikelihoodSolution. MLE retcode: Success
 Confidence intervals:
-     95.0% CI for λ: (1.0308944458464193, 1.2575155313978401)
-     95.0% CI for K: (2.866302902187059, 3.1784980071871916)
-     95.0% CI for D: (0.6689711686608997, 1.4479626986721648)
+     95.0% CI for λ: (1.0308982572106475, 1.2575143923759817)
+     95.0% CI for K: (2.86631176866806, 3.1784886463924136)
+     95.0% CI for D: (0.6693749214281204, 1.4479573978872977)
      95.0% CI for κ: (10.0, 40.0)
 ```
 
