@@ -27,7 +27,7 @@ ProfileLikelihoodDelaunayTriangulationExt = "DelaunayTriangulation"
 ProfileLikelihoodMakieExt = "Makie"
 
 [compat]
-ChunkSplitters = "1.0"
+ChunkSplitters = "1.0, 2.0"
 Contour = "0.6"
 FunctionWrappers = "1.1"
 Interpolations = "0.14"
