@@ -1,7 +1,7 @@
 name = "ProfileLikelihood"
 uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
 authors = ["Daniel VandenHeuvel <danj.vandenheuvel@gmail.com>"]
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 ChunkSplitters = "ae650224-84b6-46f8-82ea-d812ca08434e"
