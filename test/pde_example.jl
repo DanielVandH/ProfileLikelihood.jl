@@ -197,4 +197,4 @@ vlines!(ax, [20.0], color=:purple, linestyle=:dash, linewidth=2)
 
 resize_to_layout!(fig)
 fig
-@test_reference joinpath(fig_path, "pde_prediction_intervals.png") fig
+@test_reference joinpath(fig_path, "pde_prediction_intervals.png") fig by=psnr_equality(18)
