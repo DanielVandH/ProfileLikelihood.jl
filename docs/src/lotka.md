@@ -200,7 +200,7 @@ fig_2 = plot_profiles(prof_2, param_pairs; # param_pairs not needed, but this en
     true_vals=[α, β, a₀, b₀],
     xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
     ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
-    fig_kwargs=(fontsize=24,))
+    fig_kwargs=(fontsize=17,))
 ```
 
 ```@raw html
@@ -226,7 +226,7 @@ fig_3 = plot_profiles(prof_2, param_pairs;
     interpolation=true,
     xlim_tuples=[(0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (0.7, 1.3), (0.7, 1.3), (0.5, 1.1)],
     ylim_tuples=[(0.5, 1.5), (0.5, 1.05), (0.1, 0.5), (0.5, 1.05), (0.1, 0.5), (0.1, 0.5)],
-    fig_kwargs=(fontsize=24,))
+    fig_kwargs=(fontsize=17,))
 ```
 
 ```@raw html
@@ -269,7 +269,7 @@ prediction_function!(exact_soln, [α, β, a₀, b₀], pred_data)
 prediction_function!(mle_soln, get_mle(sol), pred_data)
 
 # Plot the parameter-wise intervals 
-fig = Figure(fontsize=38, resolution=(2935.488f0, 1392.64404f0))
+fig = Figure(fontsize=38, size=(2935.488f0, 1392.64404f0))
 alp = [['a', 'b', 'e', 'f'], ['c', 'd', 'g', 'h']]
 latex_names = [L"\alpha", L"\beta", L"a_0", L"b_0"]
 for (k, idx) in enumerate((a_idx, b_idx))
@@ -338,7 +338,7 @@ individual_intervals, union_intervals, q_vals, param_ranges =
         q_prototype)
 
 # Plot the intervals 
-fig = Figure(fontsize=38, resolution=(2935.488f0, 1854.64404f0))
+fig = Figure(fontsize=38, size=(2935.488f0, 1854.64404f0))
 integer_param_pairs = ProfileLikelihood.convert_symbol_tuples(param_pairs, prof_2) # converts to the integer representation
 alp = [['a', 'b', 'e', 'f', 'i', 'j'], ['c', 'd', 'g', 'h', 'k', 'l']]
 for (k, idx) in enumerate((a_idx, b_idx))

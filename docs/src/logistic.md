@@ -69,6 +69,7 @@ prob = LikelihoodProblem(
     data=(uᵒ, σ),
     ode_parameters=[1.0, 1.0], # temp values for [λ, K]
     ode_kwargs=(verbose=false, saveat=t),
+    f_kwargs=(adtype=Optimization.AutoFiniteDiff(),),
     prob_kwargs=(lb=lb, ub=ub),
     ode_alg=Rosenbrock23()
 )

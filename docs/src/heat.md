@@ -244,7 +244,7 @@ using CairoMakie, LaTeXStrings
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"c", L"u_0"],
     true_vals=[k[1], c, u₀],
-    fig_kwargs=(fontsize=38, resolution=(2109.644f0, 444.242f0)),
+    fig_kwargs=(fontsize=38, size=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :c), get_profile_values(prof, :c), color=:black, markersize=9)
@@ -358,7 +358,7 @@ The confidence intervals contain the true values. We can now visualise.
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"u_0"],
     true_vals=[k[1], u₀],
-    fig_kwargs=(fontsize=38, resolution=(1441.9216f0, 470.17322f0)),
+    fig_kwargs=(fontsize=38, size=(1441.9216f0, 470.17322f0)),
     axis_kwargs=(width=600, height=300))
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
@@ -452,7 +452,7 @@ Now we can visualise the curves. We will also show the mass curve from the exact
 ```julia
 exact_soln = compute_mass_function([k[1], u₀], prediction_data)
 mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
-fig = Figure(fontsize=38, resolution=(1360.512f0, 848.64404f0))
+fig = Figure(fontsize=38, size=(1360.512f0, 848.64404f0))
 alp = join('a':'z')
 latex_names = [L"k", L"u_0"]
 for i in 1:2
@@ -619,7 +619,7 @@ using CairoMakie, LaTeXStrings
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"c", L"u_0"],
     true_vals=[k[1], c, u₀],
-    fig_kwargs=(fontsize=38, resolution=(2109.644f0, 444.242f0)),
+    fig_kwargs=(fontsize=38, size=(2109.644f0, 444.242f0)),
     axis_kwargs=(width=600, height=300))
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :c), get_profile_values(prof, :c), color=:black, markersize=9)
@@ -674,7 +674,7 @@ prof = profile(likprob_2, mle_sol; ftol_abs=1e-4, ftol_rel=1e-4, xtol_abs=1e-4, 
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"u_0"],
     true_vals=[k[1], u₀],
-    fig_kwargs=(fontsize=38, resolution=(1441.9216f0, 470.17322f0)),
+    fig_kwargs=(fontsize=38, size=(1441.9216f0, 470.17322f0)),
     axis_kwargs=(width=600, height=300))
 scatter!(fig.content[1], get_parameter_values(prof, :k), get_profile_values(prof, :k), color=:black, markersize=9)
 scatter!(fig.content[2], get_parameter_values(prof, :u₀), get_profile_values(prof, :u₀), color=:black, markersize=9)
@@ -705,7 +705,7 @@ parameter_wise, union_intervals, all_curves, param_range =
 exact_soln = compute_mass_function([k[1], u₀], prediction_data)
 mle_soln = compute_mass_function(get_mle(mle_sol), prediction_data)
 
-fig = Figure(fontsize=38, resolution=(1360.512f0, 848.64404f0))
+fig = Figure(fontsize=38, size=(1360.512f0, 848.64404f0))
 alp = join('a':'z')
 latex_names = [L"k", L"u_0"]
 for i in 1:2
