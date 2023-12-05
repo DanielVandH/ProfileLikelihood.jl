@@ -12,7 +12,6 @@ using Random
 using LinearSolve 
 using OrdinaryDiffEq
 using CairoMakie 
-using LaTeXStrings
 using StaticArraysCore
 using Optimization 
 using OptimizationNLopt
@@ -240,7 +239,7 @@ Confidence intervals:
 See that all the true parameter intervals are inside these confidence intervals except for $k$, although $c$'s upper bound is right at the bounds we gave it in the problem. Let's now view the profile curves.
 
 ```julia 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"c", L"u_0"],
     true_vals=[k[1], c, u₀],
@@ -615,7 +614,7 @@ prof = profile(likprob, mle_sol; alg=NLopt.LN_BOBYQA,
     resolution=60)
 
 ## Step 8: Visualise 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"k", L"c", L"u_0"],
     true_vals=[k[1], c, u₀],

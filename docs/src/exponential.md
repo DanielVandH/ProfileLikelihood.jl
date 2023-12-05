@@ -7,7 +7,6 @@ using OrdinaryDiffEq
 using ProfileLikelihood
 using Optimization 
 using CairoMakie 
-using LaTeXStrings 
 using Random
 using Distributions
 using MuladdMacro

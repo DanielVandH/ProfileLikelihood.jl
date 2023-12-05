@@ -3,7 +3,6 @@ using Random
 using PreallocationTools
 using Distributions
 using CairoMakie
-using LaTeXStrings
 using LinearAlgebra
 using Optimization
 using OptimizationOptimJL
@@ -131,7 +130,7 @@ prof(0.50, 4)
 @test prof[:β₂](0.50) == prof(0.50, :β₂) == prof(0.50, 4)
 
 ## Step 5: Visualise 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof;
     latex_names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"], # default names would be of the form θᵢ
     show_mles=true,

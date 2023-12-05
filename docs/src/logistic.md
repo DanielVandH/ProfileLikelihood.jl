@@ -8,7 +8,6 @@ using ProfileLikelihood
 using Optimization 
 using OrdinaryDiffEq
 using CairoMakie 
-using LaTeXStrings
 using OptimizationNLopt
 using Test
 using StableRNGs
@@ -110,7 +109,7 @@ Confidence intervals:
 We can visualise as we did before:
 
 ```julia
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof;
     latex_names=[L"\lambda", L"K", L"u_0"],
     show_mles=true,
