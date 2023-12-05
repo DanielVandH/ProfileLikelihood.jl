@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Example V: Fisher-Stefan PDE · ProfileLikelihood.jl</title><meta name="title" content="Example V: Fisher-Stefan PDE · ProfileLikelihood.jl"/><meta property="og:title" content="Example V: Fisher-Stefan PDE · ProfileLikelihood.jl"/><meta property="twitter:title" content="Example V: Fisher-Stefan PDE · ProfileLikelihood.jl"/><meta name="description" content="Documentation for ProfileLikelihood.jl."/><meta property="og:description" content="Documentation for ProfileLikelihood.jl."/><meta property="twitter:description" content="Documentation for ProfileLikelihood.jl."/><meta property="og:url" content="https://DanielVandH.github.io/ProfileLikelihood.jl/stefan/"/><meta property="twitter:url" content="https://DanielVandH.github.io/ProfileLikelihood.jl/stefan/"/><link rel="canonical" href="https://DanielVandH.github.io/ProfileLikelihood.jl/stefan/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">ProfileLikelihood.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../interface/">Interface</a></li><li><a class="tocitem" href="../docstrings/">Docstrings</a></li><li><a class="tocitem" href="../regression/">Example I: Multiple linear regression</a></li><li><a class="tocitem" href="../logistic/">Example II: Logistic ordinary differential equation</a></li><li><a class="tocitem" href="../exponential/">Example III: Linear exponential ODE and grid searching</a></li><li><a class="tocitem" href="../lotka/">Example IV: Lotka-Volterra ODE and computing bivarate profile likelihoods</a></li><li class="is-active"><a class="tocitem" href>Example V: Fisher-Stefan PDE</a><ul class="internal"><li><a class="tocitem" href="#Data-generation"><span>Data generation</span></a></li><li><a class="tocitem" href="#Defining-the-LikelihoodProblem"><span>Defining the LikelihoodProblem</span></a></li><li><a class="tocitem" href="#Parameter-estimation"><span>Parameter estimation</span></a></li><li><a class="tocitem" href="#Prediction-intervals"><span>Prediction intervals</span></a></li></ul></li><li><a class="tocitem" href="../math/">Mathematical and Implementation Details</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Example V: Fisher-Stefan PDE</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Example V: Fisher-Stefan PDE</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/DanielVandH/ProfileLikelihood.jl/blob/main/docs/src/stefan.md#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Example-V:-Moving-boundary-problem-(Fisher-Stefan)"><a class="docs-heading-anchor" href="#Example-V:-Moving-boundary-problem-(Fisher-Stefan)">Example V: Moving boundary problem (Fisher-Stefan)</a><a id="Example-V:-Moving-boundary-problem-(Fisher-Stefan)-1"></a><a class="docs-heading-anchor-permalink" href="#Example-V:-Moving-boundary-problem-(Fisher-Stefan)" title="Permalink"></a></h1><p>We now give an example where we perform profile likelihood analysis for a moving boundary problem, in particular the Fisher-Stefan problem (see e.g. <a href="https://doi.org/10.1098/rspa.2019.0378">this paper</a>). This is a one-dimensional moving boundary problem. (If you want an example of a 2D PDE, you can see <a href="https://doi.org/10.31224/3017">my paper here</a> with associated package <a href="https://github.com/DanielVandH/PoreBridging.jl">PoreBridging.jl</a> – you can also see the docmuentation for ProfileLikelihood.jl for versions before 0.3.)</p><p>The packages we&#39;ll be using are loaded below.</p><pre><code class="language-julia hljs">using ProfileLikelihood
+using MovingBoundaryProblems1D
+using OrdinaryDiffEq
+using LinearSolve
+using Optimization
+using CairoMakie
+using OptimizationNLopt
+using StableRNGs</code></pre><p>The Fisher-Stefan problem is given by</p><p class="math-container">\[\begin{array}{rcll}
+\dfrac{\partial u}{\partial t} &amp; = &amp; D\dfrac{\partial^2 u}{\partial x^2} + \lambda u\left(1-\dfrac{u}{K}\right) &amp; 0 &lt; x &lt; L(t), \, t &gt; 0,\\[9pt]
+\dfrac{\partial u}{\partial x} &amp; = &amp; 0 &amp; x = 0,\,t&gt;0, \\[9pt]
+u &amp; = &amp; 0 &amp; x = L(t),\,t&gt;0, \\[9pt]
+\dfrac{\mathrm dL}{\mathrm dt} &amp; = &amp; -\kappa\dfrac{\partial u}{\partial x} &amp; x = L(t),\, t&gt;0, \\[9pt]
+u(x, 0) &amp; = &amp; \begin{cases} \alpha &amp; x &lt; \beta, \\ 0 &amp; x \geq \beta, \end{cases} &amp; 0 \leq x \leq L(0), \\[9pt]
+L(0) &amp;=&amp; \beta,
+\end{array}\]</p><p>where <span>$u$</span> is the population density, <span>$D$</span> the diffusivity, <span>$\lambda$</span> the proliferation rate, <span>$K$</span> the carrying capacity density, and <span>$\kappa$</span> is the Stefan parameter. The position of the leading edge is given by <span>$L(t)$</span>, initially given by <span>$L(0)=\beta$</span>. The parameters <span>$(\lambda, K, D, \kappa)$</span> are what we are interested in estimating, letting <span>$\alpha$</span> and <span>$\beta$</span> be given by <span>$1/2$</span> and <span>$1$</span>, respectively.</p><p>There are a few issues to consider when thinking about how to define a likelihood for this problem. Do we use define one based on individual values for <span>$u(x_i, t_j)$</span>? How do we compare solutions with different values of <span>$L(t)$</span>? Should we compare population densities and leading edges separately? The approach we take is to compare solutions by comparing the average density at each time. Namely, if we have times <span>$t_1, \ldots, t_m$</span>, and some solution <span>$u(x, t)$</span>, define the <em>average density</em> <span>$M_i = M(t_i)$</span> to be </p><p class="math-container">\[M_i = \dfrac{1}{L(t_i)}\int_0^{L(t_i)} u(x, t_i)\,\mathrm dx.\]</p><p>To evaluate this integral, let <span>$\xi = x/L(t_i)$</span> so that <span>$\mathrm d\xi = \mathrm dx/L(t_i)$</span>, giving <span>$M_i = \int_0^1 u(\xi, t_i)\,\mathrm d\xi$</span>. We define our summary statistic using these average densities: Let the average density data be given by the time series <span>$\{M_i^o\}_{i=1}^m$</span>,  and suppose for some parameter values <span>$\boldsymbol \theta = (\lambda, K,D, \kappa)$</span> we compute densities <span>$\{\hat M_i(\boldsymbol\theta)\}_{i=1}^m$</span>. If we assume that the data <span>$M_i^o$</span> are normally distributed around <span>$\hat M_i(\boldsymbol \theta)$</span>, meaning <span>$M_i^o \sim \mathcal N(\hat M_i(\boldsymbol\theta), \sigma^2)$</span> for <span>$i=1,\ldots,m$</span>, then we have a Gaussian likelihood that we can use for estimation.</p><p>We need an extra component in our objective function. Just studying the average density will not be sufficient to get identifiable estimates for the parameters. Thus, we also take information about the position of the leading edge <span>$L(t)$</span> over time. Similar arguments are used above for defining this leading edge as a normally distributed random variable. This ends up still leaving <span>$\kappa$</span> unidentifiable, which we could assist by further improving the likelihood function, but we will not do that in this example.</p><p>We solve up to <span>$t = 40$</span>, but only use data at <span>$t \leq 20$</span> for estimation.</p><h2 id="Data-generation"><a class="docs-heading-anchor" href="#Data-generation">Data generation</a><a id="Data-generation-1"></a><a class="docs-heading-anchor-permalink" href="#Data-generation" title="Permalink"></a></h2><p>As usual, the first step in this problem is to generate the data. This requries us to first define the <code>MBProblem</code> and the method for evaluating <span>$M_i$</span>. (See the docs for <a href="https://github.com/DanielVandH/MovingBoundaryProblems1D.jl">MovingBoundaryProblems1D.jl</a> for more information about setting up the <code>MBProblem</code>.)</p><pre><code class="language-julia hljs">## Define the problem 
+n = 100     # number of mesh points [making this a bit larger could give some better results, but it takes too long]
+κ = [20.0]  # Stefan problem 
+α = 1 / 2   # initial condition height 
+β = 1.0     # initial endpoint 
+D = [0.89]  # diffusivity 
+λ = [1.1]   # proliferation rate
+K = [3.0]   # carrying capacity density
+T = 40.0    # final time
+mesh_points = LinRange(0, β, n)
+diffusion_function = (u, x, t, D) -&gt; oftype(u, D[1])
+reaction_function = (u, x, t, (λ, K)) -&gt; λ[1] * u * (1 - u / K[1])
+lhs = Neumann(0.0)
+rhs = Dirichlet(0.0)
+moving_boundary = Robin(
+    (u, t, κ) -&gt; (zero(u), oftype(u, -κ[1])),
+    κ
+)
+ic = x -&gt; x &lt; β ? α : zero(x)
+initial_condition = ic.(mesh_points)
+prob = MBProblem(
+    mesh_points, lhs, rhs, moving_boundary;
+    diffusion_function,
+    diffusion_parameters=D,
+    reaction_function,
+    reaction_parameters=(λ, K),
+    initial_condition,
+    initial_endpoint=β,
+    final_time=T
+)
+
+## Generate the data 
+function compute_average(sol::AbstractVector, Δx)
+    s = @views sol[begin:(end-1)]
+    M = (s[1] + s[end]) / 2
+    for i in 2:(length(s)-1)
+        M += s[i]
+    end
+    M *= Δx
+    return M
+end
+function compute_average(sol) # (1/L)∫₀ᴸ u(x, t) dx = ∫₀¹ u(ξ, t) dξ
+    prob = sol.prob.p
+    mesh_points = prob.geometry.mesh_points
+    Δx = mesh_points[2] - mesh_points[1]
+    M = map(sol) do _sol
+        compute_average(_sol, Δx)
+    end
+    return M
+end
+
+sol = solve(prob, TRBDF2(linsolve=KLUFactorization()), saveat=T / 250)
+M = compute_average(sol)
+_original_M = deepcopy(M)
+rng = StableRNG(123)
+σM = 0.3
+M .= max.(M .+ σM * randn(rng, length(M)), 0.0)
+σL = 4.2
+L = max.(sol[end, :] .+ σL * randn(rng, length(sol[end, :])), 0.0)
+_original_L = deepcopy(sol[end, :])</code></pre><p>With this setup, the data that we have is shown below.</p><pre><code class="language-julia hljs">fig = Figure(fontsize=41)
+ax = Axis(fig[1, 1], width=1200, height=400,
+    xlabel=L&quot;t&quot;, ylabel=L&quot;M(t)&quot;, titlealign=:left)
+L1 = lines!(ax, sol.t, M, color=:black, linewidth=6)
+L2 = lines!(ax, sol.t, _original_M, color=:red, linewidth=4)
+axislegend(ax, [L1, L2], [L&quot;$ $Noisy&quot;, L&quot;$ $Original&quot;], L&quot;$ $Solution&quot;, position=:rb)
+ax = Axis(fig[2, 1], width=1200, height=400,
+    xlabel=L&quot;t&quot;, ylabel=L&quot;L(t)&quot;, titlealign=:left)
+L1 = lines!(ax, sol.t, L, color=:black, linewidth=6)
+L2 = lines!(ax, sol.t, _original_L, color=:red, linewidth=4)
+axislegend(ax, [L1, L2], [L&quot;$ $Noisy&quot;, L&quot;$ $Original&quot;], L&quot;$ $Solution&quot;, position=:rb)
+resize_to_layout!(fig)</code></pre><figure>
+    <img src='../figures/noisy_pde_data.png', alt'Average density data'><br>
+</figure><h2 id="Defining-the-LikelihoodProblem"><a class="docs-heading-anchor" href="#Defining-the-LikelihoodProblem">Defining the LikelihoodProblem</a><a id="Defining-the-LikelihoodProblem-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-the-LikelihoodProblem" title="Permalink"></a></h2><p>We now define our likelihood problem.</p><pre><code class="language-julia hljs">function mb_loglik(θ, data, integrator)
+    λ, K, D, κ = θ
+    M, L, n, σM, σL = data
+    prob = integrator.p
+    Δx = prob.geometry.mesh_points[2] - prob.geometry.mesh_points[1]
+    prob.diffusion_parameters[1] = D
+    prob.reaction_parameters[1][1] = λ
+    prob.reaction_parameters[2][1] = K
+    prob.boundary_conditions.moving_boundary.p[1] = κ
+    reinit!(integrator)
+    solve!(integrator)
+    if !SciMLBase.successful_retcode(integrator.sol)
+        return typemin(eltype(θ))
+    end
+    ℓ = zero(eltype(θ))
+    for i in 1:n
+        Mᵢ = compute_average(integrator.sol.u[i], Δx)
+        ℓ = ℓ - 0.5log(2π * σM^2) - 0.5(M[i] - Mᵢ)^2 / σM^2
+        Lᵢ = integrator.sol.u[i][end]
+        ℓ = ℓ - 0.5log(2π * σL^2) - 0.5(L[i] - Lᵢ)^2 / σL^2
+    end
+    @show ℓ
+    return ℓ
+end
+lb = [0.2, 0.5, 0.1, 10.0]
+ub = [8.0, 8.0, 8.0, 40.0]
+θ₀ = [0.5, 2.2, 0.5, 25.0]
+syms = [:λ, :K, :D, :κ]
+n = findlast(sol.t .≤ 20.0) # using t ≤ 20.0 for estimation 
+p = (M, L, n, σM, σL)
+integrator = init(prob, TRBDF2(linsolve=KLUFactorization(; reuse_symbolic=false)); # https://github.com/JuliaSparse/KLU.jl/issues/12
+    saveat=T / 250, verbose=false)
+likprob = LikelihoodProblem(
+    mb_loglik, θ₀, integrator;
+    syms=syms,
+    data=p,
+    f_kwargs=(adtype=AutoFiniteDiff(),), # see https://github.com/SciML/Optimization.jl/issues/548
+    prob_kwargs=(lb=lb, ub=ub))</code></pre><h2 id="Parameter-estimation"><a class="docs-heading-anchor" href="#Parameter-estimation">Parameter estimation</a><a id="Parameter-estimation-1"></a><a class="docs-heading-anchor-permalink" href="#Parameter-estimation" title="Permalink"></a></h2><p>Now let us do our parameter estimation.</p><pre><code class="language-julia hljs">@time mle_sol = mle(likprob, NLopt.LN_NELDERMEAD();
+    xtol_abs=1e-4, xtol_rel=1e-4,
+    ftol_abs=1e-4, ftol_rel=1e-4)
+ 96.699999 seconds (334.11 M allocations: 131.859 GiB, 7.00% gc time)
+LikelihoodSolution. retcode: Success
+Maximum likelihood: -383.6935496726186
+Maximum likelihood estimates: 4-element Vector{Float64}
+     λ: 1.1516248308036685
+     K: 2.9884211752858167
+     D: 1.1637069323254954
+     κ: 11.443256674364815</code></pre><pre><code class="language-julia hljs">@time prof = profile(likprob, mle_sol;
+    xtol_abs=1e-4, xtol_rel=1e-4,
+    ftol_abs=1e-4, ftol_rel=1e-4,
+    maxiters=100, maxtime=600,
+    parallel=true, resolution=60,
+    min_steps=20,
+    next_initial_estimate_method=:interp)
+5087.412720 seconds (14.11 G allocations: 5.435 TiB, 4.59% gc time)
+ProfileLikelihoodSolution. MLE retcode: Success
+Confidence intervals:
+     95.0% CI for λ: (1.0308982572106475, 1.2575143923759817)
+     95.0% CI for K: (2.86631176866806, 3.1784886463924136)
+     95.0% CI for D: (0.6693749214281204, 1.4479573978872977)
+     95.0% CI for κ: (10.0, 40.0)</code></pre><pre><code class="language-julia hljs">fig = plot_profiles(prof;
+    latex_names=[L&quot;\lambda&quot;, L&quot;K&quot;, L&quot;D&quot;, L&quot;\kappa&quot;],
+    show_mles=true,
+    shade_ci=true,
+    true_vals=[1.1, 3.0, 0.89, 20.0],
+    fig_kwargs=(fontsize=41,),
+    axis_kwargs=(width=600, height=300))
+resize_to_layout!(fig)</code></pre><figure>
+    <img src='../figures/pde_profiles.png', alt'Profile likelihoods'><br>
+</figure><p>We see that all the parameters are well identified except for <span>$\kappa$</span>, which is perhaps not so surprising since the travelling waves that the solution evolves into are similar for <span>$\kappa$</span> greater than some critical <span>$\kappa=\kappa_c$</span>.</p><h2 id="Prediction-intervals"><a class="docs-heading-anchor" href="#Prediction-intervals">Prediction intervals</a><a id="Prediction-intervals-1"></a><a class="docs-heading-anchor-permalink" href="#Prediction-intervals" title="Permalink"></a></h2><p>Let&#39;s now compute some univariate prediction intervals. Note that we will be doing some extrapolation here, since we estimated with <span>$0 \leq t \leq 20$</span> but we will predict up to <span>$t = 40$</span>. The quantity of interest here is <span>$M(t)$</span>.</p><pre><code class="language-julia hljs">function prediction_function!(q, θ::AbstractVector{T}, data) where {T}
+    λ, K, D, κ = θ
+    prob, t = data
+    prob.diffusion_parameters[1] = D
+    prob.reaction_parameters[1][1] = λ
+    prob.reaction_parameters[2][1] = K
+    prob.boundary_conditions.moving_boundary.p[1] = κ
+    sol = solve(prob, TRBDF2(linsolve=KLUFactorization()), saveat=t)
+    q .= compute_average(sol)
+    return nothing
+end
+t_many_pts = LinRange(0, T, 1000)
+pred_data = (prob, t_many_pts)
+q_prototype = zero(t_many_pts)
+individual_intervals, union_intervals, q_vals, param_ranges =
+    get_prediction_intervals(prediction_function!, prof, pred_data; parallel=true,
+        q_prototype)</code></pre><p>Now let&#39;s plot these results, including the MLE and exact curves.</p><figure>
+    <img src='../figures/pde_prediction_intervals.png', alt'Prediction intervals'><br>
+</figure><p>We see that the uncertainty covers the exact curves. We could keep going and doing e.g. bivariate profiles and bivariate prediction intervals, but let us stop here (see the Lotka-Volterra example in Example IV if you want to see bivariate profiling).</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../lotka/">« Example IV: Lotka-Volterra ODE and computing bivarate profile likelihoods</a><a class="docs-footer-nextpage" href="../math/">Mathematical and Implementation Details »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Tuesday 5 December 2023 12:07">Tuesday 5 December 2023</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
