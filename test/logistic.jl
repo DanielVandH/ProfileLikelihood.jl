@@ -3,7 +3,6 @@ using ..ProfileLikelihood
 using Optimization
 using OrdinaryDiffEq
 using CairoMakie
-using LaTeXStrings
 using OptimizationOptimJL
 using OptimizationNLopt
 using StableRNGs
@@ -106,7 +105,7 @@ prof2 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=true)
 
 prof = prof1
 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof;
     latex_names=[L"\lambda", L"K", L"u_0"],
     show_mles=true,

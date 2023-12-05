@@ -2,7 +2,6 @@ using OrdinaryDiffEq
 using ..ProfileLikelihood
 using Optimization 
 using CairoMakie 
-using LaTeXStrings 
 using Random
 using Distributions
 using MuladdMacro
@@ -154,7 +153,7 @@ prof2 = profile(prob, sol; alg=NLopt.LN_NELDERMEAD, parallel=false)
 prof = prof1
 
 ## Step 5: Visualise 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof; nrow=1, ncol=3,
     latex_names=[L"\lambda", L"\sigma", L"y_0"],
     true_vals=[λ, σ, y₀],

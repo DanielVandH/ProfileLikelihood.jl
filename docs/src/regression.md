@@ -8,7 +8,6 @@ using Random
 using PreallocationTools 
 using Distributions 
 using CairoMakie 
-using LaTeXStrings 
 using LinearAlgebra
 using Optimization 
 using OptimizationOptimJL
@@ -178,7 +177,7 @@ prof(0.50, 4)
 We can now also visualise the results. In the plot below, the red line is at the threshold for the confidence region, so that the parameters between these values define the confidence interval. The red lines are at the MLEs, and the black lines are at the true values. 
 
 ```julia 
-using CairoMakie, LaTeXStrings
+using CairoMakie
 fig = plot_profiles(prof;
     latex_names=[L"\sigma", L"\beta_0", L"\beta_1", L"\beta_2", L"\beta_3"], # default names would be of the form θᵢ
     show_mles=true,
@@ -189,7 +188,7 @@ fig = plot_profiles(prof;
 xlims!(fig.content[1], 0.045, 0.055) # fix the ranges
 xlims!(fig.content[2], -1.025, -0.975)
 xlims!(fig.content[4], 0.475, 0.525)
-resize_to_layout!9fig)
+resize_to_layout!(fig)
 ```
 
 ```@raw html

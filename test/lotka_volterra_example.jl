@@ -3,7 +3,6 @@ using ..ProfileLikelihood
 using Optimization
 using OrdinaryDiffEq
 using CairoMakie
-using LaTeXStrings
 using OptimizationNLopt
 using LoopVectorization
 using PolygonOps

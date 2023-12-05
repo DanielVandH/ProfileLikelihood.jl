@@ -13,7 +13,6 @@ using InteractiveUtils
 using DelaunayTriangulation
 using Interpolations
 using CairoMakie
-using LaTeXStrings
 include("templates.jl")
 
 @testset "Test that we can correctly construct the parameter ranges" begin

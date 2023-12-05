@@ -17,8 +17,7 @@ Computes bivariates profile likelihoods for the parameters from a likelihood pro
 this function using `Symbols`, e.g. if `get_syms(prob) = [:λ, :K, :u₀]`, then calling `bivariate_profile(prob, sol, ((:λ, :K), (:K, u₀)))`
 is the same as calling `bivariate_profile(prob, sol, ((1, 2), (2, 3)))` (the integer coordinate representation is still used in the solution, though).
        
-For plotting, see the `plot_profiles` function (requires that you have loaded CairoMakie.jl and 
-LaTeXStrings.jl to access the function).
+For plotting, see the `plot_profiles` function (requires that you have loaded a backend of Makie.jl).
 
 # Arguments 
 - `prob::LikelihoodProblem`: The [`LikelihoodProblem`](@ref).
