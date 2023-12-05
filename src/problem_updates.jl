@@ -2,17 +2,40 @@ update_initial_estimate(prob::OptimizationProblem, θ) = remake(prob; u0=θ)
 update_initial_estimate(prob::OptimizationProblem, sol::SciMLBase.OptimizationSolution) = update_initial_estimate(prob, sol.u)
 
 # replace obj with a new obj
-function replace_objective_function(prob::OptimizationProblem{iip,FF,uType,P,B,LC,UC,Sns,K}, obj::F) where {F,iip,AD,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS,FF2,FF<:OptimizationFunction{iip,AD,FF2,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS},uType,P,B,LC,UC,Sns,K}
-    f = OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,LH,HP,CJP,CHP,LHP,S,S2,O,HCV,CJCV,CHCV,LHCV,EX,CEX,SYS
-    }(obj,
-        prob.f.adtype, prob.f.grad,
-        prob.f.hess, prob.f.hv,
-        prob.f.cons, prob.f.cons_j, prob.f.cons_h, prob.f.lag_h,
-        prob.f.hess_prototype, prob.f.cons_jac_prototype, prob.f.cons_hess_prototype, prob.f.lag_hess_prototype,
-        prob.f.syms, prob.f.paramsyms, prob.f.observed,
-        prob.f.hess_colorvec, prob.f.cons_jac_colorvec, prob.f.cons_hess_colorvec, prob.f.lag_hess_colorvec,
-        prob.f.expr, prob.f.cons_expr, prob.f.sys)
-    return remake(prob; f=f)
+@inline function replace_objective_function(f::OF, new_f::FF) where {iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV,OF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV},FF}
+    # scimlbase needs to add a constructorof method for OptimizationFunction before we can just do @set with accessors.jl. 
+    # g = @set f.f = new_f
+    # return g
+    return OptimizationFunction{iip,AD,FF,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV}(
+        new_f,
+        f.adtype,
+        f.grad,
+        f.hess,
+        f.hv,
+        f.cons,
+        f.cons_j,
+        f.cons_h,
+        f.hess_prototype,
+        f.cons_jac_prototype,
+        f.cons_hess_prototype,
+        f.syms,
+        f.paramsyms,
+        f.observed,
+        f.expr,
+        f.cons_expr,
+        f.sys,
+        f.lag_h,
+        f.lag_hess_prototype,
+        f.hess_colorvec,
+        f.cons_jac_colorvec,
+        f.cons_hess_colorvec,
+        f.lag_hess_colorvec,
+    )
+end
+
+@inline function replace_objective_function(prob::F, obj::FF) where {F<:OptimizationProblem,FF}
+    g = replace_objective_function(prob.f, obj)
+    return remake(prob; f=g)
 end
 
 # fix the objective function's nth parameter at θₙ

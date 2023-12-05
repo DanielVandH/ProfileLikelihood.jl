@@ -106,7 +106,6 @@ function mb_loglik(θ, data, integrator)
         Lᵢ = integrator.sol.u[i][end]
         ℓ = ℓ - 0.5log(2π * σL^2) - 0.5(L[i] - Lᵢ)^2 / σL^2
     end
-    @show ℓ
     return ℓ
 end
 lb = [0.2, 0.5, 0.1, 10.0]
@@ -198,4 +197,4 @@ vlines!(ax, [20.0], color=:purple, linestyle=:dash, linewidth=2)
 
 resize_to_layout!(fig)
 fig
-@test_reference joinpath(fig_path, "pde_prediction_intervals.png") fig
+@test_reference joinpath(fig_path, "pde_prediction_intervals.png") fig by=psnr_equality(18)

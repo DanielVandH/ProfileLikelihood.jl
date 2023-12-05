@@ -48,7 +48,9 @@ using SafeTestsets
     @safetestset "Evample IV: Lotka-Volterra ODE" begin
         include("lotka_volterra_example.jl")
     end
-    #@safetestset "Example V: Fisher-Stefan PDE" begin
-    #    include("pde_example.jl")
-    #end
+    if !(get(ENV, "CI", "false") == "true")
+        @safetestset "Example V: Fisher-Stefan PDE" begin
+            include("pde_example.jl")
+        end
+    end
 end
