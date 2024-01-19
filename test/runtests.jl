@@ -6,6 +6,9 @@ using SafeTestsets
     @safetestset "Utilities" begin
         include("utils.jl")
     end
+    @safetestset "Custom Hessian" begin
+        include("Custom_hessian.jl")
+    end
     @safetestset "Problem updates" begin
         include("problem_updates.jl")
     end
