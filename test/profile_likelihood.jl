@@ -80,7 +80,7 @@ end
     _opt_prob, _mles, _ℓmax = ProfileLikelihood.extract_problem_and_solution(prob, sol)
     shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, false)
     @test shifted_opt_prob.f.f.shift == 0.0
-    @test shifted_opt_prob.f.f.original_f == _opt_prob.f
+    @test shifted_opt_prob.f.f.original_f == _opt_prob.f.f
     @test shifted_opt_prob.f(reduce(vcat, θ), dat) ≈ -loglikk(reduce(vcat, θ), dat)
     @inferred shifted_opt_prob.f(reduce(vcat, θ), dat)
     shifted_opt_prob = ProfileLikelihood.normalise_objective_function(_opt_prob, _ℓmax, true)
