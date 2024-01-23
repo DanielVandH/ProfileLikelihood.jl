@@ -3,6 +3,7 @@ using Optimization
 using OptimizationNLopt
 using PreallocationTools
 using InvertedIndices
+using ForwardDiff
 
 @testset "Test that we can correctly update the initial estimate" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
@@ -20,6 +21,7 @@ using InvertedIndices
     @test prob.u0 == θ₀ # check aliasing
 end
 
+
 @testset "Test that we are correctly replacing the objective function" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
@@ -27,12 +29,13 @@ end
     data = (rand(100), [:a, :b])
     prob = ProfileLikelihood.construct_optimisation_problem(negloglik, θ₀, data)
     new_obj = (θ, p) -> θ[1] * p[1] + θ[2] + p[2]
-    new_prob = ProfileLikelihood.replace_objective_function(prob, new_obj)
+    new_prob = ProfileLikelihood.replace_objective_function(prob, new_obj, nothing, nothing)
     @test collect(typeof(new_prob).parameters)[Not(2)] == collect(typeof(prob).parameters)[Not(2)]
     @test collect(typeof(new_prob.f).parameters)[Not(3)] == collect(typeof(prob.f).parameters)[Not(3)]
     @test new_prob.f.f == new_obj
-    @inferred ProfileLikelihood.replace_objective_function(prob, new_obj)
+    @inferred ProfileLikelihood.ProfileLikelihood.replace_objective_function(prob, new_obj, nothing, nothing)
 end
+
 
 @testset "Test that we are correctly constructing a fixed function" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
@@ -81,6 +84,7 @@ end
     @inferred ProfileLikelihood.construct_fixed_optimisation_function(prob, n, val, cache)
 end
 
+
 @testset "Test that we can correctly exclude a parameter" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
@@ -117,6 +121,62 @@ end
     @test new_prob.u0 == [θ₀[1]]
 end
 
+@testset "Test that we can correctly exclude a parameter for custom Hessian and Gradient" begin
+    rosenbrock(x, p) = (1.0 - x[1])^2 + 100.0 * (x[2] - x[1]^2)^2 + x[3]^2*x[1]*x[2]
+    rosenbrock_grad = (G, u, p) ->  begin 
+        p = Float64[]
+        _f = (x) -> rosenbrock(x, p)
+        ForwardDiff.gradient!(G, _f, u)
+
+    end
+    rosenbrock_hess = (H, u, p) ->  begin 
+        p = Float64[]
+        _f = (x) -> rosenbrock(x, p)
+        ForwardDiff.hessian!(H, _f, u)
+    end
+    θ₀ = [0.1, 0.2, 0.5]
+    grad_ref = zeros(3)
+    hess_ref = zeros(3, 3)
+    rosenbrock_grad(grad_ref, θ₀, Float64[])
+    rosenbrock_hess(hess_ref, θ₀, Float64[])
+    optimization_function = Optimization.OptimizationFunction(rosenbrock;
+                                                              grad = rosenbrock_grad,
+                                                              hess = rosenbrock_hess,
+                                                              syms=[:x1, :x2])
+    prob = OptimizationProblem(optimization_function, θ₀, lb = [-1.0, -2.0, -2.5], ub = [0.8, 1.8, 2.5])
+    cache = DiffCache(θ₀[:])
+
+    n = 1
+    prob_tmp = ProfileLikelihood.construct_fixed_optimisation_function(prob, n, θ₀[1], cache)
+    new_prob = ProfileLikelihood.exclude_parameter(prob_tmp, n)
+    @inferred ProfileLikelihood.exclude_parameter(prob_tmp, n)
+    @test ProfileLikelihood.get_lower_bounds(new_prob) == [-2.0, -2.5]
+    @test ProfileLikelihood.get_upper_bounds(new_prob) == [1.8, 2.5]
+    @test new_prob.u0 == [θ₀[2], θ₀[3]]
+    grad_check = zeros(2)
+    hess_check = zeros(2, 2)
+    new_prob.f.grad(grad_check, [θ₀[2], θ₀[3]], Float64[])
+    new_prob.f.hess(hess_check, [θ₀[2], θ₀[3]], Float64[])
+    @test rosenbrock(θ₀, Float64[]) == new_prob.f.f([θ₀[2], θ₀[3]], Float64[])
+    @test grad_check == grad_ref[Not(1)]
+    @test hess_check == hess_ref[Not(1), Not(1)]
+
+    n = 2
+    prob_tmp = ProfileLikelihood.construct_fixed_optimisation_function(prob, n, θ₀[2], cache)
+    new_prob = ProfileLikelihood.exclude_parameter(prob_tmp, n)
+    @inferred ProfileLikelihood.exclude_parameter(prob_tmp, n)
+    @test ProfileLikelihood.get_lower_bounds(new_prob) == [-1.0, -2.5]
+    @test ProfileLikelihood.get_upper_bounds(new_prob) == [0.8, 2.5]
+    @test new_prob.u0 == [θ₀[1], θ₀[3]]
+    grad_check = zeros(2)
+    hess_check = zeros(2, 2)
+    new_prob.f.grad(grad_check, [θ₀[1], θ₀[3]], Float64[])
+    new_prob.f.hess(hess_check, [θ₀[1], θ₀[3]], Float64[])
+    @test rosenbrock(θ₀, Float64[]) == new_prob.f.f([θ₀[1], θ₀[3]], Float64[])
+    @test grad_check == grad_ref[Not(2)]
+    @test hess_check == hess_ref[Not(2), Not(2)]
+end 
+
 @testset "Test that we can shift the objective function" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
@@ -128,6 +188,7 @@ end
     @test new_prob.f(θ₀, data) ≈ negloglik(θ₀, data) - 0.2291
     @inferred new_prob.f(θ₀, data)
 end
+
 
 @testset "Test that we can fix a function at two parameter values" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2] + θ[3]
@@ -186,6 +247,7 @@ end
     new_f = ProfileLikelihood.construct_fixed_optimisation_function(prob, n, val, cache)
     @inferred ProfileLikelihood.construct_fixed_optimisation_function(prob, n, val, cache)
 end
+
 
 @testset "Test that we can correctly exclude two parameters" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2] + θ[3]

@@ -2,21 +2,21 @@ update_initial_estimate(prob::OptimizationProblem, θ) = remake(prob; u0=θ)
 update_initial_estimate(prob::OptimizationProblem, sol::SciMLBase.OptimizationSolution) = update_initial_estimate(prob, sol.u)
 
 # replace obj with a new obj
-@inline function replace_objective_function(f::OF, new_f::FF) where {iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV,OF<:OptimizationFunction{iip,AD,F,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV},FF}
+@inline function replace_objective_function(f::OF, new_f::FF, new_grad!, new_hess!) where {OF, FF}
     # scimlbase needs to add a constructorof method for OptimizationFunction before we can just do @set with accessors.jl. 
     # g = @set f.f = new_f
     # return g
-    return OptimizationFunction{iip,AD,FF,G,H,HV,C,CJ,CH,HP,CJP,CHP,S,S2,O,EX,CEX,SYS,LH,LHP,HCV,CJCV,CHCV,LHCV}(
+    return OptimizationFunction(
         new_f,
-        f.adtype,
-        f.grad,
-        f.hess,
-        f.hv,
-        f.cons,
-        f.cons_j,
-        f.cons_h,
-        f.hess_prototype,
-        f.cons_jac_prototype,
+        f.adtype;
+        grad=new_grad!,
+        hess=new_hess!,
+        hv=f.hv,
+        cons=f.cons,
+        cons_j=f.cons_j,
+        cons_h=f.cons_h,
+        hess_prototype=f.hess_prototype,
+        cons_jac_prototype=f.cons_jac_prototype,
         f.cons_hess_prototype,
         f.syms,
         f.paramsyms,
@@ -33,14 +33,17 @@ update_initial_estimate(prob::OptimizationProblem, sol::SciMLBase.OptimizationSo
     )
 end
 
-@inline function replace_objective_function(prob::F, obj::FF) where {F<:OptimizationProblem,FF}
-    g = replace_objective_function(prob.f, obj)
+@inline function replace_objective_function(prob::F, obj::FF, grad, hess) where {F<:OptimizationProblem, FF}
+    g = replace_objective_function(prob.f, obj, grad, hess)
     return remake(prob; f=g)
 end
 
 # fix the objective function's nth parameter at θₙ
 function construct_fixed_optimisation_function(prob::OptimizationProblem, n::Integer, θₙ, cache)
     original_f = prob.f
+    original_grad! = prob.f.grad
+    original_hess! = prob.f.hess
+
     new_f = @inline (θ, p) -> begin
         cache2 = get_tmp(cache, θ)
         for i in eachindex(cache2)
@@ -54,7 +57,72 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n::Int
         end
         return original_f(cache2, p)
     end
-    return replace_objective_function(prob, new_f)
+
+    # In case a custom gradient is provided the new gradient function the full gradient
+    # is computed, but the value for parameter n is dropped
+    if isnothing(original_grad!)
+        # Default for an OptimizationProblem
+        new_grad! = nothing 
+    else
+        new_grad! = (g, θ, p) -> begin
+            cache2 = get_tmp(cache, θ)
+            for i in eachindex(cache2)
+                if i < n
+                    cache2[i] = θ[i]
+                elseif i > n
+                    cache2[i] = θ[i-1]
+                else
+                    cache2[n] = θₙ
+                end
+            end     
+            _g = similar(cache2)           
+            original_grad!(_g, cache2, p)
+            for i in eachindex(cache2)
+                if i < n
+                    g[i] = _g[i]
+                elseif i > n
+                    g[i-1] = _g[i]
+                end
+            end
+            return nothing
+        end
+    end
+
+    # Likewise, if a custom Hessian is provided the full Hessian is computed, 
+    # but the value for parameter n is dropped 
+    if isnothing(original_hess!)
+        # Default for an OptimizationProblem
+        new_hess! = nothing 
+    else
+        new_hess! = (H, θ, p) -> begin
+            cache2 = get_tmp(cache, θ)
+            for i in eachindex(cache2)
+                if i < n
+                    cache2[i] = θ[i]
+                elseif i > n
+                    cache2[i] = θ[i-1]
+                else
+                    cache2[n] = θₙ
+                end
+            end     
+            _H = Matrix{eltype(cache2)}(undef, length(cache2), length(cache2))
+            original_hess!(_H, cache2, p)
+            for i in eachindex(cache2)
+                for j in eachindex(cache2)
+                    if i == n || j == n
+                        continue
+                    else i < n && j < n
+                        ix = i < n ? i : i - 1
+                        jx = j < n ? j : j - 1
+                        H[ix, jx] = _H[i, j]
+                    end
+                end
+            end
+            return nothing
+        end
+    end
+
+    return replace_objective_function(prob, new_f, new_grad!, new_hess!)
 end
 
 # fix the objective function's (n1, n2) parameters at (θn1, θn2)
@@ -66,6 +134,9 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n::NTu
         θₙ₁, θₙ₂ = θₙ₂, θₙ₁
     end
     original_f = prob.f
+    original_grad! = prob.f.grad
+    original_hess! = prob.f.hess
+
     new_f = @inline (θ, p) -> begin
         cache2 = get_tmp(cache, θ)
         @inbounds for i in eachindex(cache2)
@@ -83,8 +154,83 @@ function construct_fixed_optimisation_function(prob::OptimizationProblem, n::NTu
         end
         return original_f(cache2, p)
     end
-    return replace_objective_function(prob, new_f)
+
+    # In case a custom gradient is provided the new gradient function the full gradient
+    # but the value for parameter n₁ and n₂ are dropped
+    if isnothing(original_grad!)
+        # Default for an OptimizationProblem
+        new_grad! = nothing 
+    else
+        new_grad! = (g, θ, p) -> begin
+            cache2 = get_tmp(cache, θ)
+            for i in eachindex(cache2)
+                if i < n₁
+                    cache2[i] = θ[i]
+                elseif i == n₁
+                    cache2[i] = θₙ₁
+                elseif n₁ < i < n₂
+                    cache2[i] = θ[i-1]
+                elseif i == n₂
+                    cache2[i] = θₙ₂
+                elseif i > n₂
+                    cache2[i] = θ[i-2]
+                end
+            end
+            _g = similar(cache2)           
+            original_grad!(_g, cache2, p)
+            for i in eachindex(cache2)
+                if i == n₁ || i == n₂
+                    continue
+                else
+                    ix = i < n₁ ? i : (i < n₂ ? i - 1 : i - 2)
+                    g[ix] = _g[i]
+                end
+            end
+            return nothing
+        end
+    end
+
+    # Likewise, if a custom Hessian is provided the full Hessian is computed, 
+    # but the value for parameter n₁ and n₂ are dropped
+    if isnothing(original_hess!)
+        # Default for an OptimizationProblem
+        new_hess! = nothing 
+    else
+        new_hess! = (H, θ, p) -> begin
+            cache2 = get_tmp(cache, θ)
+            for i in eachindex(cache2)
+                if i < n₁
+                    cache2[i] = θ[i]
+                elseif i == n₁
+                    cache2[i] = θₙ₁
+                elseif n₁ < i < n₂
+                    cache2[i] = θ[i-1]
+                elseif i == n₂
+                    cache2[i] = θₙ₂
+                elseif i > n₂
+                    cache2[i] = θ[i-2]
+                end
+            end
+            _H = Matrix{eltype(cache2)}(undef, length(cache2), length(cache2))
+            original_hess!(_H, cache2, p)
+            for i in eachindex(cache2)
+                for j in eachindex(cache2)
+                    if (i == n₁ || j == n₁) || (i == n₂ || j == n₂)
+                        continue
+                    else
+                        ix = i < n₁ ? i : (i < n₂ ? i - 1 : i - 2)
+                        jx = j < n₁ ? j : (j < n₂ ? j - 1 : j - 2)
+                        H[ix, jx] = _H[i, j]
+                    end
+                end
+            end
+            return nothing
+        end
+    end
+
+    return replace_objective_function(prob, new_f, new_grad!, new_hess!)
 end
+
 
 # remove lower bounds, upper bounds, and also remove the nth value from the initial estimate
 function exclude_parameter(prob::OptimizationProblem, n::Integer)
@@ -106,7 +252,7 @@ end
 
 # replace obj by obj - shift
 function shift_objective_function(prob::OptimizationProblem, shift)
-    original_f = prob.f
+    original_f = prob.f.f
     new_f = @inline (θ, p) -> original_f(θ, p) - shift
-    return replace_objective_function(prob, new_f)
+    return replace_objective_function(prob, new_f, prob.f.grad, prob.f.hess)
 end
