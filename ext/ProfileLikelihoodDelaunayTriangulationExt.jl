@@ -13,8 +13,8 @@ function ProfileLikelihood._get_confidence_regions_delaunay!(confidence_regions,
     grid_xy = vec([(x, y) for x in range_1, y in range_2])
     tri = DelaunayTriangulation.triangulate(grid_xy)
     conf_contour = NTuple{2,T}[]
-    DelaunayTriangulation.delete_boundary_vertices_from_graph!(tri)
-    for (u, v) in DelaunayTriangulation.get_edges(tri)
+    for e in DelaunayTriangulation.each_solid_edge(tri)
+        u, v = DelaunayTriangulation.edge_vertices(e)
         u₁, u₂ = profile_values[u], profile_values[v]
         if threshold_intersection_exists(threshold, u₁, u₂)
             p₁ = grid_xy[u]
