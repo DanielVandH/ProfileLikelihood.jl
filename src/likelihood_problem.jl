@@ -26,7 +26,7 @@ The log-likelihood function, taking the form `ℓ(θ, p)`.
 Initial estimates for the MLE `θ`.
 - `syms::S`
 
-Variable names for the parameters.
+Variable names for the parameters. This is wrapped into a `SymbolCache` from SymbolicIndexingInterface.jl.
     
 The extra parameter `N` is the number of parameters.
 
@@ -106,16 +106,20 @@ Returns the [`LikelihoodProblem`](@ref) problem object.
 """
 function LikelihoodProblem end
 
+_to_symbolcache(syms, θ₀) = SymbolCache(syms, defaults = Dict(syms .=> θ₀))
+_to_symbolcache(syms::SymbolCache, θ₀) = syms
+
 function LikelihoodProblem(loglik::Function, θ₀;
     syms=eachindex(θ₀), data=SciMLBase.NullParameters(),
     f_kwargs=nothing, prob_kwargs=nothing)
     Base.require_one_based_indexing(θ₀)
+    _syms = _to_symbolcache(syms, θ₀)
     negloglik = negate_loglik(loglik)
-    opt_f = isnothing(f_kwargs) ? construct_optimisation_function(negloglik, syms) : construct_optimisation_function(negloglik, syms; f_kwargs...)
+    opt_f = isnothing(f_kwargs) ? construct_optimisation_function(negloglik, _syms) : construct_optimisation_function(negloglik, _syms; f_kwargs...)
     opt_prob = isnothing(prob_kwargs) ? construct_optimisation_problem(opt_f, θ₀, data) : construct_optimisation_problem(opt_f, θ₀, data; prob_kwargs...)
     return LikelihoodProblem{length(θ₀),typeof(opt_prob),
         typeof(data),typeof(loglik),
-        typeof(θ₀),typeof(syms)}(opt_prob, data, loglik, θ₀, syms)
+        typeof(θ₀),typeof(_syms)}(opt_prob, data, loglik, θ₀, _syms)
 end
 
 function LikelihoodProblem(loglik::Function, θ₀, integrator;
@@ -140,9 +144,9 @@ end
 
 function construct_optimisation_function(negloglik, syms; f_kwargs...)
     if :adtype ∈ keys(f_kwargs)
-        return OptimizationFunction(negloglik, f_kwargs[:adtype]; syms=syms, f_kwargs[Not(:adtype)]...)
+        return OptimizationFunction(negloglik, f_kwargs[:adtype]; sys=syms, f_kwargs[Not(:adtype)]...)
     else
-        return OptimizationFunction(negloglik, SciMLBase.NoAD(); syms=syms, f_kwargs...)
+        return OptimizationFunction(negloglik, SciMLBase.NoAD(); sys=syms, f_kwargs...)
     end
 end
 function construct_optimisation_problem(opt_f, θ₀, data; prob_kwargs...)

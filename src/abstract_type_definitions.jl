@@ -31,24 +31,10 @@ finite_bounds(prob) = finite_lower_bounds(prob) && finite_upper_bounds(prob)
 number_of_parameters(prob::OptimizationProblem) = length(prob.u0)
 number_of_parameters(::AbstractLikelihoodProblem{N, L}) where {N, L} = N
 
-Base.getindex(prob::AbstractLikelihoodProblem, i::Integer) = get_θ₀(prob, i)
-SciMLBase.sym_to_index(sym, prob::AbstractLikelihoodProblem) = SciMLBase.sym_to_index(sym, get_syms(prob))
-SciMLBase.sym_to_index(i::Integer, ::AbstractLikelihoodProblem) = i
+SymbolicIndexingInterface.symbolic_container(prob::AbstractLikelihoodProblem) = get_problem(prob)
+SymbolicIndexingInterface.state_values(prob::AbstractLikelihoodProblem) = get_θ₀(prob)
 function Base.getindex(prob::AbstractLikelihoodProblem, sym)
-    if SciMLBase.issymbollike(sym)
-        i = SciMLBase.sym_to_index(sym, prob)
-    else
-        i = sym
-    end
-    if i === nothing
-        throw(BoundsError(get_θ₀(prob), sym))
-    else
-        get_θ₀(prob, i)
-    end
-end
-function Base.getindex(prob::AbstractLikelihoodProblem, sym::AbstractVector{Symbol})
-    idx = SciMLBase.sym_to_index.(sym, Ref(prob))
-    return get_θ₀(prob, idx)
+    return getu(prob, sym)(prob)
 end
 
 function parameter_is_inbounds(prob, θ)
@@ -80,23 +66,10 @@ get_syms(sol::AbstractLikelihoodSolution) = get_syms(get_problem(sol))
 
 number_of_parameters(::AbstractLikelihoodSolution{N,P}) where {N,P}=N
 
-Base.getindex(sol::AbstractLikelihoodSolution, i::Integer) = get_mle(sol, i)
-SciMLBase.sym_to_index(sym, sol::AbstractLikelihoodSolution) = SciMLBase.sym_to_index(sym, get_syms(sol))
+SymbolicIndexingInterface.symbolic_container(sol::AbstractLikelihoodSolution) = get_problem(sol)
+SymbolicIndexingInterface.state_values(sol::AbstractLikelihoodSolution) = get_mle(sol)
 function Base.getindex(sol::AbstractLikelihoodSolution, sym)
-    if SciMLBase.issymbollike(sym)
-        i = SciMLBase.sym_to_index(sym, sol)
-    else
-        i = sym
-    end
-    if i === nothing
-        throw(BoundsError(get_mle(sol), sym))
-    else
-        get_mle(sol, i)
-    end
-end
-function Base.getindex(sol::AbstractLikelihoodSolution, sym::AbstractVector{Symbol})
-    idx = SciMLBase.sym_to_index.(sym, Ref(sol))
-    return get_mle(sol, idx)
+    return getu(sol, sym)(sol)
 end
 
 update_initial_estimate(prob::AbstractLikelihoodProblem, sol::AbstractLikelihoodSolution) = update_initial_estimate(prob, get_mle(sol))

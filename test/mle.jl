@@ -63,14 +63,12 @@ end
     @test ProfileLikelihood.get_optimiser(sol) == sol.optimiser == (alg1, alg2, alg3, alg1, alg4)
     @test ProfileLikelihood.get_maximum(sol) == sol.maximum ≈ 2.7524752475247523
     @test ProfileLikelihood.get_retcode(sol) == sol.retcode
-    @test ProfileLikelihood.get_syms(sol) == syms
+    @test ProfileLikelihood.get_syms(sol) == prob.syms
     @test ProfileLikelihood.number_of_parameters(prob) == 2
     @test ProfileLikelihood.get_mle(sol, 1) == sol.mle[1] ≈ 0.5049504933896497
     @test ProfileLikelihood.get_mle(sol, 2) == sol.mle[2] ≈ 0.5
     @test sol[1] == sol.mle[1]
     @test sol[2] == sol.mle[2]
-    @test SciMLBase.sym_to_index(:α, sol) == 1
-    @test SciMLBase.sym_to_index(:β, sol) == 2
     @test sol[:α] == sol.mle[1]
     @test sol[:β] == sol.mle[2]
     @test sol[[:α, :β]] == sol.mle

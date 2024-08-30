@@ -11,8 +11,11 @@ using OptimizationNLopt
 using FiniteVolumeMethod
 using InteractiveUtils
 using DelaunayTriangulation
+using SymbolicIndexingInterface
 using Interpolations
 using CairoMakie
+using StructEquality
+@struct_equal SymbolCache
 include("templates.jl")
 
 @testset "Test that we can correctly construct the parameter ranges" begin
@@ -178,13 +181,8 @@ end
     @test ProfileLikelihood.get_confidence_intervals(prof, :β₁) == prof.confidence_intervals[3]
     @test ProfileLikelihood.get_other_mles(prof) == prof.other_mles
     @test ProfileLikelihood.get_other_mles(prof, 3) == prof.other_mles[3]
-    @test ProfileLikelihood.get_syms(prof) == prob.syms == [:σ, :β₀, :β₁, :β₂, :β₃]
+    @test ProfileLikelihood.get_syms(prof) == prob.syms == SymbolCache([:σ, :β₀, :β₁, :β₂, :β₃], defaults=Dict([:σ, :β₀, :β₁, :β₂, :β₃] .=> θ₀))
     @test ProfileLikelihood.get_syms(prof, 4) == :β₂
-    @test SciMLBase.sym_to_index(:σ, prof) == 1
-    @test SciMLBase.sym_to_index(:β₀, prof) == 2
-    @test SciMLBase.sym_to_index(:β₁, prof) == 3
-    @test SciMLBase.sym_to_index(:β₂, prof) == 4
-    @test SciMLBase.sym_to_index(:β₃, prof) == 5
     @test ProfileLikelihood.profiled_parameters(prof) == [1, 3]
     @test ProfileLikelihood.number_of_profiled_parameters(prof) == 2
 end
@@ -234,6 +232,7 @@ end
     left_grid = xmin:Δleft:sol[:σ]
     right_grid = sol[:σ]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
+    @test full_grid ≈ prof.parameter_values[1]
 
     xmin, xmax = extrema(get_parameter_values(prof, :β₁))
     m = length(get_parameter_values(prof, :β₁))
@@ -242,6 +241,7 @@ end
     left_grid = xmin:Δleft:sol[:β₁]
     right_grid = sol[:β₁]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
+    @test full_grid ≈ prof.parameter_values[3]
 end
 
 @testset "Test that other_mles and parameter_values line up" begin
@@ -439,7 +439,6 @@ end
             ub=[15.0, 15.0, 15.0, 15.0, 15.0]),
         syms=[:σ, :β₀, :β₁, :β₂, :β₃])
     sol = mle(prob, Optim.LBFGS())
-    prof = profile(prob, sol, [1, 3])
     prof = profile(prob, sol, [1, 3]; resolution=[50000, 18000, 75000, 5000, 5000], min_steps=0)
 
     xmin, xmax = extrema(get_parameter_values(prof, :σ))
@@ -449,6 +448,7 @@ end
     left_grid = xmin:Δleft:sol[:σ]
     right_grid = sol[:σ]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
+    @test full_grid ≈ prof.parameter_values[1][begin:end-1]
 
     xmin, xmax = extrema(get_parameter_values(prof, :β₁))
     m = length(get_parameter_values(prof, :β₁))
@@ -457,6 +457,7 @@ end
     left_grid = xmin:Δleft:sol[:β₁]
     right_grid = sol[:β₁]:Δright:xmax
     full_grid = [left_grid..., right_grid[2:end]...]
+    @test full_grid ≈ prof.parameter_values[3]
 end
 
 @testset "Threads" begin
@@ -496,7 +497,7 @@ end
             ub=[15.0, 15.0, 15.0, 15.0, 15.0]),
         syms=[:σ, :β₀, :β₁, :β₂, :β₃])
     sol = mle(prob, Optim.LBFGS())
-    prof_serial = profile(prob, sol)
+    prof_serial = profile(prob, sol, parallel=false)
     prof_parallel = profile(prob, sol; parallel=true)
     @test all(i -> abs((prof_parallel.confidence_intervals[i].lower - prof_serial.confidence_intervals[i].lower) / prof_serial.confidence_intervals[i].lower) < 1e-2, 1:5)
     @test all(i -> abs((prof_parallel.confidence_intervals[i].upper - prof_serial.confidence_intervals[i].upper) / prof_serial.confidence_intervals[i].upper) < 1e-2, 1:5)
@@ -867,8 +868,8 @@ end
         profile_vals = collect(noise_dat)
         other_mles = collect(other_mle_noise)
         reduced_mles = reduce(hcat, other_mles)
-        itp1 = interpolate(reduced_mles[1, :], BSpline(Cubic(Line(OnGrid()))))
-        itp2 = interpolate(reduced_mles[2, :], BSpline(Cubic(Line(OnGrid()))))
+        itp1 = interpolate(reduced_mles[1, :], Interpolations.BSpline(Cubic(Line(OnGrid()))))
+        itp2 = interpolate(reduced_mles[2, :], Interpolations.BSpline(Cubic(Line(OnGrid()))))
         spl1 = Interpolations.scale(itp1, param_vals)
         spl2 = Interpolations.scale(itp2, param_vals)
         param_vals = collect(param_vals)
@@ -888,8 +889,8 @@ end
         profile_vals = collect(noise_dat)
         other_mles = collect(other_mle_noise)
         reduced_mles = reduce(hcat, other_mles)
-        itp1 = interpolate(reverse(reduced_mles[1, :]), BSpline(Cubic(Line(OnGrid()))))
-        itp2 = interpolate(reverse(reduced_mles[2, :]), BSpline(Cubic(Line(OnGrid()))))
+        itp1 = interpolate(reverse(reduced_mles[1, :]), Interpolations.BSpline(Cubic(Line(OnGrid()))))
+        itp2 = interpolate(reverse(reduced_mles[2, :]), Interpolations.BSpline(Cubic(Line(OnGrid()))))
         spl1 = Interpolations.scale(itp1, reverse(param_vals))
         spl2 = Interpolations.scale(itp2, reverse(param_vals))
         param_vals = collect(param_vals)
@@ -960,9 +961,9 @@ end
         @time __prof = profile(prob, sol;
             alg=NLopt.LN_NELDERMEAD, parallel=false, min_steps=0, resolution=30,
             min_steps_fallback=:refine)
-       # F1 = plot_profiles(prof; show_points=true, spline=false)
-       # F2 = plot_profiles(_prof; show_points=true, spline=false)
-       # F3 = plot_profiles(__prof; show_points=true, spline=false)
+        # F1 = plot_profiles(prof; show_points=true, spline=false)
+        # F2 = plot_profiles(_prof; show_points=true, spline=false)
+        # F3 = plot_profiles(__prof; show_points=true, spline=false)
 
         prof1 = prof
         prof2 = _prof

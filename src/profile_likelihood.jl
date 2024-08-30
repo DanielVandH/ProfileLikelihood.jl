@@ -719,8 +719,8 @@ function _get_confidence_intervals_spline!(confidence_intervals, n, param_vals, 
     right_bracket = (mles[n], param_vals[end])
     left_prob = IntervalNonlinearProblem(itp_f, left_bracket)
     right_prob = IntervalNonlinearProblem(itp_f, right_bracket)
-    ℓ = solve(left_prob, Falsi()).u
-    u = solve(right_prob, Falsi()).u
+    ℓ = solve(left_prob, ITP()).u # Used to be Falsi(), but Falsi() just sometimes doesn't want to give good results anymore...
+    u = solve(right_prob, ITP()).u
     confidence_intervals[n] = ConfidenceInterval(ℓ, u, conf_level)
     return nothing
 end

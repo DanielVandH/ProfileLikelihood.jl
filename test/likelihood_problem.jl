@@ -1,6 +1,23 @@
 using ..ProfileLikelihood
 using Optimization
 using OrdinaryDiffEq
+using SymbolicIndexingInterface
+using StructEquality 
+@struct_equal SymbolCache
+@struct_equal OptimizationFunction
+
+@testset "_to_symbolcache" begin
+    sys1 = ProfileLikelihood._to_symbolcache(1:5, [2, 4, 3, 1, 5])
+    sys2 = SymbolCache(1:5, defaults = Dict(1 => 2, 2 => 4, 3 => 3, 4 => 1, 5 => 5))
+    @test sys1.variables == sys2.variables
+    @test sys1.defaults == sys2.defaults
+    sys1 = ProfileLikelihood._to_symbolcache([:a, :b, :c], [2.0, 3.4, 1.0])
+    sys2 = SymbolCache([:a, :b, :c], defaults = Dict(:a => 2.0, :b => 3.4, :c => 1.0))
+    @test sys1.variables == sys2.variables
+    @test sys1.defaults == sys2.defaults
+    sys = SymbolCache([:a, :b, :c])
+    @test ProfileLikelihood._to_symbolcache(sys, [1, 2, 3]) === sys
+end
 
 @testset "Test that we are correctly negating the likelihood" begin
     loglik = (θ, p) -> 2.0
@@ -17,19 +34,19 @@ end
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
     optf_1 = ProfileLikelihood.construct_optimisation_function(negloglik, 1:5)
-    @test optf_1 == OptimizationFunction(negloglik, SciMLBase.NoAD(); syms=1:5)
+    @test optf_1 == OptimizationFunction(negloglik, SciMLBase.NoAD(); sys=1:5)
 
     paramsym_vec = [:a, :sys]
     optf_2 = ProfileLikelihood.construct_optimisation_function(negloglik, 1:5; paramsyms=paramsym_vec)
-    @test optf_2 === OptimizationFunction(negloglik, SciMLBase.NoAD(); syms=1:5, paramsyms=paramsym_vec)
+    @test optf_2 == OptimizationFunction(negloglik, SciMLBase.NoAD(); sys=1:5, paramsyms=paramsym_vec)
 
     adtype = Optimization.AutoFiniteDiff()
     optf_3 = ProfileLikelihood.construct_optimisation_function(negloglik, 1:5; adtype=adtype, paramsyms=paramsym_vec)
-    @test optf_3 === OptimizationFunction(negloglik, adtype; syms=1:5, paramsyms=paramsym_vec)
+    @test optf_3 == OptimizationFunction(negloglik, adtype; sys=1:5, paramsyms=paramsym_vec)
 end
 
 @testset "Test the construction of the OptimizationProblem" begin
-    loglik = (θ, p) -> θ[1] * p[1] + θ[2]
+    loglik = (θ, p) -> θ[1] * p[1][1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
     θ₀ = rand(3)
     data = (rand(100), [:a, :b])
@@ -85,7 +102,7 @@ end
     @test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
     @test ProfileLikelihood.get_θ₀(prob, 1) == 5.0
     @test ProfileLikelihood.get_θ₀(prob, 2) == 2.0
-    @test ProfileLikelihood.get_syms(prob) == syms == prob.syms
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([:a, :b]; defaults = Dict(:a => 5.0, :b => 2.0)) == prob.problem.f.sys
     @test !ProfileLikelihood.has_upper_bounds(prob)
     @test !ProfileLikelihood.has_lower_bounds(prob)
     @test !ProfileLikelihood.finite_lower_bounds(prob)
@@ -99,7 +116,7 @@ end
     @test ProfileLikelihood.get_data(prob) == prob.data
     @test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
     @test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-    @test ProfileLikelihood.get_syms(prob) == syms == prob.syms
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([:a, :b]; defaults = Dict(:a => 5.0, :b => 2.0)) == prob.problem.f.sys
     @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
     @test prob.problem.lb === nothing == ProfileLikelihood.get_lower_bounds(prob)
     @test prob.problem.ub === nothing == ProfileLikelihood.get_upper_bounds(prob)
@@ -120,7 +137,7 @@ end
     @test ProfileLikelihood.get_data(prob) == data == prob.data
     @test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
     @test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-    @test ProfileLikelihood.get_syms(prob) == 1:2
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([1, 2]; defaults = Dict(1 => 5.0, 2 => 2.0)) == prob.problem.f.sys
     @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
     @test prob.problem.lb == lb == ProfileLikelihood.get_lower_bounds(prob)
     @test prob.problem.ub == ub == ProfileLikelihood.get_upper_bounds(prob)
@@ -141,7 +158,7 @@ end
     @test ProfileLikelihood.get_data(prob) == data == prob.data
     @test ProfileLikelihood.get_log_likelihood_function(prob) == loglik
     @test ProfileLikelihood.get_θ₀(prob) == θ₀ == prob.θ₀ == prob.problem.u0
-    @test ProfileLikelihood.get_syms(prob) == 1:2
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([1, 2]; defaults = Dict(1 => 5.0, 2 => 2.0)) == prob.problem.f.sys
     @test prob.problem.f.adtype isa Optimization.AutoFiniteDiff
     @test prob.problem.lb == lb == ProfileLikelihood.get_lower_bounds(prob)
     @test prob.problem.ub == ub == ProfileLikelihood.get_upper_bounds(prob)
@@ -169,7 +186,7 @@ end
     @test ProfileLikelihood.get_data(prob) == SciMLBase.NullParameters()
     @test ProfileLikelihood.get_log_likelihood_function(prob).loglik == loglik
     @test ProfileLikelihood.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
-    @test ProfileLikelihood.get_syms(prob) == [1]
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([1]; defaults = Dict(1 => 0.5)) == prob.problem.f.sys
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg == ode_alg
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.p == p
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
@@ -197,7 +214,7 @@ end
     @test ProfileLikelihood.get_data(prob) == dat
     @test ProfileLikelihood.get_log_likelihood_function(prob).loglik == loglik
     @test ProfileLikelihood.get_θ₀(prob) == u₀ == prob.θ₀ == prob.problem.u0
-    @test ProfileLikelihood.get_syms(prob) == syms
+    @test ProfileLikelihood.get_syms(prob) == SymbolCache([:u]; defaults = Dict(:u => 0.5)) == prob.problem.f.sys
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.alg ==  init(ODEProblem(f, u₀, tspan, p), ode_alg).alg
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.p == p
     @test ProfileLikelihood.get_log_likelihood_function(prob).integrator.opts.saveat.valtree == 0.25:0.25:1.0
@@ -219,10 +236,6 @@ end
     θ₀ = [5.0, 2.0]
     syms = [:a, :b]
     prob = ProfileLikelihood.LikelihoodProblem(loglik, θ₀; syms)
-    @test SciMLBase.sym_to_index(:a, prob) == 1
-    @test SciMLBase.sym_to_index(:b, prob) == 2
-    @test SciMLBase.sym_to_index(1, prob) == 1
-    @test SciMLBase.sym_to_index(5, prob) == 5
     @test prob[1] == 5.0
     @test prob[2] == 2.0
     @test prob[:a] == 5.0
@@ -230,7 +243,7 @@ end
     @test prob[[1, 2]] == [5.0, 2.0]
     @test prob[1:2] == [5.0, 2.0]
     @test prob[[:a, :b]] == [5.0, 2.0]
-    @test_throws BoundsError prob[:c]
+    @test_throws ErrorException prob[:c]
 end
 
 @testset "Test that we can replace the initial estimate" begin

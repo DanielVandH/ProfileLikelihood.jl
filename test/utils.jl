@@ -1,5 +1,6 @@
 using ..ProfileLikelihood
 using Distributions
+using ConcreteStructs
 
 @testset "number_type" begin
     x = 5.0
@@ -136,4 +137,21 @@ end
     @test ProfileLikelihood.take_val(true) == true
     @test ProfileLikelihood.take_val(Val(6)) == 6
     @test ProfileLikelihood.take_val(Val(:interp)) == :interp
+end
+
+@concrete struct FStruct2 
+    f
+    a 
+    b
+    hess 
+    grad 
+    x 
+    y 
+    z 
+    adtype 
+end
+@testset "_to_namedtuple" begin
+    obj = FStruct2(1, 2, 3, 4, 5, 6, 7, 8, 9)
+    @test ProfileLikelihood._to_namedtuple(obj) == (a = 2, b = 3, x = 6, y = 7, z = 8)
+    @inferred ProfileLikelihood._to_namedtuple(obj)
 end

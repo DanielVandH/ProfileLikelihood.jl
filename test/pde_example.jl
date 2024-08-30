@@ -20,8 +20,8 @@ T = 40.0    # final time
 mesh_points = LinRange(0, β, n)
 diffusion_function = (u, x, t, D) -> oftype(u, D[1])
 reaction_function = (u, x, t, (λ, K)) -> λ[1] * u * (1 - u / K[1])
-lhs = Neumann(0.0)
-rhs = Dirichlet(0.0)
+lhs = MovingBoundaryProblems1D.Neumann(0.0)
+rhs = MovingBoundaryProblems1D.Dirichlet(0.0)
 moving_boundary = Robin(
     (u, t, κ) -> (zero(u), oftype(u, -κ[1])),
     κ
@@ -120,7 +120,6 @@ likprob = LikelihoodProblem(
     mb_loglik, θ₀, integrator;
     syms=syms,
     data=p,
-    f_kwargs=(adtype=AutoFiniteDiff(),), # see https://github.com/SciML/Optimization.jl/issues/548
     prob_kwargs=(lb=lb, ub=ub))
 
 ## Step 4: Parameter estimation 

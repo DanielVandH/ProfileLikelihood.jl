@@ -9,9 +9,10 @@ using PolygonOps
 using DelaunayTriangulation
 using StableRNGs
 using ReferenceTests
+using SymbolicIndexingInterface
 
 ######################################################
-## Example V: Lotka-Volterra ODE
+## Example IV: Lotka-Volterra ODE
 ######################################################
 ## Step 1: Generate the data and define the likelihood
 α = 0.9
@@ -100,7 +101,11 @@ fig_path = normpath(@__DIR__, "..", "docs", "src", "figures")
 param_pairs = ((:α, :β), (:α, :a₀), (:α, :b₀),
     (:β, :a₀), (:β, :b₀),
     (:a₀, :b₀)) # Same as param_pairs = ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4))
-integer_n = ntuple(i -> (SciMLBase.sym_to_index(param_pairs[i][1], prob), SciMLBase.sym_to_index(param_pairs[i][2], prob)), 6)
+integer_n = ntuple(6) do i 
+    i1 = variable_index(prob, param_pairs[i][1])
+    i2 = variable_index(prob, param_pairs[i][2])
+    (i1, i2)
+end
 @test integer_n == ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(param_pairs, prob)
 @test ((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)) == ProfileLikelihood.convert_symbol_tuples(((1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)), prob)
 @test (1, 2) == ProfileLikelihood.convert_symbol_tuples((1, 2), prob)

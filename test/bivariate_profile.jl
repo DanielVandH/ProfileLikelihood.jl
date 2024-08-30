@@ -15,6 +15,7 @@ using Interpolations
 using PolygonOps
 using DelaunayTriangulation
 using PolygonInbounds
+using SymbolicIndexingInterface
 using StatsBase
 using InteractiveUtils
 const SAVE_FIGURE = false
@@ -675,7 +676,7 @@ for results in (results_mle, results_near, results_int, results_par, results_nea
     @test ProfileLikelihood.get_other_mles(results, :λ, :K) == results.other_mles[(1, 2)]
     @test ProfileLikelihood.get_other_mles(results, 3, 1) == results.other_mles[(3, 1)]
     @test ProfileLikelihood.get_other_mles(results, :u₀, :λ) == results.other_mles[(3, 1)]
-    @test ProfileLikelihood.get_syms(results) == [:λ, :K, :u₀]
+    @test variable_symbols(ProfileLikelihood.get_syms(results)) == [:λ, :K, :u₀]
     @test ProfileLikelihood.get_syms(results, 1, 2) == (:λ, :K)
     @test ProfileLikelihood.get_syms(results, 3, 1) == (:u₀, :λ)
     @test ProfileLikelihood.profiled_parameters(results) == [(1, 2), (3, 1)]
