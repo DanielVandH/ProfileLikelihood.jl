@@ -62,7 +62,11 @@ function linear_extrapolation!(y, x, x₀, y₀, x₁, y₁)
 end
 
 function convert_symbol_tuples(n::NTuple{M,NTuple{2,S where S<:Union{Integer,Symbol}}}, prob) where {M}
-    integer_n = ntuple(i -> (SciMLBase.sym_to_index(n[i][1], prob), SciMLBase.sym_to_index(n[i][2], prob)), M)
+    integer_n = ntuple(Val(M)) do i 
+        i1 = variable_index(prob, n[i][1])
+        i2 = variable_index(prob, n[i][2])
+        (i1, i2)
+    end
     return integer_n
 end
 function convert_symbol_tuples(n::NTuple{2,S where S<:Union{Integer,Symbol}}, prob)

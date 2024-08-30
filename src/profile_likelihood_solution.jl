@@ -51,23 +51,23 @@ end
 
 get_parameter_values(prof::ProfileLikelihoodSolution) = prof.parameter_values
 get_parameter_values(prof::ProfileLikelihoodSolution, i) = get_parameter_values(prof)[i]
-get_parameter_values(prof::ProfileLikelihoodSolution, sym::Symbol) = get_parameter_values(prof, SciMLBase.sym_to_index(sym, prof))
+get_parameter_values(prof::ProfileLikelihoodSolution, sym::Symbol) = get_parameter_values(prof, variable_index(prof, sym))
 get_profile_values(prof::ProfileLikelihoodSolution) = prof.profile_values
 get_profile_values(prof::ProfileLikelihoodSolution, i) = get_profile_values(prof)[i]
-get_profile_values(prof::ProfileLikelihoodSolution, sym::Symbol) = get_profile_values(prof, SciMLBase.sym_to_index(sym, prof))
+get_profile_values(prof::ProfileLikelihoodSolution, sym::Symbol) = get_profile_values(prof, variable_index(prof, sym))
 get_likelihood_problem(prof::ProfileLikelihoodSolution) = prof.likelihood_problem
 get_likelihood_solution(prof::ProfileLikelihoodSolution) = prof.likelihood_solution
 get_splines(prof::ProfileLikelihoodSolution) = prof.splines
 get_splines(prof::ProfileLikelihoodSolution, i) = get_splines(prof)[i]
-get_splines(prof::ProfileLikelihoodSolution, sym::Symbol) = get_splines(prof, SciMLBase.sym_to_index(sym, prof))
+get_splines(prof::ProfileLikelihoodSolution, sym::Symbol) = get_splines(prof, variable_index(prof, sym))
 get_confidence_intervals(prof::ProfileLikelihoodSolution) = prof.confidence_intervals
 get_confidence_intervals(prof::ProfileLikelihoodSolution, i) = get_confidence_intervals(prof)[i]
-get_confidence_intervals(prof::ProfileLikelihoodSolution, sym::Symbol) = get_confidence_intervals(prof, SciMLBase.sym_to_index(sym, prof))
+get_confidence_intervals(prof::ProfileLikelihoodSolution, sym::Symbol) = get_confidence_intervals(prof, variable_index(prof, sym))
 get_other_mles(prof::ProfileLikelihoodSolution) = prof.other_mles
 get_other_mles(prof::ProfileLikelihoodSolution, i) = get_other_mles(prof)[i]
-get_other_mles(prof::ProfileLikelihoodSolution, sym::Symbol) = get_other_mles(prof, SciMLBase.sym_to_index(sym, prof))
+get_other_mles(prof::ProfileLikelihoodSolution, sym::Symbol) = get_other_mles(prof, variable_index(prof, sym))
 get_syms(prof::ProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
-get_syms(prof::ProfileLikelihoodSolution, i) = get_syms(prof)[i]
+get_syms(prof::ProfileLikelihoodSolution, i) = variable_symbols(prof)[i]
 profiled_parameters(prof::ProfileLikelihoodSolution) = (sort ∘ collect ∘ keys ∘ get_confidence_intervals)(prof)::Vector{Int}
 number_of_profiled_parameters(prof::ProfileLikelihoodSolution) = length(profiled_parameters(prof))
 
@@ -75,19 +75,13 @@ struct ProfileLikelihoodSolutionView{N,PLS}
     parent::PLS
 end
 
-Base.getindex(prof::PLS, i::Integer) where {PLS<:ProfileLikelihoodSolution} = ProfileLikelihoodSolutionView{i,PLS}(prof)
-SciMLBase.sym_to_index(sym, prof::ProfileLikelihoodSolution) = SciMLBase.sym_to_index(sym, get_syms(prof))
-function Base.getindex(prof::ProfileLikelihoodSolution, sym)
-    if SciMLBase.issymbollike(sym)
-        i = SciMLBase.sym_to_index(sym, prof)
-    else
-        i = sym
-    end
-    if i === nothing
-        throw(BoundsError(prof, sym))
-    else
-        prof[i]
-    end
+SymbolicIndexingInterface.symbolic_container(prof::ProfileLikelihoodSolution) = get_likelihood_problem(prof)
+SymbolicIndexingInterface.symbolic_container(prof::ProfileLikelihoodSolutionView) = get_parent(prof) 
+function Base.getindex(prob::ProfileLikelihoodSolution, sym)
+    return ProfileLikelihoodSolutionView{variable_index(prob, sym), typeof(prob)}(prob)
+end
+function Base.getindex(prob::ProfileLikelihoodSolutionView, sym)
+    return Base.getindex(get_likelihood_problem(prob), sym)
 end
 
 get_parent(prof::ProfileLikelihoodSolutionView) = prof.parent
@@ -175,7 +169,7 @@ get_parameter_values(prof::BivariateProfileLikelihoodSolution) = prof.parameter_
 get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j) = get_parameter_values(prof)[(i, j)]
 get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j, k) = get_parameter_values(prof, i, j)[k]
 function get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j, sym::Symbol)
-    idx = SciMLBase.sym_to_index(sym, prof)
+    idx = variable_index(prof, sym)
     if idx == i
         return get_parameter_values(prof, i, j, 1)
     elseif idx == j
@@ -183,25 +177,25 @@ function get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j, sy
     end
     throw(BoundsError(get_parameter_values(prof, i, j), sym))
 end
-get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol, k::Integer) = get_parameter_values(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof), k)
-get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol, k::Symbol) = get_parameter_values(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof), k)
-get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_parameter_values(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof))
+get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol, k::Integer) = get_parameter_values(prof, variable_index(prof, sym1), variable_index(prof, sym2), k)
+get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol, k::Symbol) = get_parameter_values(prof, variable_index(prof, sym1), variable_index(prof, sym2), k)
+get_parameter_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_parameter_values(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_parameter_values(prof::BivariateProfileLikelihoodSolution, i, j, k, ℓ) = get_parameter_values(prof, i, j, k)[ℓ]
 get_profile_values(prof::BivariateProfileLikelihoodSolution) = prof.profile_values
 get_profile_values(prof::BivariateProfileLikelihoodSolution, i, j) = get_profile_values(prof)[(i, j)]
-get_profile_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_profile_values(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof))
+get_profile_values(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_profile_values(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_profile_values(prof::BivariateProfileLikelihoodSolution, i, j, k, ℓ) = get_profile_values(prof, i, j)[k, ℓ]
 get_likelihood_problem(prof::BivariateProfileLikelihoodSolution) = prof.likelihood_problem
 get_likelihood_solution(prof::BivariateProfileLikelihoodSolution) = prof.likelihood_solution
 get_interpolants(prof::BivariateProfileLikelihoodSolution) = prof.interpolants
 get_interpolants(prof::BivariateProfileLikelihoodSolution, i, j) = get_interpolants(prof)[(i, j)]
-get_interpolants(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_interpolants(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof))
+get_interpolants(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_interpolants(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_confidence_regions(prof::BivariateProfileLikelihoodSolution) = prof.confidence_regions
 get_confidence_regions(prof::BivariateProfileLikelihoodSolution, i, j) = get_confidence_regions(prof)[(i, j)]
-get_confidence_regions(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_confidence_regions(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof))
+get_confidence_regions(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_confidence_regions(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_other_mles(prof::BivariateProfileLikelihoodSolution) = prof.other_mles
 get_other_mles(prof::BivariateProfileLikelihoodSolution, i, j) = get_other_mles(prof)[(i, j)]
-get_other_mles(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_other_mles(prof, SciMLBase.sym_to_index(sym1, prof), SciMLBase.sym_to_index(sym2, prof))
+get_other_mles(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_other_mles(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_other_mles(prof::BivariateProfileLikelihoodSolution, i, j, k, ℓ) = get_other_mles(prof, i, j)[k, ℓ]
 get_syms(prof::BivariateProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
 get_syms(prof::BivariateProfileLikelihoodSolution, i, j) = (get_syms(prof)[i], get_syms(prof)[j])
@@ -228,29 +222,16 @@ function Base.getindex(prof::PLS, i::Integer, j::Integer) where {PLS<:BivariateP
         throw(BoundsError(prof, (i, j)))
     end
 end
-SciMLBase.sym_to_index(sym, prof::BivariateProfileLikelihoodSolution) = SciMLBase.sym_to_index(sym, get_syms(prof))
+SymbolicIndexingInterface.symbolic_container(prof::BivariateProfileLikelihoodSolution) = get_likelihood_problem(prof)
+SymbolicIndexingInterface.symbolic_container(prof::BivariateProfileLikelihoodSolutionView) = get_parent(prof)
 function Base.getindex(prof::BivariateProfileLikelihoodSolution, sym1, sym2)
-    if SciMLBase.issymbollike(sym1)
-        i = SciMLBase.sym_to_index(sym1, prof)
-    else
-        i = sym1
-    end
-    if SciMLBase.issymbollike(sym2)
-        j = SciMLBase.sym_to_index(sym2, prof)
-    else
-        j = sym2
-    end
-    if i === nothing
-        throw(BoundsError(prof, sym1))
-    elseif j === nothing
-        throw(BoundsError(prof, sym2))
-    else
-        prof[i, j]
-    end
+    idx1 = variable_index(prof, sym1)
+    idx2 = variable_index(prof, sym2)
+    return prof[idx1, idx2]
 end
 function Base.getindex(prof::BivariateProfileLikelihoodSolution, ij::NTuple{2})
     return prof[ij[1], ij[2]]
-end
+end  
 
 get_parent(prof::BivariateProfileLikelihoodSolutionView) = prof.parent
 get_index(::BivariateProfileLikelihoodSolutionView{N,M,PLS}) where {N,M,PLS} = (N, M)

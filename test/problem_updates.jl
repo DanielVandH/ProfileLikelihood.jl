@@ -6,7 +6,7 @@ using InvertedIndices
 using ForwardDiff
 
 @testset "Test that we can correctly update the initial estimate" begin
-    loglik = (θ, p) -> θ[1] * p[1] + θ[2]
+    loglik = (θ, p) -> θ[1] * p[1][1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
     θ₀ = rand(3)
     data = (rand(100), [:a, :b])
@@ -14,16 +14,16 @@ using ForwardDiff
     θ₁ = [0.0, 1.0, 0.0]
     new_prob = ProfileLikelihood.update_initial_estimate(prob, θ₁)
     @test new_prob.u0 == θ₁
-    sol = solve(prob, Opt(:LN_NELDERMEAD, 3))
+    sol = solve(prob, Opt(:LN_NELDERMEAD, 3), maxtime = 0.1)
     sol.u .= 1.3 # fix nan
     new_prob_2 = ProfileLikelihood.update_initial_estimate(prob, sol)
     @test new_prob_2.u0 == sol.u
     @test prob.u0 == θ₀ # check aliasing
+    @test prob.u0 === θ₀ # check aliasing
 end
 
-
 @testset "Test that we are correctly replacing the objective function" begin
-    loglik = (θ, p) -> θ[1] * p[1] + θ[2]
+    loglik = (θ, p) -> θ[1] * p[1][1] + θ[2]
     negloglik = ProfileLikelihood.negate_loglik(loglik)
     θ₀ = rand(3)
     data = (rand(100), [:a, :b])
@@ -35,7 +35,6 @@ end
     @test new_prob.f.f == new_obj
     @inferred ProfileLikelihood.ProfileLikelihood.replace_objective_function(prob, new_obj, nothing, nothing)
 end
-
 
 @testset "Test that we are correctly constructing a fixed function" begin
     loglik = (θ, p) -> θ[1] * p[1] + θ[2]

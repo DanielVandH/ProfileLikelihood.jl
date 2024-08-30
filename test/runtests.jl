@@ -6,14 +6,14 @@ using SafeTestsets
     @safetestset "Utilities" begin
         include("utils.jl")
     end
-    @safetestset "Custom Hessian" begin
-        include("custom_hessian.jl")
-    end
     @safetestset "Problem updates" begin
         include("problem_updates.jl")
     end
     @safetestset "LikelihoodProblem" begin
         include("likelihood_problem.jl")
+    end
+    @safetestset "Custom Hessian" begin
+        include("custom_hessian.jl")
     end
     @safetestset "MLE" begin
         include("mle.jl")

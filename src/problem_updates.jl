@@ -1,35 +1,19 @@
 update_initial_estimate(prob::OptimizationProblem, θ) = remake(prob; u0=θ)
 update_initial_estimate(prob::OptimizationProblem, sol::SciMLBase.OptimizationSolution) = update_initial_estimate(prob, sol.u)
 
+@generated function _to_namedtuple(obj)
+    A = (Expr(:(=), n, :(obj.$n)) for n in setdiff(fieldnames(obj), (:f, :adtype, :grad, :hess)))
+    Expr(:tuple, A...)
+end
+
 # replace obj with a new obj
-@inline function replace_objective_function(f::OF, new_f::FF, new_grad!, new_hess!) where {OF, FF}
-    # scimlbase needs to add a constructorof method for OptimizationFunction before we can just do @set with accessors.jl. 
-    # g = @set f.f = new_f
-    # return g
+@inline function replace_objective_function(f::OF, new_f::FF, new_grad!::GG, new_hess!::HH) where {OF, FF, GG, HH}
     return OptimizationFunction(
         new_f,
         f.adtype;
         grad=new_grad!,
         hess=new_hess!,
-        hv=f.hv,
-        cons=f.cons,
-        cons_j=f.cons_j,
-        cons_h=f.cons_h,
-        hess_prototype=f.hess_prototype,
-        cons_jac_prototype=f.cons_jac_prototype,
-        f.cons_hess_prototype,
-        f.syms,
-        f.paramsyms,
-        f.observed,
-        f.expr,
-        f.cons_expr,
-        f.sys,
-        f.lag_h,
-        f.lag_hess_prototype,
-        f.hess_colorvec,
-        f.cons_jac_colorvec,
-        f.cons_hess_colorvec,
-        f.lag_hess_colorvec,
+        _to_namedtuple(f)...
     )
 end
 

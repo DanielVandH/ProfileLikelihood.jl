@@ -1,6 +1,6 @@
 module ProfileLikelihoodMakieExt
 
- using ProfileLikelihood
+using ProfileLikelihood
 @static if isdefined(Base, :get_extension)
     using Makie
 else
@@ -21,7 +21,7 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikeliho
     axis_kwargs=nothing,
     show_points=false,
     markersize=9,
-    latex_names=Dict(vars .=> [L"\theta_{%$i}" for i in ProfileLikelihood.SciMLBase.sym_to_index.(vars, Ref(prof))]))
+    latex_names=Dict(vars .=> [L"\theta_{%$i}" for i in ProfileLikelihood.variable_index.((prof,), vars)]))
     num_plots = vars isa Symbol ? 1 : length(vars)
     _, _, plot_positions = ProfileLikelihood.choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
@@ -51,7 +51,7 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.BivariateProfil
     interpolation=false,
     smooth_confidence_boundary=false,
     close_contour=true,
-    latex_names=Dict(1:ProfileLikelihood.number_of_parameters(ProfileLikelihood.get_likelihood_problem(prof)) .=> ProfileLikelihood.get_syms(prof)),
+    latex_names=Dict(1:ProfileLikelihood.number_of_parameters(ProfileLikelihood.get_likelihood_problem(prof)) .=> ProfileLikelihood.variable_symbols(prof)),
     xlim_tuples=nothing,
     ylim_tuples=nothing)
     vars = ProfileLikelihood.convert_symbol_tuples(vars, prof)
@@ -120,7 +120,7 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelih
     Makie.ylims!(ax, threshold - 1, 0.1)
     if !spline
         Makie.lines!(ax, θ_vals, ℓ_vals)
-        Makie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
+        Makie.hlines!(ax, [threshold], color=:red, linestyle=:dash)
         CI_range = lower_ci .< θ_vals .< upper_ci
         shade_ci && Makie.band!(ax, θ_vals[CI_range], ℓ_vals[CI_range], repeat([threshold], count(CI_range)), color=(:blue, 0.35))
     else
@@ -128,7 +128,7 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelih
         Δθ₁ = (val_range[2] - val_range[1]) / max(length(θ_vals), 1000)
         data_vals = val_range[1]:Δθ₁:val_range[2]
         Makie.lines!(ax, data_vals, prof(data_vals))
-        Makie.hlines!(ax, [threshold], color=:red, linetype=:dashed)
+        Makie.hlines!(ax, [threshold], color=:red, linestyle=:dash)
         Δθ₂ = (upper_ci - lower_ci) / max(length(θ_vals), 1000)
         if Δθ₂ ≠ 0.0
             ci_vals = lower_ci:Δθ₂:upper_ci
@@ -136,10 +136,10 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelih
         end
     end
     if !isnothing(true_vals)
-        Makie.vlines!(ax, [true_vals], color=:black, linetype=:dashed)
+        Makie.vlines!(ax, [true_vals], color=:black, linestyle=:dash)
     end
     if !isnothing(mle_val)
-        Makie.vlines!(ax, [mle_val], color=:red, linetype=:dashed)
+        Makie.vlines!(ax, [mle_val], color=:red, linestyle=:dash)
     end
     if show_points
         Makie.scatter!(ax, θ_vals, ℓ_vals, color=:black, markersize=markersize)

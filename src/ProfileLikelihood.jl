@@ -12,6 +12,7 @@ using OffsetArrays
 using PolygonInbounds
 using Contour
 using ChunkSplitters
+using SymbolicIndexingInterface
 
 include("utils.jl")
 include("problem_updates.jl")

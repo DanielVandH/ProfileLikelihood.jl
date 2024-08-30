@@ -6,7 +6,7 @@ function Base.show(io::IO, ::MIME"text/plain", prob::T) where {T<:AbstractLikeli
         type_color, isinplace(get_problem(prob)))
     println(io,
         no_color, "θ₀: ", summary(prob.θ₀))
-    sym_param_names = get_syms(prob)
+    sym_param_names = variable_symbols(prob)
     for i in 1:number_of_parameters(prob)
         i < number_of_parameters(prob) ? println(io,
             no_color, "     $(sym_param_names[i]): $(prob[i])") : print(io,
@@ -35,7 +35,7 @@ function Base.show(io::IO, mime::MIME"text/plain", sol::T) where {T<:AbstractLik
     println(io)
     println(io,
         no_color, "Maximum likelihood estimates: ", summary(get_mle(sol)))
-    sym_param_names = get_syms(sol)
+    sym_param_names = variable_symbols(sol)
     for i in 1:number_of_parameters(sol)
         i < number_of_parameters(sol) ? println(io,
             no_color, "     $(sym_param_names[i]): $(sol[i])") : print(io,
@@ -61,7 +61,7 @@ function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:ProfileLikelih
     println(io,
         no_color, "Confidence intervals: ")
     CIs = get_confidence_intervals(prof)
-    sym_param_names = get_syms(prof)
+    sym_param_names = variable_symbols(prof)
     for i in profiled_parameters(prof)
         i ≠ last(profiled_parameters(prof)) ? println(io,
             no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))") : print(io,
@@ -71,7 +71,7 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionView{N,PLS}) where {N,PLS}
     type_color, no_color = SciMLBase.get_colorizers(io)
-    param_name = get_syms(prof)
+    param_name = variable_symbols(prof)[N]
     CIs = get_confidence_intervals(prof)
     println(io,
         type_color, "Profile likelihood",
@@ -94,7 +94,7 @@ function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:BivariateProfi
     println(io,
         no_color, "Profile info: ")
     pairs = profiled_parameters(prof)
-    sym_param_names = get_syms(prof)
+    sym_param_names = variable_symbols(prof)
     for (i, j) in pairs
         a, b, c, d = get_bounding_box(prof, i, j)
         num_layers = number_of_layers(prof, i, j)
