@@ -2261,17 +2261,6 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 deps = ["Printf"]
 uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 
-[[deps.ProfileLikelihood]]
-deps = ["ChunkSplitters", "Contour", "FunctionWrappers", "Interpolations", "InvertedIndices", "OffsetArrays", "PolygonInbounds", "PreallocationTools", "Printf", "Requires", "SciMLBase", "SimpleNonlinearSolve", "StatsFuns", "SymbolicIndexingInterface"]
-path = ".."
-uuid = "3fca794e-44fa-49a6-b6a0-8cd45572ba0a"
-version = "0.4.0"
-weakdeps = ["DelaunayTriangulation", "Makie"]
-
-    [deps.ProfileLikelihood.extensions]
-    ProfileLikelihoodDelaunayTriangulationExt = "DelaunayTriangulation"
-    ProfileLikelihoodMakieExt = "Makie"
-
 [[deps.ProgressLogging]]
 deps = ["Logging", "SHA", "UUIDs"]
 git-tree-sha1 = "80d919dee55b9c50e8d9e2da5eeafff3fe58b539"
