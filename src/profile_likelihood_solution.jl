@@ -198,7 +198,7 @@ get_other_mles(prof::BivariateProfileLikelihoodSolution, i, j) = get_other_mles(
 get_other_mles(prof::BivariateProfileLikelihoodSolution, sym1::Symbol, sym2::Symbol) = get_other_mles(prof, variable_index(prof, sym1), variable_index(prof, sym2))
 get_other_mles(prof::BivariateProfileLikelihoodSolution, i, j, k, ℓ) = get_other_mles(prof, i, j)[k, ℓ]
 get_syms(prof::BivariateProfileLikelihoodSolution) = get_syms(get_likelihood_problem(prof))
-get_syms(prof::BivariateProfileLikelihoodSolution, i, j) = (get_syms(prof)[i], get_syms(prof)[j])
+get_syms(prof::BivariateProfileLikelihoodSolution, i, j) = (sys = variable_symbols(prof)[[i,j]]; return (sys[1], sys[2]))
 profiled_parameters(prof::BivariateProfileLikelihoodSolution) = (collect ∘ keys ∘ get_confidence_regions)(prof)::Vector{NTuple{2,Int}}
 number_of_profiled_parameters(prof::BivariateProfileLikelihoodSolution) = length(profiled_parameters(prof))
 number_of_layers(prof::BivariateProfileLikelihoodSolution, i, j) = length(get_parameter_values(prof, i, j, 1)) ÷ 2
