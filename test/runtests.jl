@@ -56,4 +56,10 @@ using SafeTestsets
             include("pde_example.jl")
         end
     end
+    @safetestset "README" begin
+        include("readme.jl")
+    end
+    @safetestset "Display" begin
+        include("display.jl")
+    end
 end

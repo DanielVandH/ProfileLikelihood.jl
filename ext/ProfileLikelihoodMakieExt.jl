@@ -10,6 +10,115 @@ using Printf
 
 const ALPHABET = join('a':'z')
 
+const subscriptdict = Dict(
+    'ₐ' => 'a',
+    'ₑ' => 'e',
+    'ₕ' => 'h',
+    'ᵢ' => 'i',
+    'ⱼ' => 'j',
+    'ₖ' => 'k',
+    'ₗ' => 'ℓ',
+    'ₘ' => 'm',
+    'ₙ' => 'n',
+    'ₒ' => 'o',
+    'ₚ' => 'p',
+    'ᵣ' => 'r',
+    'ₛ' => 's',
+    'ₜ' => 't',
+    'ᵤ' => 'u',
+    'ᵥ' => 'v',
+    'ₓ' => 'x',
+    '₀' => '0',
+    '₁' => '1',
+    '₂' => '2',
+    '₃' => '3',
+    '₄' => '4',
+    '₅' => '5',
+    '₆' => '6',
+    '₇' => '7',
+    '₈' => '8',
+    '₉' => '9',
+    'ᵦ' => 'β',
+    'ᵧ' => 'γ',
+    'ᵨ' => 'ρ',
+    'ᵪ' => 'χ'
+)
+const superscriptdict = Dict(
+    'ᵃ' => 'a',
+    'ᵇ' => 'b',
+    'ᶜ' => 'c',
+    'ᵈ' => 'd',
+    'ᵉ' => 'e',
+    'ᶠ' => 'f',
+    'ᵍ' => 'g',
+    'ʰ' => 'h',
+    'ⁱ' => 'i',
+    'ʲ' => 'j',
+    'ᵏ' => 'k',
+    'ˡ' => 'ℓ',
+    'ᵐ' => 'm',
+    'ⁿ' => 'n',
+    'ᵒ' => 'o',
+    'ᵖ' => 'p',
+    'ʳ' => 'r',
+    'ˢ' => 's',
+    'ᵗ' => 't',
+    'ᵘ' => 'u',
+    'ᵛ' => 'v',
+    'ʷ' => 'w',
+    'ˣ' => 'x',
+    'ʸ' => 'y',
+    'ᶻ' => 'z',
+    '⁰' => '0',
+    '¹' => '1',
+    '²' => '2',
+    '³' => '3',
+    '⁴' => '4',
+    '⁵' => '5',
+    '⁶' => '6',
+    '⁷' => '7',
+    '⁸' => '8',
+    '⁹' => '9',
+    'ᵅ' => 'α',
+    'ᵝ' => 'β',
+    'ᵞ' => 'γ',
+    'ᵟ' => 'δ',
+    'ᵡ' => 'χ'
+)
+const subscriptregex = r"([ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ₀₁₂₃₄₅₆₇₈₉ᵦᵧᵨᵪ]+)"
+const superscriptregex = r"([ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹ᵅᵝᵞᵟᵡ]+)"
+function subscriptsub(m)
+    chars = [subscriptdict[c] for c in m]
+    joined = join(chars)
+    return "_{$joined}"
+end
+function superscriptsub(m)
+    chars = [superscriptdict[c] for c in m]
+    joined = join(chars)
+    return "^{$joined}"
+end
+function latexify(str)
+    str = replace(str, subscriptregex => subscriptsub)
+    str = replace(str, superscriptregex => superscriptsub)
+    return L"%$(str)"
+end
+
+function default_latex_names(prof, vars)
+    variable_symbols = ProfileLikelihood.variable_symbols(prof)
+    names = Dict{eltype(vars), Makie.LaTeXString}()
+    for var in vars
+        idx = ProfileLikelihood.variable_index(prof, var)
+        sym = variable_symbols[idx]
+        if sym isa Int
+            name = "θ" * subscriptnumber(sym)
+        else 
+            name = String(sym) 
+        end
+        names[var] = latexify(name)
+    end
+    return names
+end
+
 function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikelihoodSolution, vars=ProfileLikelihood.profiled_parameters(prof);
     ncol=nothing,
     nrow=nothing,
@@ -21,7 +130,9 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikeliho
     axis_kwargs=nothing,
     show_points=false,
     markersize=9,
-    latex_names=Dict(vars .=> [L"\theta_{%$i}" for i in ProfileLikelihood.variable_index.((prof,), vars)]))
+    latex_names=default_latex_names(prof, vars),
+    xlim_tuples=nothing,
+    ylim_tuples=nothing)
     num_plots = vars isa Symbol ? 1 : length(vars)
     _, _, plot_positions = ProfileLikelihood.choose_grid_layout(num_plots, ncol, nrow)
     if fig_kwargs !== nothing
@@ -33,9 +144,9 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.ProfileLikeliho
     for (ℓ, k) in itr
         i, j = plot_positions[ℓ]
         if axis_kwargs !== nothing
-            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize; axis_kwargs)
+            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ]; axis_kwargs)
         else
-            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize)
+            ProfileLikelihood.plot_profiles!(prof[k], fig, ℓ, k, i, j, spline, true_vals[k], show_mles ? ProfileLikelihood.get_likelihood_solution(prof)[k] : nothing, shade_ci, latex_names[k], show_points, markersize, isnothing(xlim_tuples) ? nothing : xlim_tuples[ℓ], isnothing(ylim_tuples) ? nothing : ylim_tuples[ℓ])
         end
     end
     return fig
@@ -51,7 +162,7 @@ function ProfileLikelihood.plot_profiles(prof::ProfileLikelihood.BivariateProfil
     interpolation=false,
     smooth_confidence_boundary=false,
     close_contour=true,
-    latex_names=Dict(1:ProfileLikelihood.number_of_parameters(ProfileLikelihood.get_likelihood_problem(prof)) .=> ProfileLikelihood.variable_symbols(prof)),
+    latex_names=default_latex_names(prof, vars),
     xlim_tuples=nothing,
     ylim_tuples=nothing)
     vars = ProfileLikelihood.convert_symbol_tuples(vars, prof)
@@ -95,7 +206,7 @@ end
 
 function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelihoodSolutionView, fig, ℓ, k, i, j,
     spline, true_vals, mle_val=nothing, shade_ci=true, param_name=L"\theta_{%$ℓ}",
-    show_points=false, markersize=9; axis_kwargs=nothing)
+    show_points=false, markersize=9, xlim_tuple = nothing, ylim_tuple = nothing; axis_kwargs=nothing)
     lower_ci, upper_ci = ProfileLikelihood.get_confidence_intervals(prof)
     θ_vals = ProfileLikelihood.get_parameter_values(prof)
     ℓ_vals = ProfileLikelihood.get_profile_values(prof)
@@ -144,6 +255,8 @@ function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.ProfileLikelih
     if show_points
         Makie.scatter!(ax, θ_vals, ℓ_vals, color=:black, markersize=markersize)
     end
+    !isnothing(xlim_tuple) && Makie.xlims!(ax, xlim_tuple[1], xlim_tuple[2])
+    !isnothing(ylim_tuple) && Makie.ylims!(ax, ylim_tuple[1], ylim_tuple[2])
     return nothing
 end
 function ProfileLikelihood.plot_profiles!(prof::ProfileLikelihood.BivariateProfileLikelihoodSolutionView, fig, ℓ, (k, r), i, j,
