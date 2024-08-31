@@ -22,7 +22,7 @@ We consider the problem
 ```math 
 y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \beta_3 x_{1i}x_{3i} + \beta_4\beta_5 x_{4i} + \varepsilon_i, \quad \varepsilon_i \sim \mathcal N(0, \sigma^2), \quad i=1,2,\ldots,n,
 ```
-and our aim is to estimate $\boldsymbol\theta = (\beta_0, \beta_1, \beta_2, \beta_3, \beta_4, \beta_5 \sigma^2)$. Notice that the parameters $\beta_4$ and $\beta_5$ appear only as a product, so there may be identifiability issues with $\beta_4\beta_5$. To start, we generate some data.
+and our aim is to estimate $\boldsymbol\theta = (\sigma, \beta_0, \beta_1, \beta_2, \beta_3, \beta_4, \beta_5)$. Notice that the parameters $\beta_4$ and $\beta_5$ appear only as a product, so there may be identifiability issues with $\beta_4\beta_5$. To start, we generate some data.
 ```julia 
 using Random, Distributions, StableRNGs
 rng = StableRNG(98871)
