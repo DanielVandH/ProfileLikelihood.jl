@@ -60,6 +60,14 @@ get_mle(sol::AbstractLikelihoodSolution) = sol.mle
 get_mle(sol::AbstractLikelihoodSolution, i) = sol.mle[i]
 get_problem(sol::AbstractLikelihoodSolution) = sol.problem
 get_optimiser(sol::AbstractLikelihoodSolution) = sol.optimiser
+function _get_optimiser(sol::AbstractLikelihoodSolution)
+    opts = get_optimiser(sol)
+    if opts isa Tuple 
+        return opts[end]
+    else
+        return opts
+    end
+end
 get_maximum(sol::AbstractLikelihoodSolution) = sol.maximum
 get_retcode(sol::AbstractLikelihoodSolution) = sol.retcode
 get_syms(sol::AbstractLikelihoodSolution) = get_syms(get_problem(sol))

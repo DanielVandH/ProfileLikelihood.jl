@@ -56,7 +56,7 @@ export construct_profile_grids
 export bivariate_profile
 export refine_profile!
 
-"""
+@doc raw"""
     plot_profiles(prof::ProfileLikelihoodSolution, vars = profiled_parameters(prof); 
         ncol=nothing, 
         nrow=nothing,
@@ -68,7 +68,9 @@ export refine_profile!
         axis_kwargs=nothing,
         show_points=false,
         markersize=9,
-        latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))])) 
+        latex_names=default_latex_names(prof, vars),
+        xlim_tuples=nothing,
+        ylim_tuples=nothing)
 
 Plot results from a profile likelihood solution `prof`. To use this function you you need to have done `using CairoMakie` (or any other Makie backend).
 
@@ -87,7 +89,9 @@ Plot results from a profile likelihood solution `prof`. To use this function you
 - `axis_kwargs=nothing`: Extra keyword arguments for `Axis` (see the Makie docs).
 - `show_points=false`: Whether to show the profile data. 
 - `markersize=9`: The marker size used for `show_points`.
-- `latex_names = Dict(vars .=> [L"\theta_{i}" for i in SciMLBase.sym_to_index.(vars, Ref(prof))]))`: LaTeX names to use for the parameters. Defaults to `θᵢ`, where `i` is the index of the parameter. 
+- `latex_names=default_latex_names(prof, vars)`: LaTeX names to use for the parameters. Defaults to the `syms` names. (There may be issues with the generated LaTeX for more esoteric names. Make an issue if needed.)
+- `xlim_tuples=nothing`: `xlims` to use for each plot. `nothing` if the `xlims` should be set automatically.
+- `ylim_tuples=nothing`: `ylims` to use for each plot. `nothing` if the `ylims` should be set automatically.
 
 # Output 
 The `Figure()` is returned.
@@ -104,9 +108,11 @@ The `Figure()` is returned.
         interpolation=false,
         smooth_confidence_boundary=false,
         close_contour=true,
-        latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))
+        latex_names=default_latex_names(prof, vars),
+        xlim_tuples=nothing,
+        ylim_tuples=nothing)
      
-Plot results from a bivariate profile likelihood solution `prof`. To use this function you you need to have done `using CairoMakie` (or any other Makie backend).
+Plot results from a bivariate profile likelihood solution `prof`. To use this function you need to have done `using CairoMakie` (or any other Makie backend).
 
 # Arguments 
 - `prof::ProfileLikelihoodSolution`: The profile likelihood solution from [`profile`](@ref).
@@ -122,7 +128,7 @@ Plot results from a bivariate profile likelihood solution `prof`. To use this fu
 - `interpolation=false`: Whether to plot the profile using the interpolant (`true`), or to use the data from `prof` directly (`false`).
 - `smooth_confidence_boundary=false`: Whether to smooth the confidence region boundary when plotting (`true`) or not (`false`). The smoothing is done with a spline.
 - `close_contour=true`: Whether to connect the last part of the confidence region boundary to the beginning (`true`) or not (`false`).
-- `latex_names=Dict(1:number_of_parameters(get_likelihood_problem(prof)) .=> get_syms(prof)))`: LaTeX names to use for the parameters. Defaults to the `syms` names.
+- `latex_names=default_latex_names(prof, vars)`: LaTeX names to use for the parameters. Defaults to the `syms` names. (There may be issues with the generated LaTeX for more esoteric names. Make an issue if needed.)
 - `xlim_tuples=nothing`: `xlims` to use for each plot. `nothing` if the `xlims` should be set automatically.
 - `ylim_tuples=nothing`: `ylims` to use for each plot. `nothing` if the `ylims` should be set automatically.
 
@@ -136,7 +142,6 @@ export plot_profiles!
 function choose_grid_layout end
 function _get_confidence_regions_delaunay! end
 function _get_confidence_regions_contour! end
-SciMLBase.sym_to_index(vars::Integer, prof::ProfileLikelihoodSolution) = vars
 
 if !isdefined(Base, :get_extension)
     using Requires

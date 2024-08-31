@@ -1,3 +1,11 @@
+function _param_name(sym_param_names, i)
+    name = sym_param_names[i]
+    if name isa Int 
+        name = "θ" * subscriptnumber(name)
+    end
+    return name
+end
+
 function Base.show(io::IO, ::MIME"text/plain", prob::T) where {T<:AbstractLikelihoodProblem}#used MIME to make θ₀ vertical not horizontal
     type_color, no_color = SciMLBase.get_colorizers(io)
     println(io,
@@ -9,8 +17,8 @@ function Base.show(io::IO, ::MIME"text/plain", prob::T) where {T<:AbstractLikeli
     sym_param_names = variable_symbols(prob)
     for i in 1:number_of_parameters(prob)
         i < number_of_parameters(prob) ? println(io,
-            no_color, "     $(sym_param_names[i]): $(prob[i])") : print(io,
-            no_color, "     $(sym_param_names[i]): $(prob[i])")
+            no_color, "     $(_param_name(sym_param_names, i)): $(prob[i])") : print(io,
+            no_color, "     $(_param_name(sym_param_names, i)): $(prob[i])")
     end
 end
 
@@ -38,8 +46,8 @@ function Base.show(io::IO, mime::MIME"text/plain", sol::T) where {T<:AbstractLik
     sym_param_names = variable_symbols(sol)
     for i in 1:number_of_parameters(sol)
         i < number_of_parameters(sol) ? println(io,
-            no_color, "     $(sym_param_names[i]): $(sol[i])") : print(io,
-            no_color, "     $(sym_param_names[i]): $(sol[i])")
+            no_color, "     $(_param_name(sym_param_names, i)): $(sol[i])") : print(io,
+            no_color, "     $(_param_name(sym_param_names, i)): $(sol[i])")
     end
 end
 
@@ -64,14 +72,14 @@ function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:ProfileLikelih
     sym_param_names = variable_symbols(prof)
     for i in profiled_parameters(prof)
         i ≠ last(profiled_parameters(prof)) ? println(io,
-            no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))") : print(io,
-            no_color, "     $(100get_level(CIs[i]))% CI for $(sym_param_names[i]): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))")
+            no_color, "     $(100get_level(CIs[i]))% CI for $(_param_name(sym_param_names, i)): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))") : print(io,
+            no_color, "     $(100get_level(CIs[i]))% CI for $(_param_name(sym_param_names, i)): ($(get_lower(CIs[i])), $(get_upper(CIs[i])))")
     end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", prof::ProfileLikelihoodSolutionView{N,PLS}) where {N,PLS}
     type_color, no_color = SciMLBase.get_colorizers(io)
-    param_name = variable_symbols(prof)[N]
+    param_name = _param_name(variable_symbols(prof), N)
     CIs = get_confidence_intervals(prof)
     println(io,
         type_color, "Profile likelihood",
@@ -100,24 +108,25 @@ function Base.show(io::IO, ::MIME"text/plain", prof::T) where {T<:BivariateProfi
         num_layers = number_of_layers(prof, i, j)
         region_level = 100get_level(get_confidence_regions(prof, i, j))
         (i, j) ≠ last(pairs) ? println(io,
-            no_color, "     ($(sym_param_names[i]), $(sym_param_names[j])): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]") : print(io,
-            no_color, "     ($(sym_param_names[i]), $(sym_param_names[j])): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]")
+            no_color, "     ($(_param_name(sym_param_names, i)), $(_param_name(sym_param_names, j))): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]") : print(io,
+            no_color, "     ($(_param_name(sym_param_names, i)), $(_param_name(sym_param_names, j))): $num_layers layers. Bbox for $(region_level)% CR: [$a, $b] × [$c, $d]")
     end
 end
 function Base.show(io::IO, ::MIME"text/plain", prof::BivariateProfileLikelihoodSolutionView{N,M,PLS}) where {N,M,PLS}
     type_color, no_color = SciMLBase.get_colorizers(io)
-    param_name = get_syms(prof)
+    syms = variable_symbols(prof)
+    param_name = (_param_name(syms, N), _param_name(syms, M))
     CR = get_confidence_regions(prof)
     println(io,
         type_color, "Bivariate profile likelihood",
         no_color, " for parameters",
-        type_color, " $param_name",
+        type_color, " ($(param_name[1]), $(param_name[2]))",
         no_color, ". MLE retcode: ",
         type_color, get_retcode(get_likelihood_solution(prof)))
     println(io,
         no_color, "MLEs: ($(get_likelihood_solution(prof)[N]), $(get_likelihood_solution(prof)[M]))")
     a, b, c, d = get_bounding_box(prof)
     print(io,
-        no_color, "$(100get_level(CR))% bounding box for $param_name: [$a, $b] × [$c, $d]")
+        no_color, "$(100get_level(CR))% bounding box for ($(param_name[1]), $(param_name[2])): [$a, $b] × [$c, $d]")
 end
 

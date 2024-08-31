@@ -1,5 +1,5 @@
 using Optimization
-using ProfileLikelihood
+using ..ProfileLikelihood
 using OptimizationOptimJL
 using ForwardDiff
 using Test

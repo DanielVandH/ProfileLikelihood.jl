@@ -1,6 +1,8 @@
 using ..ProfileLikelihood
 using Distributions
 using ConcreteStructs
+using CairoMakie
+using SymbolicIndexingInterface
 
 @testset "number_type" begin
     x = 5.0
@@ -139,19 +141,48 @@ end
     @test ProfileLikelihood.take_val(Val(:interp)) == :interp
 end
 
-@concrete struct FStruct2 
+@concrete struct FStruct2
     f
-    a 
+    a
     b
-    hess 
-    grad 
-    x 
-    y 
-    z 
-    adtype 
+    hess
+    grad
+    x
+    y
+    z
+    adtype
 end
 @testset "_to_namedtuple" begin
     obj = FStruct2(1, 2, 3, 4, 5, 6, 7, 8, 9)
-    @test ProfileLikelihood._to_namedtuple(obj) == (a = 2, b = 3, x = 6, y = 7, z = 8)
+    @test ProfileLikelihood._to_namedtuple(obj) == (a=2, b=3, x=6, y=7, z=8)
     @inferred ProfileLikelihood._to_namedtuple(obj)
+end
+
+@testset "latexify" begin
+    ext = Base.get_extension(ProfileLikelihood, :ProfileLikelihoodMakieExt)
+    @test ext.latexify("A₁B₂C₃") == L"A_{1}B_{2}C_{3}"
+    @test ext.latexify("XᵃYᵇZᶜ") == L"X^{a}Y^{b}Z^{c}"
+    @test ext.latexify("EₐᵍFₓᵥ") == L"E_{a}^{g}F_{xv}"
+    @test ext.latexify("H₀₁₂O₄₅⁶⁷") == L"H_{012}O_{45}^{67}"
+    @test ext.latexify("CompoundₓFormᵗX₁₂ⁱ") == L"Compound_{x}Form^{t}X_{12}^{i}"
+    @test ext.latexify("aₓbₓcᵦdᵘᵡe") == L"a_{x}b_{x}c_{β}d^{uχ}e"
+    @test ext.latexify("Hello World") == L"Hello World"
+    @test ext.latexify("α₁₂₃θᵧ⁶⁷") == L"α_{123}θ_{γ}^{67}"
+    @test ext.latexify("") == L""
+    @test ext.latexify("1234!@#") == L"1234!@#"
+end
+
+@testset "default_latex_names" begin
+    ext = Base.get_extension(ProfileLikelihood, :ProfileLikelihoodMakieExt)
+    prof = SymbolCache([:α, :β, :γ, :δ, :θ₁, :γ², :θ₁₂³⁴])
+    names = ext.default_latex_names(prof, [1, 2, 3])
+    @test names == Dict(1 => L"α", 2 => L"β", 3 => L"γ")
+    names = ext.default_latex_names(prof, [1, 4, 5, 7])
+    @test names == Dict(1 => L"α", 4 => L"δ", 5 => L"θ_{1}", 7 => L"θ_{12}^{34}")
+    names = ext.default_latex_names(prof, [1, 2, 3, 4, 5, 6, 7])
+    @test names == Dict(1 => L"α", 2 => L"β", 3 => L"γ", 4 => L"δ", 5 => L"θ_{1}", 6 => L"γ^{2}", 7 => L"θ_{12}^{34}")
+    names = ext.default_latex_names(prof, [:α, :β, :γ, :δ, :θ₁, :γ², :θ₁₂³⁴])
+    @test names == Dict(:α => L"α", :β => L"β", :γ => L"γ", :δ => L"δ", :θ₁ => L"θ_{1}", :γ² => L"γ^{2}", :θ₁₂³⁴ => L"θ_{12}^{34}")
+    names = ext.default_latex_names(prof, [:β, 1, :γ, 4, 5, :γ²])
+    @test names == Dict(:β => L"β", 1 => L"α", :γ => L"γ", 4 => L"δ", 5 => L"θ_{1}", :γ² => L"γ^{2}")
 end

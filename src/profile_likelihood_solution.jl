@@ -227,6 +227,8 @@ SymbolicIndexingInterface.symbolic_container(prof::BivariateProfileLikelihoodSol
 function Base.getindex(prof::BivariateProfileLikelihoodSolution, sym1, sym2)
     idx1 = variable_index(prof, sym1)
     idx2 = variable_index(prof, sym2)
+    idx1 === nothing && throw(BoundsError(prof, (idx1, idx2)))
+    idx2 === nothing && throw(BoundsError(prof, (idx1, idx2)))
     return prof[idx1, idx2]
 end
 function Base.getindex(prof::BivariateProfileLikelihoodSolution, ij::NTuple{2})

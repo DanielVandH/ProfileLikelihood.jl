@@ -1,4 +1,4 @@
-# Example IV: Lotka-Volterra ODE and computing bivarate profile likelihoods
+# Example IV: Lotka-Volterra ODE and computing bivariate profile likelihoods
 
 This example comes from the second case study of [Simpson and Maclaren (2022)](https://doi.org/10.1101/2022.12.14.520367). First, load the packages we'll be using:
 
@@ -374,6 +374,6 @@ end
 
 ```@raw html
 <figure>
-    <img src='../figures/lokta_example_bivariate_predictions.png', alt'Lotka bivarate predictions'><br>
+    <img src='../figures/lokta_example_bivariate_predictions.png', alt'Lotka bivariate predictions'><br>
 </figure>
 ```
