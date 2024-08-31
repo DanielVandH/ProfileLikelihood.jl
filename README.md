@@ -10,7 +10,7 @@ This package defines the routines required for computing maximum likelihood esti
 
 # Example Usage
 
-Here is an example of how the package can be used. See the documentation for more examples, where we show how to compute prediction intervals and bivariate profiles.
+Here is an example of how the package can be used. See the documentation for more examples, where we also show how to compute prediction intervals and bivariate profiles and how to apply these methods to differential equations.
 
 We consider the problem
 ```math 
