@@ -104,6 +104,9 @@ function latexify(str)
 end
 
 function default_latex_names(prof, vars)
+    if vars isa Symbol || vars isa String
+        vars = (vars,)
+    end
     variable_symbols = ProfileLikelihood.variable_symbols(prof)
     names = Dict{eltype(vars), Makie.LaTeXString}()
     for var in vars

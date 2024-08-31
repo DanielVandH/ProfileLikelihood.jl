@@ -38,7 +38,7 @@ end
     sol = mle(prob, (alg1,))
     @test ProfileLikelihood.get_mle(sol) == sol.mle ≈ [1.0, 1.0]
     @test ProfileLikelihood.get_problem(sol) == sol.problem == prob
-    @test ProfileLikelihood.get_optimiser(sol) == sol.optimiser[end] == NLopt.LN_NELDERMEAD
+    @test ProfileLikelihood._get_optimiser(sol) == sol.optimiser[end] == NLopt.LN_NELDERMEAD
     @test ProfileLikelihood.get_maximum(sol) == sol.maximum ≈ 3.0
     @test ProfileLikelihood.get_retcode(sol) == sol.retcode
     @test ProfileLikelihood.number_of_parameters(prob) == 2
@@ -46,7 +46,7 @@ end
     prob = LikelihoodProblem(loglik, θ₀; data=dat, syms=[:α, :β],
         f_kwargs=(adtype=Optimization.AutoFiniteDiff(),))
     sol = mle(prob, (alg1, alg2))
-    @test ProfileLikelihood.get_optimiser(sol) == sol.optimiser[end] == NLopt.LN_BOBYQA
+    @test ProfileLikelihood._get_optimiser(sol) == sol.optimiser[end] == NLopt.LN_BOBYQA
 end
 
 @testset "Check that we can index correctly" begin

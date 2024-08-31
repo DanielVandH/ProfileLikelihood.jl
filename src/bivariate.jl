@@ -42,7 +42,7 @@ For plotting, see the `plot_profiles` function (requires that you have loaded a 
 Returns a [`BivariateProfileLikelihoodSolution`](@ref).
 """
 function bivariate_profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n::NTuple{M,NTuple{2,Int}};
-    alg=get_optimiser(sol),
+    alg=_get_optimiser(sol),
     conf_level::F=0.95,
     confidence_region_method=Val(:contour),
     threshold=get_chisq_threshold(conf_level, 2),

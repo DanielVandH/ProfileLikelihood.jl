@@ -49,6 +49,7 @@ resolutions = [1200, 200, 200, 200, 200, 200, 200] # use many points for σ
 param_ranges = construct_profile_ranges(sol, prof_lb, prof_ub, resolutions)
 prof = profile(prob, sol; param_ranges, parallel=true)
 
+using CairoMakie
 fig = plot_profiles(prof,
     true_vals=[σ, β...],
     axis_kwargs=(width=200, height=200),

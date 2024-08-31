@@ -92,6 +92,7 @@ Confidence intervals:
 ```
 
 ```julia
+using CairoMakie
 fig = plot_profiles(prof,
     true_vals=[σ, β...],
     axis_kwargs=(width=200, height=200),

@@ -46,7 +46,7 @@ the results. For plotting, see the `plot_profiles` function (requires that you h
 Returns a [`ProfileLikelihoodSolution`](@ref).
 """
 function profile(prob::LikelihoodProblem, sol::LikelihoodSolution, n=1:number_of_parameters(prob);
-    alg=get_optimiser(sol),
+    alg=_get_optimiser(sol),
     conf_level::F=0.95,
     confidence_interval_method=:spline,
     threshold=get_chisq_threshold(conf_level),
