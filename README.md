@@ -8,6 +8,12 @@
 
 This package defines the routines required for computing maximum likelihood estimates and profile likelihoods. The optimisation routines are built around the [Optimization.jl](https://github.com/SciML/Optimization.jl) interface, allowing us to e.g. easily switch between algorithms, between finite differences and automatic differentiation, and it allows for constraints to be defined with ease. We allow for univariate or bivariate profiles.
 
+To install the package, do
+```julia
+using Pkg
+Pkg.add("ProfileLikelihood")
+```
+
 # Example Usage
 
 Here is an example of how the package can be used. See the documentation for more examples, where we also show how to compute prediction intervals and bivariate profiles and how to apply these methods to differential equations.
